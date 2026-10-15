@@ -3,3 +3,9 @@ target/
 out/
 target-tests/
 *.so
+vendor/
+m1/c/*.exe
+m1/c/OUT.TXT
+m1/c/CWSDPMI.EXE
+m1/rust/target/
+m1/rust/*.a

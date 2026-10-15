@@ -19,6 +19,18 @@ So: x87 with the precision control set to 53 bits reproduces the web build's f64
 
 Not yet covered: a DJGPP libm (the Linux runs used glibc's), a real 486 or 86Box speed check, and the Fudge Bog fixture replay.
 
+## Milestone 1: Rust in a DOS .EXE
+
+`m1/build.sh` builds a `no_std` Rust library for a custom COFF target (`m1/rust/dos.json`: `i486`, x87 only, `_`-prefixed names), links it with a C `main` using DJGPP, and runs the `.EXE` in headless DOSBox Staging. It prints `Hello from Rust in DOSBox` and `rust_hello returned 3.250000` (an f64 returned on the x87 stack through the C ABI).
+
+Two things the link needed, both in `tools/coff2go32.py`:
+- DJGPP's `ld` reads only `coff-go32`, and Rust emits PE-style COFF for a `*-windows-gnu`-like target. The tool adds `-(offset + 4)` to the in-place addend of every `REL32` relocation (go32's convention) and folds the PE sections (`.text$x`, `.rdata`, ...) into go32's `.text`, `.data` and `.bss`. Without the section fold, the code is placed past the loaded image and the program dies silently; without the addend fix, calls land 10 bytes into `puts`.
+- `compiler_builtins` objects are dropped from the archive (their weak externals are not understood by coff-go32), so DJGPP's libgcc and libc supply those helpers.
+
+Setup: `tools/fetch-tools.sh` downloads DJGPP (v3.4, gcc 12.2.0), DOSBox Staging 0.83.0 and CWSDPMI into `vendor/` (checksummed, not committed); `rustup component add rust-src --toolchain 1.98.0`; building uses `RUSTC_BOOTSTRAP=1` for `-Zbuild-std` and `-Zjson-target-spec` on the pinned stable toolchain. `tools/dosrun.sh` runs any `.EXE` headless and prints what it wrote to stdout (a crash dump goes to stderr and is not captured).
+
+Not yet: panics and allocation (`alloc` builds but has no allocator), the sim crates built for this target, and a real 486 timing check.
+
 ## Starter app
 
 `starter` is a title screen that hands over to the real sim and prints the draw list as text (`fizz-starter --auto --seconds 5 --level 0`, add `--x87-53` on i586). Its `Host` trait is the seam a DOS front end would fill in. Its output on i586 (53-bit) and x86_64 is byte-identical. The text view is crude: the sprite table is a placeholder, so it shows presence only.
