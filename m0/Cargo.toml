@@ -1,0 +1,8 @@
+[package]
+name = "m0"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+lf-episode-1 = { path = "../../../liminal-hq/lieutenant-fizz/episodes/episode-1/game" }

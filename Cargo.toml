@@ -1,0 +1,14 @@
+[workspace]
+members = ["m0", "starter"]
+resolver = "2"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+
+# The same code at full speed: x87 results can depend on how the optimiser spills registers.
+[profile.fast]
+inherits = "release"
+opt-level = 3
