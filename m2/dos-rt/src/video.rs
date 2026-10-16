@@ -8,11 +8,12 @@
 // comes from the sim's ambient light and point lights. The palette holds every colour at 14 brightness levels.
 
 use core::sync::atomic::{AtomicU32, Ordering};
-use lf_episode_1::state::{BOSS_HP, LEVEL_ID, PLAYER_DEAD, WON};
+use lf_episode_1::state::{BOSS_HP, LEVEL_ID};
 use lf_episode_1::{
-    enter_level, events_clear, events_len, events_ptr, game_new, instance_ptr, lights_col_ptr, lights_pos_ptr, out_ptr, render, set_view,
+    enter_level, enter_map, events_clear, events_len, events_ptr, game_new, instance_ptr, lights_col_ptr, lights_pos_ptr, out_ptr, render, set_view,
     sprite_table_ptr, state_get, step, table_len,
 };
+use lf_episode_1::mode;
 
 static SPRITES: &[u8] = include_bytes!("../../../m3/assets/sprites.bin");
 
@@ -124,7 +125,11 @@ fn sprite(i: usize) -> Option<Sprite> {
 /// sim needs to build its instances (the web shell fills the same table from its atlas).
 pub fn start(level: u32) {
     game_new();
-    goto(level);
+    if level >= MAP {
+        goto_map();
+    } else {
+        goto(level);
+    }
     set_view(f64::from(W as u32) / 32.0, f64::from(H as u32) / 32.0);
     let n = table_len(0) as usize;
     let table = unsafe { core::slice::from_raw_parts_mut(sprite_table_ptr(), n * 6) };
@@ -136,9 +141,29 @@ pub fn start(level: u32) {
 
 /// The number of levels in the sim's table.
 const TABLE_LEVELS: u32 = 16;
-/// Ticks Ben has been dead, and ticks since the level was won: the demo restarts or moves on after a pause.
-static DEAD_FOR: AtomicU32 = AtomicU32::new(0);
-static WON_FOR: AtomicU32 = AtomicU32::new(0);
+/// What the shell will do after a pause, since it has no cards yet: back to the map, or a fresh game.
+const NOTHING: u32 = 0;
+const TO_MAP: u32 = 1;
+const NEW_GAME: u32 = 2;
+static ACTION: AtomicU32 = AtomicU32::new(NOTHING);
+static ACTION_IN: AtomicU32 = AtomicU32::new(0);
+/// The level number the demo asks for to mean the overworld.
+pub const MAP: u32 = 255;
+/// The saucer is the last level; it has no goal, so leaving it goes straight back to the map.
+const SAUCER: f32 = 15.0;
+
+fn later(action: u32, ticks: u32) {
+    ACTION.store(action, Ordering::Relaxed);
+    ACTION_IN.store(ticks, Ordering::Relaxed);
+}
+
+/// A check: the scripted walk presses Jump on the map at tick 60, which enters the level Ben stands at.
+static PRESS: AtomicU32 = AtomicU32::new(0);
+
+pub fn set_press(on: bool) {
+    PRESS.store(u32::from(on), Ordering::Relaxed);
+}
+
 /// The render flags the player chose (night).
 static NIGHT: AtomicU32 = AtomicU32::new(0);
 
@@ -148,9 +173,19 @@ pub fn set_night(on: bool) {
 
 /// Enters `level` (wrapping round the table).
 pub fn goto(level: u32) {
+    later(NOTHING, 0);
     enter_level(level % TABLE_LEVELS);
-    DEAD_FOR.store(0, Ordering::Relaxed);
-    WON_FOR.store(0, Ordering::Relaxed);
+}
+
+/// Enters the overworld.
+pub fn goto_map() {
+    later(NOTHING, 0);
+    enter_map();
+}
+
+/// The sim's mode: 0 none, 1 attract, 2 map, 3 level.
+pub fn sim_mode() -> u32 {
+    mode()
 }
 
 pub fn boss_hp() -> u32 {
@@ -164,7 +199,26 @@ pub fn level() -> u32 {
 /// A scripted walk to the right with a jump now and then.
 pub fn scripted_input(tick: u32) -> u32 {
     const RIGHT: u32 = 2;
+    const UP: u32 = 4;
     const JUMP: u32 = 16;
+    if mode() == 2 {
+        if PRESS.load(Ordering::Relaxed) != 0 {
+            // Steer to the Crater Fields marker (14, 6) and press Jump on it.
+            const LEFT: u32 = 1;
+            const DOWN: u32 = 8;
+            let (x, y) = (state_get(lf_episode_1::state::PLAYER_X), state_get(lf_episode_1::state::PLAYER_Y));
+            let (dx, dy) = (14.0 - x, 6.0 - y);
+            if dx.abs() < 0.3 && dy.abs() < 0.3 {
+                return if tick % 6 < 2 { JUMP } else { 0 };
+            }
+            let mut held = 0;
+            if dx > 0.25 { held |= RIGHT } else if dx < -0.25 { held |= LEFT }
+            if dy > 0.25 { held |= UP } else if dy < -0.25 { held |= DOWN }
+            return held;
+        }
+        // On the map: east, then north, never pressing a button that would enter a level.
+        return if tick % 140 < 80 { RIGHT } else { UP };
+    }
     RIGHT | if tick % 45 < 14 { JUMP } else { 0 }
 }
 
@@ -173,16 +227,25 @@ extern "C" {
     fn snd_caption(id: u32);
 }
 
-/// Hands the sim's events to the sound driver and empties the queue. A caption event carries the caption's id in its third
-/// number (`c`), the way the web shell reads it.
+/// Reads the sim's events and empties the queue. A caption event plays its sound (its id is the third number, `c`, as
+/// the web shell reads it); the end of a level, a fall and the end of the game start a pause before the shell moves on.
 fn dispatch_events() {
     const CAPTION: f32 = 1.0;
+    const LEVEL_COMPLETE: f32 = 4.0;
+    const DIED: f32 = 5.0;
+    const GAME_OVER: f32 = 6.0;
     let n = events_len() as usize;
     if n > 0 {
         let events = unsafe { core::slice::from_raw_parts(events_ptr(), n * 6) };
         for e in events.chunks_exact(6) {
             if e[0] == CAPTION {
                 unsafe { snd_caption(e[3] as u32) };
+            } else if e[0] == LEVEL_COMPLETE {
+                later(TO_MAP, if e[1] >= SAUCER { 1 } else { 150 });
+            } else if e[0] == DIED {
+                later(TO_MAP, 70);
+            } else if e[0] == GAME_OVER {
+                later(NEW_GAME, 120);
             }
         }
     }
@@ -194,14 +257,17 @@ fn dispatch_events() {
 pub fn advance(held: u32) {
     step(held);
     dispatch_events();
-    let dead = if state_get(PLAYER_DEAD) != 0.0 { DEAD_FOR.load(Ordering::Relaxed) + 1 } else { 0 };
-    DEAD_FOR.store(dead, Ordering::Relaxed);
-    let won = if state_get(WON) != 0.0 { WON_FOR.load(Ordering::Relaxed) + 1 } else { 0 };
-    WON_FOR.store(won, Ordering::Relaxed);
-    if dead >= 100 {
-        goto(level());
-    } else if won >= 150 {
-        goto(level() + 1);
+    let action = ACTION.load(Ordering::Relaxed);
+    if action != NOTHING {
+        let left = ACTION_IN.load(Ordering::Relaxed);
+        if left > 1 {
+            ACTION_IN.store(left - 1, Ordering::Relaxed);
+        } else if action == NEW_GAME {
+            game_new();
+            goto_map();
+        } else {
+            goto_map();
+        }
     }
 }
 

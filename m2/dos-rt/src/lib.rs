@@ -194,3 +194,21 @@ pub extern "C" fn fizz_sound_data() -> *const u8 {
 pub extern "C" fn fizz_sound_len() -> usize {
     SOUND.len()
 }
+
+/// The sim's mode: 0 none, 1 attract, 2 map, 3 level.
+#[no_mangle]
+pub extern "C" fn fizz_mode() -> u32 {
+    video::sim_mode()
+}
+
+/// Back to the overworld.
+#[no_mangle]
+pub extern "C" fn fizz_goto_map() {
+    video::goto_map();
+}
+
+/// A check: make the scripted walk press Jump on the map.
+#[no_mangle]
+pub extern "C" fn fizz_press(on: c_int) {
+    video::set_press(on != 0);
+}

@@ -1,7 +1,7 @@
 /* Episode 1 on a VGA mode 13h screen, with sound.
-   usage: FIZZ [level] [ticks] [shot] [nosync] [night] [nosound] [adlib] [speaker] [soundtest]
+   usage: FIZZ [level|map] [ticks] [shot] [nosync] [night] [nosound] [adlib] [speaker] [soundtest]
    With no ticks (or 0) it is interactive: arrows or WASD move, Ctrl or Z jump, Alt or X pogo, Space or C fire,
-   PgUp and PgDn change level, R restarts it, N toggles night, M music, E effects, P pauses, Esc quits.
+   PgUp and PgDn change level, R restarts it, Backspace goes back to the map, N toggles night, M music, E effects, P pauses, Esc quits.
    With ticks it runs a scripted walk for that many ticks and, with "shot", writes FRAME.RAW (64000 bytes) and PAL.RAW
    (256 x RGB, 6-bit) at the end. "soundtest" plays a song for a few seconds headless and reports what the driver did. */
 #include <conio.h>
@@ -20,6 +20,9 @@ extern void fizz_tick(unsigned held);
 extern void fizz_goto(unsigned level);
 extern unsigned fizz_level(void);
 extern unsigned fizz_boss_hp(void);
+extern unsigned fizz_mode(void);
+extern void fizz_press(int on);
+extern void fizz_goto_map(void);
 extern void fizz_night(int on);
 extern unsigned fizz_build(float alpha);
 extern unsigned fizz_paint(unsigned char *frame, unsigned count);
@@ -74,7 +77,7 @@ static unsigned long clock560(void) {
 
 static void choose_music(void) {
   static int last_level = -2, last_boss = -2;
-  int level = (int)fizz_level(), boss = fizz_boss_hp() > 0;
+  int level = fizz_mode() == 2 ? -1 : (int)fizz_level(), boss = fizz_mode() == 3 && fizz_boss_hp() > 0;
   if (level != last_level || boss != last_boss) {
     last_level = level;
     last_boss = boss;
@@ -83,7 +86,8 @@ static void choose_music(void) {
 }
 
 int main(int argc, char **argv) {
-  unsigned level = argc > 1 ? (unsigned)atoi(argv[1]) : 0;
+  /* The first argument is a level number, or nothing or "map" for the overworld (255 to the game). */
+  unsigned level = argc > 1 && strcmp(argv[1], "map") ? (unsigned)atoi(argv[1]) : 255;
   unsigned ticks = argc > 2 ? (unsigned)atoi(argv[2]) : 0;
   int shot = 0, nosync = 0, i, paused = 0, night = 0, sound_mode = SND_AUTO, soundtest = 0, with_sound = 0, quiet = 0, bench = 0;
   unsigned t, clear = 0;
@@ -99,6 +103,7 @@ int main(int argc, char **argv) {
     if (!strcmp(argv[i], "sound")) with_sound = 1;
     if (!strcmp(argv[i], "quiet")) quiet = 1;
     if (!strcmp(argv[i], "bench")) bench = 1;
+    if (!strcmp(argv[i], "press")) fizz_press(1);
   }
   fizz_start(level, 1);
   fizz_night(night);
@@ -147,6 +152,7 @@ int main(int argc, char **argv) {
       if (kbd_pressed(SC_PGUP)) fizz_goto(fizz_level() + 15);
       if (kbd_pressed(SC_PGDN)) fizz_goto(fizz_level() + 1);
       if (kbd_pressed(SC_R)) fizz_goto(fizz_level());
+      if (kbd_pressed(SC_BACKSPACE)) fizz_goto_map();
       if (kbd_pressed(SC_N)) { night = !night; fizz_night(night); }
       if (kbd_pressed(SC_M)) snd_set_music(!snd_music_enabled());
       if (kbd_pressed(SC_E)) snd_set_fx(!snd_fx_enabled());
@@ -174,7 +180,7 @@ int main(int argc, char **argv) {
     f = fopen("PAL.RAW", "wb");
     if (f) { fwrite(pal, 1, sizeof pal, f); fclose(f); }
   }
-  printf("%u ticks, ended on level %u\n", t, fizz_level());
+  printf("%u ticks, ended in mode %u (2 map, 3 level) on level %u\n", t, fizz_mode(), fizz_level());
   if ((ticks && with_sound) || bench) printf("guest time %lu ms for %u frames\n", snd_ticks() * 1000UL / 560UL, ticks);
   if (n_frames)
     printf("per frame: build %lu us, paint %lu us (%u sprites), present %lu us; per tick: %lu us\n",

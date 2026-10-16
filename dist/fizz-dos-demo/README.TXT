@@ -3,7 +3,7 @@ LIEUTENANT FIZZ - EPISODE 1 - DOS demo (work in progress)
 
 This is the real Episode 1 simulation, written in Rust, running as a 32-bit DOS program in VGA mode 13h
 (320x200, 256 colours), with AdLib (OPL2) music and effects, or PC speaker effects if there is no AdLib. Everything is drawn from the game's own sprites. There is no
-menus yet: you start straight in a level.
+menus yet: you start on the overworld map, walk to a level marker and press Jump, Fire or Enter to go in.
 
 Run it
   1. Install DOSBox Staging (https://www.dosbox-staging.org) or DOSBox-X.
@@ -17,6 +17,7 @@ Keys
   Ctrl or Z        jump
   Alt or X         pogo stick
   Space or C       fire
+  Backspace        back to the overworld map
   PgUp / PgDn      previous / next level (0-15)
   R                restart the level
   N                night mode (darker ambient light; lamps and glowing things stand out)
@@ -28,6 +29,7 @@ Keys
 Notes
   - If it runs slowly with sound on, the OPL emulator is the cost: DOSBOX.CONF uses 'oplemu = compat' (light). Nuked is
     more exact but needs a fast machine.
-  - Dying restarts the level after a moment; finishing a level moves on to the next.
+  - Finishing a level, falling or running out of lives takes you back to the map after a moment (no cards yet).
+  - 'FIZZ.EXE map' (the default) starts on the overworld, 'FIZZ.EXE 3' starts in level 3.
   - CWSDPMI.EXE must stay next to FIZZ.EXE (it is the DOS extender). Its licence is in CWSDPMI.DOC.
   - Source and build scripts: the fizz-dos side repository.

@@ -1,3 +1,2 @@
-600 ticks, ended on level 0
-guest time 473 ms for 600 frames
-per frame: build 157 us, paint 700 us (224 sprites), present 4292083303 us; per tick: 19 us
+3000 ticks, ended in mode 3 (2 map, 3 level) on level 8
+per frame: build 430 us, paint 4357 us (518 sprites), present 43 us; per tick: 40 us
