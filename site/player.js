@@ -15,6 +15,9 @@
   var player = null;
   var ci = null;
   var muted = params.has('mute');
+  // ?opl=default or ?opl=fast loads the same game with another OPL emulator, to compare the sound; anything else is the usual bundle.
+  var opl = params.get('opl');
+  var bundle = opl === 'default' || opl === 'fast' ? 'game-' + opl + '.jsdos' : 'game.jsdos';
 
   function showMuted() {
     muteButton.textContent = muted ? 'Sound off' : 'Sound on';
@@ -31,7 +34,7 @@
     host.hidden = false;
     ci = null;
     player = window.Dos(host, {
-      url: 'game.jsdos',
+      url: bundle,
       pathPrefix: 'vendor/js-dos/emulators/',
       autoStart: true,
       kiosk: true,
