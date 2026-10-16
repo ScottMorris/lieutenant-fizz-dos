@@ -1,5 +1,8 @@
 // The start-up screen: what the machine has and whether the demo will run well on it, in the manner of Keen's own.
 //
+// (c) Copyright 2026 Liminal HQ, Scott Morris
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+//
 // The C side finds out about the hardware (video, input, sound, memory, the speed of a few trial frames) and hands over a
 // list of numbers; this draws them.
 

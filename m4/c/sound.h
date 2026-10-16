@@ -1,3 +1,9 @@
+/* Interface to the sound driver.
+ *
+ * (c) Copyright 2026 Liminal HQ, Scott Morris
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
+ */
+
 #ifndef SOUND_H
 #define SOUND_H
 /* Music and sound effects for the DOS build: an OPL2 (AdLib) player for IMF streams and a PC-speaker player for

@@ -1,6 +1,11 @@
 #!/bin/bash
 # Milestone 5: Episode 1 with sound (OPL2 music and effects, PC-speaker fallback), run headless in DOSBox with a screenshot.
+#
+# (c) Copyright 2026 Liminal HQ, Scott Morris
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+#
 # usage: m4/build.sh [level] [ticks]      (m4/build.sh --no-run only builds)
+
 set -euo pipefail
 cd "$(dirname "$0")/.."
 export PATH="$PWD/vendor/djgpp/djgpp/bin:$PATH"

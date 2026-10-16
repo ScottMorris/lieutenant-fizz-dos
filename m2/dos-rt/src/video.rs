@@ -1,5 +1,8 @@
 // Drawing for DOS: the sim's instance buffer blitted into a 320x200 8-bit frame (VGA mode 13h).
 //
+// (c) Copyright 2026 Liminal HQ, Scott Morris
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+//
 // Sprites come from `m3/assets/sprites.bin` (see m3/export-sprites.ts): the EGA colour 0..15, or 255 for transparent.
 //
 // Lighting by palette. A frame byte is `shade * 16 + colour`. While sprites are drawn the high nibble is only a

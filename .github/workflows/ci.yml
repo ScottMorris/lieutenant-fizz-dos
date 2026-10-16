@@ -1,0 +1,55 @@
+# Runs tools/check.sh: licence headers, the simulation copies against the main game, the determinism check against the web build,
+# the DOS build, the key map and the bench's frame checksums.
+#
+# (c) Copyright 2026 Liminal HQ, Scott Morris
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: experiments/fizz-dos
+    steps:
+      # The repository and the main game sit side by side, as they do on a developer's machine: the exporters, `m0` and
+      # `tools/sync-sim.sh` find the game at ../../liminal-hq/lieutenant-fizz from the repository.
+      - uses: actions/checkout@v4
+        with:
+          path: experiments/fizz-dos
+      - uses: actions/checkout@v4
+        with:
+          repository: liminal-hq/lieutenant-fizz
+          path: liminal-hq/lieutenant-fizz
+      - uses: oven-sh/setup-bun@v2
+      - name: 32-bit C libraries, zip and the flex runtime that DJGPP's tools load
+        run: sudo apt-get update && sudo apt-get install -y gcc-multilib zip libfl2
+      - name: DOS toolchain cache
+        uses: actions/cache@v4
+        with:
+          path: experiments/fizz-dos/vendor
+          key: dos-toolchain-${{ hashFiles('experiments/fizz-dos/tools/fetch-tools.sh') }}
+      - name: Build the main game's sim.wasm
+        working-directory: liminal-hq/lieutenant-fizz
+        run: |
+          rustup target add wasm32-unknown-unknown
+          bun install --frozen-lockfile
+          bun run build:wasm
+      - name: Set up this repository
+        run: tools/setup.sh --no-clone
+      - name: Check
+        run: tools/check.sh

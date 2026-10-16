@@ -1,5 +1,8 @@
 // Saving and loading progress as small files (see the C side's `save.c` for where they live).
 //
+// (c) Copyright 2026 Liminal HQ, Scott Morris
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+//
 // A save is the same progress the web build keeps: lives, score, the next extra life, Fizz, the levels cleared, where Ben stands
 // on the map and the time played. The sim takes it back through its state accessors.
 

@@ -1,3 +1,9 @@
+/* Scancodes, input bits and the key map's interface.
+ *
+ * (c) Copyright 2026 Liminal HQ, Scott Morris
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
+ */
+
 #ifndef KEYMAP_H
 #define KEYMAP_H
 /* Game input bits, as the sim reads them. */

@@ -1,3 +1,9 @@
+/* Files in the current directory: game saves and the options file.
+ *
+ * (c) Copyright 2026 Liminal HQ, Scott Morris
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
+ */
+
 #include <stdio.h>
 #include <time.h>
 #include "save.h"

@@ -1,3 +1,8 @@
+// Prints the overworld's level markers and where the player starts, to find the positions the scripted map walk steers to.
+//
+// (c) Copyright 2026 Liminal HQ, Scott Morris
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
 use lf_episode_1::world::World;
 fn main() {
     let mut w = World::new();

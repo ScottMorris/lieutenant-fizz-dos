@@ -1,3 +1,9 @@
+/* Keyboard through IRQ 1: held keys and press latches for the game and its menus.
+ *
+ * (c) Copyright 2026 Liminal HQ, Scott Morris
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
+ */
+
 /* The keyboard through IRQ 1 (interrupt 9): every make and break code from port 0x60 is recorded, so the game sees
    which keys are held, as it cannot from DOS's key buffer. */
 #include <go32.h>

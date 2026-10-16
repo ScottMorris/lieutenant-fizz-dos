@@ -1,0 +1,214 @@
+diff -ruN a/Cargo.toml b/Cargo.toml
+--- a/Cargo.toml	2026-10-05 20:55:14.000000000 -0400
++++ b/Cargo.toml	2026-10-15 20:39:15.000000000 -0400
+@@ -2,11 +2,9 @@
+ name = "lf-sim"
+ version = "0.1.0"
+ description = "Lieutenant Fizz engine core: deterministic fixed-step tile/AABB simulation, instance buffer and lights"
+-edition.workspace = true
+-authors.workspace = true
+-license.workspace = true
+-homepage.workspace = true
+-repository.workspace = true
++edition = "2021"
++license = "Apache-2.0 OR MIT"
+ publish = false
+ 
+ [dependencies]
++libm = "0.2"
+diff -ruN a/src/body.rs b/src/body.rs
+--- a/src/body.rs	2026-10-10 21:14:01.000000000 -0400
++++ b/src/body.rs	2026-10-15 20:39:31.000000000 -0400
+@@ -3,6 +3,10 @@
+ // (c) Copyright 2026 Liminal HQ, Scott Morris
+ // SPDX-License-Identifier: Apache-2.0 OR MIT
+ 
++#[allow(unused_imports)]
++use alloc::{boxed::Box, vec, vec::Vec};
++#[allow(unused_imports)]
++use crate::fmath::{FloatMath, FloatMath32};
+ use crate::platform::Platform;
+ use crate::tilemap::{slope_height, TileMap};
+ use crate::GRAVITY;
+diff -ruN a/src/events.rs b/src/events.rs
+--- a/src/events.rs	2026-10-05 22:43:12.000000000 -0400
++++ b/src/events.rs	2026-10-15 20:39:31.000000000 -0400
+@@ -5,6 +5,10 @@
+ 
+ /// A flat event: a kind code plus five numeric arguments. The shell reads these straight out
+ /// of linear memory (stride 6 floats), so there is no serialisation.
++#[allow(unused_imports)]
++use alloc::{boxed::Box, vec, vec::Vec};
++#[allow(unused_imports)]
++use crate::fmath::{FloatMath, FloatMath32};
+ #[derive(Clone, Copy, Debug, Default, PartialEq)]
+ pub struct Event {
+     pub kind: f32,
+diff -ruN a/src/fmath.rs b/src/fmath.rs
+--- a/src/fmath.rs	1969-12-31 19:00:00.000000000 -0500
++++ b/src/fmath.rs	2026-10-15 20:39:54.000000000 -0400
+@@ -0,0 +1,66 @@
++// The f64 functions `core` does not have, from the `libm` crate so every target (web, DOS) computes the same values.
++//
++// (c) Copyright 2026 Liminal HQ, Scott Morris
++// SPDX-License-Identifier: Apache-2.0 OR MIT
++
++/// Method-call syntax for the `libm` functions, so `x.floor()` reads the same with and without `std`.
++pub trait FloatMath: Sized {
++    fn floor(self) -> Self;
++    fn ceil(self) -> Self;
++    fn sqrt(self) -> Self;
++    fn sin(self) -> Self;
++    fn cos(self) -> Self;
++    fn exp(self) -> Self;
++    fn hypot(self, other: Self) -> Self;
++    fn atan2(self, x: Self) -> Self;
++    fn powi(self, n: i32) -> Self;
++    fn fract(self) -> Self;
++}
++
++impl FloatMath for f64 {
++    fn floor(self) -> f64 {
++        libm::floor(self)
++    }
++    fn ceil(self) -> f64 {
++        libm::ceil(self)
++    }
++    fn sqrt(self) -> f64 {
++        libm::sqrt(self)
++    }
++    fn sin(self) -> f64 {
++        libm::sin(self)
++    }
++    fn cos(self) -> f64 {
++        libm::cos(self)
++    }
++    fn exp(self) -> f64 {
++        libm::exp(self)
++    }
++    fn hypot(self, other: f64) -> f64 {
++        libm::hypot(self, other)
++    }
++    fn atan2(self, x: f64) -> f64 {
++        libm::atan2(self, x)
++    }
++    fn powi(self, n: i32) -> f64 {
++        libm::pow(self, f64::from(n))
++    }
++    fn fract(self) -> f64 {
++        self - libm::trunc(self)
++    }
++}
++
++/// The same for `f32`.
++pub trait FloatMath32: Sized {
++    fn sin_cos(self) -> (Self, Self);
++    fn sqrt(self) -> Self;
++}
++
++impl FloatMath32 for f32 {
++    fn sin_cos(self) -> (f32, f32) {
++        (libm::sinf(self), libm::cosf(self))
++    }
++    fn sqrt(self) -> f32 {
++        libm::sqrtf(self)
++    }
++}
+diff -ruN a/src/instance.rs b/src/instance.rs
+--- a/src/instance.rs	2026-10-05 22:43:12.000000000 -0400
++++ b/src/instance.rs	2026-10-15 20:39:31.000000000 -0400
+@@ -3,6 +3,10 @@
+ // (c) Copyright 2026 Liminal HQ, Scott Morris
+ // SPDX-License-Identifier: Apache-2.0 OR MIT
+ 
++#[allow(unused_imports)]
++use alloc::{boxed::Box, vec, vec::Vec};
++#[allow(unused_imports)]
++use crate::fmath::{FloatMath, FloatMath32};
+ use crate::STRIDE;
+ 
+ /// Atlas rectangle of a sprite (UV origin and size) plus its size in logical pixels.
+diff -ruN a/src/lib.rs b/src/lib.rs
+--- a/src/lib.rs	2026-10-07 15:53:19.000000000 -0400
++++ b/src/lib.rs	2026-10-15 20:39:11.000000000 -0400
+@@ -10,8 +10,15 @@
+ //! Y against it, moving platforms, a front-to-back instance buffer shared with the renderer,
+ //! a nearest-first light selector and a flat event queue.
+ 
++#![no_std]
++
++extern crate alloc;
++#[cfg(test)]
++extern crate std;
++
+ pub mod body;
+ pub mod events;
++pub mod fmath;
+ pub mod instance;
+ pub mod lights;
+ pub mod platform;
+diff -ruN a/src/lights.rs b/src/lights.rs
+--- a/src/lights.rs	2026-10-05 22:43:12.000000000 -0400
++++ b/src/lights.rs	2026-10-15 20:39:31.000000000 -0400
+@@ -4,6 +4,10 @@
+ // SPDX-License-Identifier: Apache-2.0 OR MIT
+ 
+ /// One point light in world space (`z` lifts it off the sprite plane for Lambert shading).
++#[allow(unused_imports)]
++use alloc::{boxed::Box, vec, vec::Vec};
++#[allow(unused_imports)]
++use crate::fmath::{FloatMath, FloatMath32};
+ #[derive(Clone, Copy, Debug, Default)]
+ pub struct Light {
+     pub x: f64,
+diff -ruN a/src/platform.rs b/src/platform.rs
+--- a/src/platform.rs	2026-10-07 15:53:19.000000000 -0400
++++ b/src/platform.rs	2026-10-15 20:39:31.000000000 -0400
+@@ -5,6 +5,10 @@
+ 
+ /// A moving platform that eases between two anchor points; riders are carried by its
+ /// per-tick delta (`dx`, `dy`).
++#[allow(unused_imports)]
++use alloc::{boxed::Box, vec, vec::Vec};
++#[allow(unused_imports)]
++use crate::fmath::{FloatMath, FloatMath32};
+ #[derive(Clone, Debug, Default)]
+ pub struct Platform {
+     pub x: f64,
+@@ -69,7 +73,7 @@
+             self.ph = self.ph.floor();
+             self.wait = self.dwell;
+         }
+-        let k = 0.5 - 0.5 * (self.ph * std::f64::consts::PI).cos();
++        let k = 0.5 - 0.5 * (self.ph * core::f64::consts::PI).cos();
+         let nx = self.ax + (self.bx - self.ax) * k;
+         let ny = self.ay + (self.by - self.ay) * k;
+         self.dx = nx - self.x;
+diff -ruN a/src/rng.rs b/src/rng.rs
+--- a/src/rng.rs	2026-10-05 22:43:12.000000000 -0400
++++ b/src/rng.rs	2026-10-15 20:39:31.000000000 -0400
+@@ -4,6 +4,10 @@
+ // SPDX-License-Identifier: Apache-2.0 OR MIT
+ 
+ /// Stateless 2D integer hash in [0, 1), used for deterministic decoration and spawn jitter.
++#[allow(unused_imports)]
++use alloc::{boxed::Box, vec, vec::Vec};
++#[allow(unused_imports)]
++use crate::fmath::{FloatMath, FloatMath32};
+ pub fn hashf(x: i32, y: i32) -> f64 {
+     let mut h = x
+         .wrapping_mul(374_761_393)
+diff -ruN a/src/tilemap.rs b/src/tilemap.rs
+--- a/src/tilemap.rs	2026-10-07 15:53:19.000000000 -0400
++++ b/src/tilemap.rs	2026-10-15 20:39:31.000000000 -0400
+@@ -4,6 +4,10 @@
+ // SPDX-License-Identifier: Apache-2.0 OR MIT
+ 
+ /// Tile solid from every side.
++#[allow(unused_imports)]
++use alloc::{boxed::Box, vec, vec::Vec};
++#[allow(unused_imports)]
++use crate::fmath::{FloatMath, FloatMath32};
+ pub const SOLID: u8 = 1;
+ /// Tile solid only when landing on it from above (one-way platform).
+ pub const ONEWAY: u8 = 2;

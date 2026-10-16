@@ -3,13 +3,6 @@
 version = 4
 
 [[package]]
-name = "fizz-starter"
-version = "0.1.0"
-dependencies = [
- "lf-episode-1",
-]
-
-[[package]]
 name = "lf-episode-1"
 version = "0.1.0"
 dependencies = [

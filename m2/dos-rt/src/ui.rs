@@ -1,5 +1,8 @@
 // Text and boxes drawn over the finished frame in full-brightness palette colours: the Fizz font, panels and word wrap.
 //
+// (c) Copyright 2026 Liminal HQ, Scott Morris
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+//
 // A frame byte here is `level * 16 + colour`; the user interface is drawn after the lighting pass, so it always uses level
 // 14 (full brightness): `FULL + colour`, with the colour an EGA index 0..15.
 

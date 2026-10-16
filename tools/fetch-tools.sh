@@ -1,11 +1,14 @@
 #!/bin/bash
 # Downloads the DOS toolchain into vendor/ (not committed): DJGPP cross-compiler, DOSBox Staging and CWSDPMI.
+#
+# (c) Copyright 2026 Liminal HQ, Scott Morris
+# SPDX-License-Identifier: Apache-2.0 OR MIT
 set -euo pipefail
 cd "$(dirname "$0")/.."
 mkdir -p vendor/dl vendor/djgpp vendor/dosbox vendor/cwsdpmi
 cd vendor/dl
-gh release download v3.4 -R andrewwutw/build-djgpp -p 'djgpp-linux64-gcc1220.tar.bz2' --skip-existing
-gh release download v0.83.0 -R dosbox-staging/dosbox-staging -p 'dosbox-staging-linux-x86_64-v0.83.0.tar.xz' --skip-existing
+[ -f djgpp-linux64-gcc1220.tar.bz2 ] || curl -sSfLO https://github.com/andrewwutw/build-djgpp/releases/download/v3.4/djgpp-linux64-gcc1220.tar.bz2
+[ -f dosbox-staging-linux-x86_64-v0.83.0.tar.xz ] || curl -sSfLO https://github.com/dosbox-staging/dosbox-staging/releases/download/v0.83.0/dosbox-staging-linux-x86_64-v0.83.0.tar.xz
 [ -f csdpmi7b.zip ] || curl -sSfLO https://www.delorie.com/pub/djgpp/current/v2misc/csdpmi7b.zip
 cat > SHA256SUMS <<'SUMS'
 8464f17017d6ab1b2bb2df4ed82357b5bf692e6e2b7fee37e315638f3d505f00  djgpp-linux64-gcc1220.tar.bz2

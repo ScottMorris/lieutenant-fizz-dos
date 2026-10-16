@@ -1,3 +1,9 @@
+/* AdLib (OPL2) music and effects and PC-speaker effects, driven by an IRQ 0 handler at 560 Hz.
+ *
+ * (c) Copyright 2026 Liminal HQ, Scott Morris
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
+ */
+
 #include <go32.h>
 #include <dpmi.h>
 #include <pc.h>

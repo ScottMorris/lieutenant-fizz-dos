@@ -1,3 +1,9 @@
+/* The determinism check as a DOS program: runs the simulation for 16 levels and prints a hash of its state every 60 ticks.
+ *
+ * (c) Copyright 2026 Liminal HQ, Scott Morris
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 extern void fizz_m0(unsigned ticks, int use53);

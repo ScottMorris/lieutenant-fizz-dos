@@ -1,5 +1,8 @@
-// Milestone 0: run the real Episode 1 simulation through the same C-ABI the web shell uses, with a fixed input
-// script, and print a hash of its state every 60 ticks, so builds can be compared line by line.
+// Runs the real Episode 1 simulation through the same C-ABI the web shell uses, with a fixed input script, and prints a hash of
+// its state every 60 ticks, so builds can be compared line by line.
+//
+// (c) Copyright 2026 Liminal HQ, Scott Morris
+// SPDX-License-Identifier: Apache-2.0 OR MIT
 //
 // usage: m0 [--x87-53]   (--x87-53 sets the x87 precision control to a 53-bit mantissa first, like an f64)
 

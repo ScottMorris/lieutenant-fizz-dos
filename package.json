@@ -1,0 +1,9 @@
+{
+  "name": "lieutenant-fizz-dos",
+  "private": true,
+  "type": "module",
+  "description": "Asset exporters for the DOS port: sprites, sound and interface data from the main game.",
+  "dependencies": {
+    "@liminal-hq/undertone": "^0.2.0"
+  }
+}

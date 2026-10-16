@@ -1,3 +1,9 @@
+/* Interface to the save and options files.
+ *
+ * (c) Copyright 2026 Liminal HQ, Scott Morris
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
+ */
+
 #ifndef SAVE_H
 #define SAVE_H
 /* Save files in the current directory: slot 0 is AUTO.SAV, slots 1 to 4 are SLOT1.SAV to SLOT4.SAV, and slot -1 is FIZZ.CFG (the options). */
