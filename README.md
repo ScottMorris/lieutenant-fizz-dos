@@ -31,6 +31,19 @@ Setup: `tools/fetch-tools.sh` downloads DJGPP (v3.4, gcc 12.2.0), DOSBox Staging
 
 Not yet: panics and allocation (`alloc` builds but has no allocator), the sim crates built for this target, and a real 486 timing check.
 
+## Milestone 2: the real sim as a DOS .EXE
+
+`m2/build.sh` builds Episode 1's simulation for the DOS target and runs the same 16 levels × 3000 ticks in headless DOSBox, printing `PASS: 800 checkpoints identical to the web build's wasm`. At the default x87 precision it fails from level 0, tick 120; `fizz_m0(ticks, 1)` sets the 53-bit precision control first.
+
+`m2/sim` and `m2/game` are patched copies of `crates/sim` and `episodes/episode-1/game` (the main repository is untouched). The whole change:
+- `#![no_std]` with `extern crate alloc` in both crate roots, plus `use alloc::{boxed::Box, vec, vec::Vec}` at the top of each module.
+- `lf_sim::fmath`: two traits (`FloatMath`, `FloatMath32`) that give `floor`, `ceil`, `sqrt`, `sin`, `cos`, `exp`, `hypot`, `atan2`, `powi`, `fract` and `sin_cos` method syntax over the `libm` crate, so call sites needed no edits beyond the `use`.
+- `std::ptr` and `std::f64::consts` to `core::`.
+
+`m2/dos-rt` is the DOS side: a global allocator over DJGPP's `malloc`, a panic handler, the 53-bit `fldcw`, and the hash run. The linked `.EXE` is 418 KB unpacked (the web build's wasm is 181 KB).
+
+The run used `libm` on DOS and Rust's own float functions on the web build, and they agree over this input; the web build would have to switch to `libm` too for that to be guaranteed.
+
 ## Starter app
 
 `starter` is a title screen that hands over to the real sim and prints the draw list as text (`fizz-starter --auto --seconds 5 --level 0`, add `--x87-53` on i586). Its `Host` trait is the seam a DOS front end would fill in. Its output on i586 (53-bit) and x86_64 is byte-identical. The text view is crude: the sprite table is a placeholder, so it shows presence only.

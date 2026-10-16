@@ -1,5 +1,6 @@
 [workspace]
 members = ["m0", "starter"]
+exclude = ["m1/rust", "m2"]
 resolver = "2"
 
 [profile.release]

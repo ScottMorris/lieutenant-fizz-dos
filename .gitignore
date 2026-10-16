@@ -9,3 +9,8 @@ m1/c/OUT.TXT
 m1/c/CWSDPMI.EXE
 m1/rust/target/
 m1/rust/*.a
+m2/target/
+m2/c/*.exe
+m2/c/OUT.TXT
+m2/c/CWSDPMI.EXE
+m2/*.a

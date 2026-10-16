@@ -1,0 +1,10 @@
+[package]
+name = "lf-sim"
+version = "0.1.0"
+description = "Lieutenant Fizz engine core: deterministic fixed-step tile/AABB simulation, instance buffer and lights"
+edition = "2021"
+license = "Apache-2.0 OR MIT"
+publish = false
+
+[dependencies]
+libm = "0.2"

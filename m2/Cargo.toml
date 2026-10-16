@@ -1,0 +1,10 @@
+[workspace]
+members = ["sim", "game", "dos-rt"]
+resolver = "2"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+debug = 0
