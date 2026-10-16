@@ -55,6 +55,19 @@ pub extern "C" fn rate_active() -> i32 {
 }
 
 #[no_mangle]
+pub extern "C" fn detail_mode() -> i32 {
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn detail_set(_mode: i32) {}
+
+#[no_mangle]
+pub extern "C" fn detail_active() -> i32 {
+    0
+}
+
+#[no_mangle]
 pub extern "C" fn snd_fx_device() -> i32 {
     1
 }
@@ -128,6 +141,7 @@ const NAMES: [&str; 10] = ["", "sim render", "", "lights", "clear", "sprites", "
 
 fn scene(name: &str, level: u32, night: bool, script: fn(u32) -> u32, frames: u32) {
     video::set_night(night);
+    video::set_low_detail(std::env::var("LOW").is_ok());
     video::start(level);
     let mut frame = vec![0u8; video::W * video::H];
     // Settle: a few ticks and one frame, so the first frame's set-up is not counted.
@@ -152,6 +166,22 @@ fn scene(name: &str, level: u32, night: bool, script: fn(u32) -> u32, frames: u3
     }
     let sum = frame.iter().fold(0u32, |h, &b| h.wrapping_mul(31).wrapping_add(u32::from(b)));
     println!("{name}: frame checksum {sum:08x}");
+    if std::env::var("HIST").is_ok() {
+        let count = video::build(1.0);
+        let inst = unsafe { std::slice::from_raw_parts(lf_episode_1::instance_ptr(), count * 20) };
+        let mut by: std::collections::HashMap<&str, (usize, f32)> = std::collections::HashMap::new();
+        for b in inst.chunks_exact(20) {
+            let n = lf_episode_1::sprites::SPRITE_NAMES.get(b[16] as usize).copied().unwrap_or("?");
+            let e = by.entry(n).or_insert((0, 0.0));
+            e.0 += 1;
+            e.1 += (b[0] * 16.0).abs() * (b[5] * 16.0).abs();
+        }
+        let mut v: Vec<_> = by.into_iter().collect();
+        v.sort_by(|a, b| b.1 .1.partial_cmp(&a.1 .1).unwrap());
+        for (n, (c, area)) in v.iter().take(14) {
+            println!("      {n:<22} {c:>4} sprites {area:>8.0} px");
+        }
+    }
     println!("{name}: {} sprites a frame, {} instructions a frame", sprites / frames as usize, total / u64::from(frames));
     for (i, a) in ACC.iter().enumerate() {
         let v = a.load(Ordering::Relaxed) / u64::from(frames);

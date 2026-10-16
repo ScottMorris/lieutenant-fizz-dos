@@ -181,6 +181,12 @@ pub extern "C" fn fizz_night(on: c_int) {
     video::set_night(on != 0);
 }
 
+/// Turns low detail (no backdrop layers) on or off.
+#[no_mangle]
+pub extern "C" fn fizz_detail(low: c_int) {
+    video::set_low_detail(low != 0);
+}
+
 /// How much health the level's boss has left (0 when there is none), so the music can change for the fight.
 #[no_mangle]
 pub extern "C" fn fizz_boss_hp() -> u32 {

@@ -37,6 +37,10 @@ extern "C" {
     fn rate_mode() -> i32;
     fn rate_set(mode: i32);
     fn rate_active() -> i32;
+    /// The detail setting (C): 0 auto, 1 high, 2 low; and whether low is in use.
+    fn detail_mode() -> i32;
+    fn detail_set(mode: i32);
+    fn detail_active() -> i32;
 }
 
 /// Effect numbers for the interface (the order of the sound data's effects): a click as the cursor moves, the menu sound
@@ -158,6 +162,7 @@ enum OptionItem {
     Effects,
     Device,
     Rate,
+    Detail,
     Night,
     Back,
 }
@@ -515,16 +520,14 @@ fn pause_tick(s: &mut Shell, edges: u32) {
     }
 }
 
-fn option_items() -> ([OptionItem; 6], usize) {
+fn option_items() -> ([OptionItem; 7], usize) {
     // The device row only makes sense with sound running and an AdLib to choose against the speaker.
     let both = unsafe { snd_have_opl() != 0 && snd_fx_device() != 0 };
+    use OptionItem::*;
     if both {
-        (
-            [OptionItem::Music, OptionItem::Effects, OptionItem::Device, OptionItem::Rate, OptionItem::Night, OptionItem::Back],
-            6,
-        )
+        ([Music, Effects, Device, Rate, Detail, Night, Back], 7)
     } else {
-        ([OptionItem::Music, OptionItem::Effects, OptionItem::Rate, OptionItem::Night, OptionItem::Back, OptionItem::Back], 5)
+        ([Music, Effects, Rate, Detail, Night, Back, Back], 6)
     }
 }
 
@@ -556,6 +559,10 @@ fn options_tick(s: &mut Shell, edges: u32, back: Back) {
             OptionItem::Rate => {
                 cue(FX_SELECT);
                 unsafe { rate_set((rate_mode() + 1) % 3) }
+            }
+            OptionItem::Detail => {
+                cue(FX_SELECT);
+                unsafe { detail_set((detail_mode() + 1) % 3) }
             }
             OptionItem::Night => {
                 cue(FX_SELECT);
@@ -875,16 +882,23 @@ fn options_screen(frame: &mut [u8], s: &Shell) {
     let (music, fx) = unsafe { (snd_music_enabled() != 0, snd_fx_enabled() != 0) };
     let device = if unsafe { snd_fx_device() } == 1 { "AdLib" } else { "PC speaker" };
     let (items, n) = option_items();
-    let mut rows: [(&str, &str); 6] = [("", ""); 6];
+    let mut rows: [(&str, &str); 7] = [("", ""); 7];
     let rate = match unsafe { (rate_mode(), rate_active()) } {
         (0, 30) => "Auto (30 Hz)",
         (0, _) => "Auto (60 Hz)",
         (1, _) => "60 Hz",
         _ => "30 Hz",
     };
+    let detail = match unsafe { (detail_mode(), detail_active()) } {
+        (0, 1) => "Auto (Low)",
+        (0, _) => "Auto (High)",
+        (1, _) => "High",
+        _ => "Low",
+    };
     for i in 0..n {
         rows[i] = match items[i] {
             OptionItem::Rate => ("Frame rate", rate),
+            OptionItem::Detail => ("Detail", detail),
             OptionItem::Music => ("Music", on(music)),
             OptionItem::Effects => ("Effects", on(fx)),
             OptionItem::Device => ("Effects play on", device),

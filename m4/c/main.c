@@ -81,6 +81,15 @@ int rate_mode(void) { return rate; }
 void rate_set(int mode) { rate = mode; if (mode) rate_now = mode == 2 ? 30 : 60; }
 int rate_active(void) { return rate_now; }
 
+/* The detail setting: auto, high or low. Low leaves out the backdrop layers (see video.rs). Auto goes low when frames cost more than
+   45 ms and back to high when low frames cost under 17 ms. */
+extern void fizz_detail(int low);
+static int detail = 0, detail_low = 0;
+int detail_mode(void) { return detail; }
+int detail_active(void) { return detail_low; }
+static void detail_apply(int low) { detail_low = low; fizz_detail(low); }
+void detail_set(int mode) { detail = mode; if (mode) detail_apply(mode == 2); }
+
 /* The game's clock in 1/560 s: the sound handler's count when it is running, else the BIOS clock. */
 static unsigned long clock560(void) {
   if (snd_mode() != SND_OFF) return snd_ticks();
@@ -154,6 +163,9 @@ int main(int argc, char **argv) {
     if (!strcmp(argv[i], "fps60")) rate_set(1);
     if (!strcmp(argv[i], "fps30")) rate_set(2);
     if (!strcmp(argv[i], "fpsauto")) rate_set(0);
+    if (!strcmp(argv[i], "lowdetail")) detail_set(2);
+    if (!strcmp(argv[i], "highdetail")) detail_set(1);
+    if (!strcmp(argv[i], "autodetail")) detail_set(0);
   }
   fizz_start(level, 1);
   fizz_night(night);
@@ -253,6 +265,11 @@ int main(int argc, char **argv) {
             /* A frame's cost against a sixtieth of a second, in percent. Between that and about 1.7 times it, 30 Hz keeps the pace
                steady; dearer than that a cap would only throw frames away, so the screen is drawn as often as it can be. */
             unsigned long pct = spent * 60 * 100 / (32UL * 560);
+            if (detail == 0) {
+              unsigned long ms = spent * 1000 / (32UL * 560); /* a frame's average cost in milliseconds */
+              if (!detail_low && ms > 45) detail_apply(1);
+              else if (detail_low && ms < 17) detail_apply(0);
+            }
             if (pct > 100 && pct <= 170) rate_now = 30;
             else if (pct > 185 || pct < 67) rate_now = 60;
             spent = 0;
@@ -274,7 +291,7 @@ int main(int argc, char **argv) {
   }
   printf("%u ticks, ended in mode %u (2 map, 3 level) on level %u\n", t, fizz_mode(), fizz_level());
   if ((ticks && with_sound) || bench) printf("guest time %lu ms for %u frames\n", snd_ticks() * 1000UL / 560UL, ticks);
-  if (n_frames) printf("%u frames drawn for %u ticks, rate in use %d Hz\n", n_frames, t, rate_now);
+  if (n_frames) printf("%u frames drawn for %u ticks, rate in use %d Hz, detail %s\n", n_frames, t, rate_now, detail_low ? "low" : "high");
   if (n_frames)
     printf("per frame: build %lu us, paint %lu us (%u sprites), present %lu us; per tick: %lu us\n",
            (unsigned long)(t_build * 1000000ULL / UCLOCKS_PER_SEC / n_frames),

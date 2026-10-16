@@ -12,3 +12,6 @@ int main(int argc, char **argv) {
 int rate_mode(void) { return 0; }
 void rate_set(int mode) { (void)mode; }
 int rate_active(void) { return 60; }
+int detail_mode(void) { return 0; }
+void detail_set(int mode) { (void)mode; }
+int detail_active(void) { return 0; }

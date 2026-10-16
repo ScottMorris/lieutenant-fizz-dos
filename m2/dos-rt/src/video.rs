@@ -162,6 +162,29 @@ pub fn set_night(on: bool) {
     NIGHT.store(u32::from(on), Ordering::Relaxed);
 }
 
+/// Low detail leaves out the backdrop layers (the sprites named `...Back`): a long way behind, and the dearest thing in a frame.
+static LOW_DETAIL: AtomicU32 = AtomicU32::new(0);
+
+pub fn set_low_detail(on: bool) {
+    LOW_DETAIL.store(u32::from(on), Ordering::Relaxed);
+}
+
+/// Whether sprite `idx` is a backdrop layer, from its name, worked out once.
+fn is_backdrop(idx: usize) -> bool {
+    static mut BACKDROP: [bool; 512] = [false; 512];
+    static mut READY: bool = false;
+    unsafe {
+        let table = &mut *core::ptr::addr_of_mut!(BACKDROP);
+        if !READY {
+            for (i, n) in lf_episode_1::sprites::SPRITE_NAMES.iter().enumerate().take(512) {
+                table[i] = n.ends_with("Back");
+            }
+            READY = true;
+        }
+        idx < 512 && table[idx]
+    }
+}
+
 pub fn night() -> bool {
     NIGHT.load(Ordering::Relaxed) != 0
 }
@@ -283,7 +306,11 @@ pub fn paint(frame: &mut [u8], count: usize) -> u32 {
     } else {
         [0, MARK_ACTOR, MARK_GLOW]
     };
+    let low = LOW_DETAIL.load(Ordering::Relaxed) != 0;
     for b in inst.chunks_exact(20) {
+        if low && is_backdrop(b[16] as usize) {
+            continue;
+        }
         blit(frame, b, cam_px, &mut tints, &marks);
     }
     mark(5);
@@ -621,8 +648,8 @@ fn shade(frame: &mut [u8], levels: &[u8; CELLS_X * CELLS_Y]) {
                 if marks == 0 {
                     // A lit pixel is its colour 0..15 with a zero high nibble, so four take their level in one add.
                     unsafe { base.add(k).write_unaligned(w + add) };
-                } else if marks != 0xe0e0_e0e0 {
-                    // (Four glowing pixels are already final.)
+                } else if marks != 0xe0e0_e0e0 && w != 0xffff_ffff {
+                    // (Four glowing pixels, or four clear ones, are already final.)
                     unsafe { base.add(k).write_unaligned(shade_word(w, add, tables)) };
                 }
             }
