@@ -22,3 +22,5 @@ m3/c/CWSDPMI.EXE
 dist/fizz-dos-demo/*.EXE
 dist/fizz-dos-demo/*.DOC
 dist/*.zip
+CWSDPMI.SWP
+*.SWP
