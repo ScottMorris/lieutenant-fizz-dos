@@ -1,6 +1,6 @@
-# fizz-dos
+# Milestones
 
-A local side repository for exploring a DOS port of Lieutenant Fizz Episode 1 (Rust, a 1.44 MB floppy, DOSBox). It depends on the main repository by path (`../../liminal-hq/lieutenant-fizz`) and changes nothing in it.
+The port was built in stages, each in its own folder and each with a check that still runs. This page records what each stage established; `ARCHITECTURE.md` describes the result and `STATUS.md` what is left.
 
 ## Milestone 0: does the sim survive 32-bit x87 floating point?
 
@@ -17,8 +17,6 @@ The whole `lf-sim` (35) and `lf-episode-1` (205, including the playtest bot that
 
 So: x87 with the precision control set to 53 bits reproduces the web build's f64 simulation exactly here; left at the 64-bit default it drifts within two seconds. A DOS start-up must run `fldcw` before the first tick.
 
-Not yet covered: a DJGPP libm (the Linux runs used glibc's), a real 486 or 86Box speed check, and the Fudge Bog fixture replay.
-
 ## Milestone 1: Rust in a DOS .EXE
 
 `m1/build.sh` builds a `no_std` Rust library for a custom COFF target (`m1/rust/dos.json`: `i486`, x87 only, `_`-prefixed names), links it with a C `main` using DJGPP, and runs the `.EXE` in headless DOSBox Staging. It prints `Hello from Rust in DOSBox` and `rust_hello returned 3.250000` (an f64 returned on the x87 stack through the C ABI).
@@ -28,8 +26,6 @@ Two things the link needed, both in `tools/coff2go32.py`:
 - `compiler_builtins` objects are dropped from the archive (their weak externals are not understood by coff-go32), so DJGPP's libgcc and libc supply those helpers.
 
 Setup: `tools/fetch-tools.sh` downloads DJGPP (v3.4, gcc 12.2.0), DOSBox Staging 0.83.0 and CWSDPMI into `vendor/` (checksummed, not committed); `rustup component add rust-src --toolchain 1.98.0`; building uses `RUSTC_BOOTSTRAP=1` for `-Zbuild-std` and `-Zjson-target-spec` on the pinned stable toolchain. `tools/dosrun.sh` runs any `.EXE` headless and prints what it wrote to stdout (a crash dump goes to stderr and is not captured).
-
-Not yet: panics and allocation (`alloc` builds but has no allocator), the sim crates built for this target, and a real 486 timing check.
 
 ## Milestone 2: the real sim as a DOS .EXE
 
@@ -46,32 +42,12 @@ The run used `libm` on DOS and Rust's own float functions on the web build, and 
 
 ## Milestone 3: a VGA mode 13h screen
 
-`m3/build.sh [level] [ticks]` builds the DOS `.EXE`, runs it headless in DOSBox with a scripted walk, writes the last frame and palette from the DOS side, and converts them to `out/level<N>.png` (scaled 3×). Running `FIZZ.EXE <level> <ticks>` in a real DOSBox window shows it live (Esc quits; `ticks` 0 runs until Esc).
-
-- **Screen:** `m3/c/vga.c` sets mode 13h through `INT 10h`, programs the DAC (EGA colours in slots 1–16, the level's clear colour in 17), waits for retrace and copies a 64,000-byte frame to `0xA0000` through DJGPP near pointers.
-- **Sprites:** `m3/export-sprites.ts` writes the 253 sprites the sim draws, in its own id order, as 8-bit indexed images (`m3/assets/sprites.bin`, 88.8 KB raw). The Rust side fills the sim's sprite table with those sizes, so the sim builds the same instance buffer the web renderer draws.
-- **Blitter:** `m2/dos-rt/src/video.rs` walks the instance buffer and, for each sprite, maps screen pixels back through the instance's 2×2 matrix (so flip, scale and rotation work), and reads the sprite's pixel. Tints are mapped to the nearest EGA colour. The view is 20 × 12.5 tiles (the web build shows about 13 tall).
-
-Lighting is in (see milestone 4). Not yet: alpha below 1 (those sprites are skipped), real keyboard input and 60 Hz timing (it follows the VGA's 70 Hz retrace), Mode X scrolling, and any speed work for a 486 (the blitter does float maths per pixel).
+`m3/export-sprites.ts` writes the 253 sprites the simulation draws, in its own id order, as 8-bit indexed images (`m3/assets/sprites.bin`, 88.8 KB raw). The Rust side fills the simulation's sprite table with those sizes, so the simulation builds the same instance buffer the web renderer draws, and the DOS side blits it into a 320 × 200 frame that `m4/c/vga.c` copies to `0xA0000` in mode 13h after the retrace. The view is 20 × 12.5 tiles; the web build shows about 13 tall.
 
 ## Milestone 4: lighting by palette
 
-A VGA palette has 256 entries, so the demo uses them as 16 EGA colours × 14 brightness levels (`byte = level * 16 + colour`; slot 255 is the level's clear colour). While sprites are drawn the high nibble is a marker (lit, actor, glowing); a last pass turns it into the brightness of the 8×8-pixel cell the pixel is in. The cell's light is the sim's ambient light, its sun and its point lights worked out as the web shader does for a sprite facing the screen, with the three colour channels folded into one brightness (the palette can only dim a colour, not tint it). Each light visits only the cells it reaches, the brightness is kept in quarter-levels, and a 2×2 ordered dither picks the level above or below per pixel, so the 14 levels show no bands or blocks. Glowing sprites (lava, pickups) skip the lighting and characters never go below about 0.62, as in the web shader. `N` toggles night mode, where the sim's darker ambient light lets the lamps and crystals do the work.
+A VGA palette has 256 entries, so the port uses them as 16 EGA colours × 14 brightness levels (`byte = level * 16 + colour`; slot 255 is the level's clear colour). While sprites are drawn the high nibble is a marker (lit, actor, glowing); a last pass turns it into the brightness of the 8 × 8-pixel cell the pixel is in. The cell's light is the simulation's ambient light, its sun and its point lights worked out as the web shader does for a sprite facing the screen, with the three colour channels folded into one brightness (the palette can only dim a colour, not tint it). Brightness is kept in quarter-levels and a 2 × 2 ordered dither picks the level above or below per pixel, so the 14 levels show no bands. Glowing sprites skip the lighting and characters never go below about 0.62, as in the web shader. See `ARCHITECTURE.md` → The frame.
 
-Costs, in headless DOSBox on a fast machine: level 0 draws in about 3.3 ms a frame and a lit cave in about 5.5 ms, against 12 ms before the blitter was rewritten.
+## Milestone 5: the playable game
 
-## Starter app
-
-`starter` is a title screen that hands over to the real sim and prints the draw list as text (`fizz-starter --auto --seconds 5 --level 0`, add `--x87-53` on i586). Its `Host` trait is the seam a DOS front end would fill in. Its output on i586 (53-bit) and x86_64 is byte-identical. The text view is crude: the sprite table is a placeholder, so it shows presence only.
-
-## Running it
-
-```
-cargo build --release                      # x86_64
-cargo build --release --target i586-unknown-linux-gnu
-bun m0/hash.ts > out/wasm.txt; ./target/release/m0 > out/x86_64.txt
-./target/i586-unknown-linux-gnu/release/m0 --x87-53 > out/i586-53.txt
-diff out/wasm.txt out/i586-53.txt && echo identical
-```
-
-Needs `rustup target add i586-unknown-linux-gnu` and 32-bit glibc (`lib32-glibc`, `lib32-gcc-libs` on Arch). Tests on x87: `CARGO_TARGET_DIR=$PWD/target-tests cargo test --target i586-unknown-linux-gnu --no-run` in the main repo, then run the binaries with `LD_PRELOAD=$PWD/tools/fpu53.so`.
+`m4/` holds the playable build: keyboard and 60 Hz timing, the shell (title, menus, saves, HUD, cards, dialogue), AdLib and PC-speaker sound, and the start-up system check. `m5/bench` counts instructions per frame natively for speed work. `STATUS.md` lists what plays, what is missing and what has been measured.
