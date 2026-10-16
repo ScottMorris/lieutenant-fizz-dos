@@ -1,0 +1,26 @@
+Lieutenant Fizz for DOS
+(c) Copyright 2026 Liminal HQ, Scott Morris
+Licensed under Apache-2.0 OR MIT (LICENSE-APACHE, LICENSE-MIT).
+
+The simulation in m2/sim and m2/game, and the sprites, sounds, font glyphs and strings
+exported into m3/assets, m4/assets and m2/dos-rt/src/ui_data.rs, come from
+liminal-hq/lieutenant-fizz (Apache-2.0 OR MIT).
+
+Third-party material shipped beside the game or linked into it:
+
+CWSDPMI (dist/fizz-dos-demo/CWSDPMI.EXE, with its notes in CWSDPMI.DOC)
+  A DOS protected-mode extender, Copyright (C) 1995-2010 Charles W Sandmann. Its binary
+  distribution may be redistributed unmodified, with CWSDPMI.DOC, under the terms in that file.
+  FIZZ.EXE needs it beside it to start.
+
+DJGPP (linked into FIZZ.EXE)
+  The cross-compiler and its C library and runtime come from https://www.delorie.com/djgpp/ and
+  are downloaded by tools/fetch-tools.sh into vendor/, which is not committed. Their licence
+  terms are in the DJGPP distribution.
+
+DOSBox Staging (used to run the game headless in tools/dosrun.sh; not distributed here)
+  GPL-2.0-or-later. https://www.dosbox-staging.org
+
+js-dos (site/vendor/js-dos, which runs the game in a browser)
+  GPL-2.0, with its licence and provenance beside it. It is served as a separate program next
+  to the page and the game bundle; it does not change the licence of the game's own code.
