@@ -41,6 +41,8 @@ extern "C" {
     fn detail_mode() -> i32;
     fn detail_set(mode: i32);
     fn detail_active() -> i32;
+    /// Writes the options to FIZZ.CFG (C), given the night setting that the game keeps.
+    fn settings_save(night: i32);
 }
 
 /// Effect numbers for the interface (the order of the sound data's effects): a click as the cursor moves, the menu sound
@@ -542,6 +544,20 @@ fn options_tick(s: &mut Shell, edges: u32, back: Back) {
         Pick::Back => leave(s),
         Pick::Chosen | Pick::Left | Pick::Right => match items[s.cursor] {
             OptionItem::Back => leave(s),
+            item => {
+                change_option(item);
+                // Every change is kept, so the next run starts the way this one was left.
+                unsafe { settings_save(i32::from(night_flag())) }
+            }
+        },
+        Pick::Nothing => {}
+    }
+}
+
+/// Applies one press on an option row.
+fn change_option(item: OptionItem) {
+    match item {
+        OptionItem::Back => {}
             OptionItem::Music => {
                 cue(FX_SELECT);
                 unsafe { snd_set_music(i32::from(snd_music_enabled() == 0)) }
@@ -568,8 +584,6 @@ fn options_tick(s: &mut Shell, edges: u32, back: Back) {
                 cue(FX_SELECT);
                 crate::video::set_night(!night_flag());
             }
-        },
-        Pick::Nothing => {}
     }
 }
 

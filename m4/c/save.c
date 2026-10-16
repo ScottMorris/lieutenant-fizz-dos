@@ -3,7 +3,8 @@
 #include "save.h"
 
 static void name_of(int slot, char name[16]) {
-  if (slot <= 0) sprintf(name, "AUTO.SAV");
+  if (slot < 0) sprintf(name, "FIZZ.CFG");
+  else if (slot == 0) sprintf(name, "AUTO.SAV");
   else sprintf(name, "SLOT%d.SAV", slot);
 }
 

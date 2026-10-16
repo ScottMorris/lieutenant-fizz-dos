@@ -32,6 +32,7 @@ Keys
 
 Notes
   - Saves are small files next to FIZZ.EXE: AUTO.SAV (written every time you reach the map) and SLOT1.SAV to SLOT4.SAV (Pause, Save game).
+  - Options (music, effects, frame rate, detail, night, and the sound you chose at start-up) are kept in FIZZ.CFG, apart from the saves. Delete it to start fresh.
   - Options (title or pause menu) switch music, effects and night, and choose whether effects play on the AdLib or the PC speaker.
   - The boss fight now starts with its dialogue: Enter finishes a line and moves on.
   - If it runs slowly with sound on, the OPL emulator is the cost: DOSBOX.CONF uses 'oplemu = compat' (light). Nuked is

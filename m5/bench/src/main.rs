@@ -68,6 +68,9 @@ pub extern "C" fn detail_active() -> i32 {
 }
 
 #[no_mangle]
+pub extern "C" fn settings_save(_night: i32) {}
+
+#[no_mangle]
 pub extern "C" fn snd_fx_device() -> i32 {
     1
 }

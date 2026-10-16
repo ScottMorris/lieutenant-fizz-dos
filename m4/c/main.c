@@ -13,6 +13,7 @@
 #include "compat.h"
 #include "kbd.h"
 #include "keymap.h"
+#include "save.h"
 #include "sound.h"
 #include "vga.h"
 
@@ -90,6 +91,39 @@ int detail_active(void) { return detail_low; }
 static void detail_apply(int low) { detail_low = low; fizz_detail(low); }
 void detail_set(int mode) { detail = mode; if (mode) detail_apply(mode == 2); }
 
+/* The options, kept in FIZZ.CFG beside the game: twelve bytes, "FZC", a version, then music, effects, the effects' device, frame rate,
+   detail, night, the sound choice and a spare. The options screen saves after each change; the start-up screen saves the sound
+   choice. Arguments on the command line override what was kept, for that run. */
+static int sound_pref = SND_AUTO, night_pref = 0, music_pref = 1, fx_pref = 1, dev_pref = 0;
+
+static void settings_load(void) {
+  unsigned char b[12];
+  if (save_read(-1, b, 12) != 12 || b[0] != 'F' || b[1] != 'Z' || b[2] != 'C' || b[3] != 1) return;
+  music_pref = b[4] != 0;
+  fx_pref = b[5] != 0;
+  dev_pref = b[6];
+  rate = b[7] > 2 ? 0 : b[7];
+  detail = b[8] > 2 ? 0 : b[8];
+  night_pref = b[9] != 0;
+  sound_pref = b[10] > SND_MIXED ? SND_AUTO : b[10];
+  if (rate) rate_now = rate == 2 ? 30 : 60;
+  if (detail) detail_low = detail == 2;
+}
+
+/* Called by the options screen with the night setting, which lives in the game. */
+void settings_save(int night) {
+  unsigned char b[12] = {'F', 'Z', 'C', 1};
+  night_pref = night;
+  b[4] = (unsigned char)snd_music_enabled();
+  b[5] = (unsigned char)snd_fx_enabled();
+  b[6] = (unsigned char)(snd_fx_device() ? snd_fx_device() : dev_pref); /* with the sound off there is no device to read */
+  b[7] = (unsigned char)rate;
+  b[8] = (unsigned char)detail;
+  b[9] = (unsigned char)night;
+  b[10] = (unsigned char)sound_pref;
+  save_write(-1, b, 12);
+}
+
 /* The game's clock in 1/560 s: the sound handler's count when it is running, else the BIOS clock. */
 static unsigned long clock560(void) {
   if (snd_mode() != SND_OFF) return snd_ticks();
@@ -132,11 +166,14 @@ int main(int argc, char **argv) {
   /* The first argument is a level number, or "map" for the overworld (254 to the game), or nothing for the title (255). */
   unsigned level = argc < 2 ? 255 : !strcmp(argv[1], "map") ? 254 : (unsigned)atoi(argv[1]);
   unsigned ticks = argc > 2 ? (unsigned)atoi(argv[2]) : 0;
-  int shot = 0, nosync = 0, i, paused = 0, night = 0, sound_mode = SND_AUTO, soundtest = 0, with_sound = 0, quiet = 0, bench = 0, preview = 1, previewshot = 0, screen = 0;
+  int shot = 0, nosync = 0, i, paused = 0, night = 0, sound_mode = SND_AUTO, soundtest = 0, with_sound = 0, quiet = 0, bench = 0, preview = 1, previewshot = 0, screen = 0, savecfg = 0;
   int probe[C_COUNT];
   char cpu[16];
   unsigned t, clear = 0;
   unsigned char pal[768];
+  settings_load();
+  sound_mode = sound_pref;
+  night = night_pref;
   for (i = 3; i < argc; i++) {
     if (!strcmp(argv[i], "shot")) shot = 1;
     if (!strcmp(argv[i], "nosync")) nosync = 1;
@@ -166,7 +203,9 @@ int main(int argc, char **argv) {
     if (!strcmp(argv[i], "lowdetail")) detail_set(2);
     if (!strcmp(argv[i], "highdetail")) detail_set(1);
     if (!strcmp(argv[i], "autodetail")) detail_set(0);
+    if (!strcmp(argv[i], "savecfg")) savecfg = 1;
   }
+  if (savecfg) { settings_save(night); printf("saved FIZZ.CFG\n"); return 0; }
   fizz_start(level, 1);
   fizz_night(night);
   if (screen) fizz_show(screen);
@@ -205,7 +244,7 @@ int main(int argc, char **argv) {
       vga_vsync();
       vga_present(frame);
       if (previewshot) break;
-      if (kbd_pressed(SC_ENTER) || kbd_pressed(SC_SPACE)) break;
+      if (kbd_pressed(SC_ENTER) || kbd_pressed(SC_SPACE)) { sound_pref = sound_mode; settings_save(night); break; }
       if (kbd_pressed(SC_ESC)) { vga_close(); kbd_remove(); return 0; }
       if (kbd_pressed(SC_A)) sound_mode = SND_ADLIB;
       if (kbd_pressed(SC_M)) sound_mode = SND_MIXED;
@@ -214,7 +253,12 @@ int main(int argc, char **argv) {
     }
   }
   if (!previewshot && (ticks == 0 || with_sound)) {
-    if (sound_mode != SND_OFF) snd_init(fizz_sound_data(), fizz_sound_len(), sound_mode);
+    if (sound_mode != SND_OFF) {
+      snd_init(fizz_sound_data(), fizz_sound_len(), sound_mode);
+      snd_set_music(music_pref);
+      snd_set_fx(fx_pref);
+      if (dev_pref) snd_set_fx_device(dev_pref);
+    }
     if ((ticks || bench) && !quiet) snd_music(0);
   }
 
