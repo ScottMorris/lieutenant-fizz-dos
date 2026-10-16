@@ -9,3 +9,4 @@ crate-type = ["staticlib"]
 
 [dependencies]
 lf-episode-1 = { path = "../game" }
+lf-sim = { path = "../sim" }

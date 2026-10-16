@@ -169,3 +169,9 @@ pub extern "C" fn fizz_paint(frame: *mut u8, count: u32) -> u32 {
     let frame = unsafe { core::slice::from_raw_parts_mut(frame, video::W * video::H) };
     video::paint(frame, count as usize)
 }
+
+/// Turns night mode (darker ambient light, the point lights doing the work) on or off.
+#[no_mangle]
+pub extern "C" fn fizz_night(on: c_int) {
+    video::set_night(on != 0);
+}

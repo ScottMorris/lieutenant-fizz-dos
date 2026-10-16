@@ -52,7 +52,13 @@ The run used `libm` on DOS and Rust's own float functions on the web build, and 
 - **Sprites:** `m3/export-sprites.ts` writes the 253 sprites the sim draws, in its own id order, as 8-bit indexed images (`m3/assets/sprites.bin`, 88.8 KB raw). The Rust side fills the sim's sprite table with those sizes, so the sim builds the same instance buffer the web renderer draws.
 - **Blitter:** `m2/dos-rt/src/video.rs` walks the instance buffer and, for each sprite, maps screen pixels back through the instance's 2×2 matrix (so flip, scale and rotation work), and reads the sprite's pixel. Tints are mapped to the nearest EGA colour. The view is 20 × 12.5 tiles (the web build shows about 13 tall).
 
-Not yet: lighting (caves and the night wall are black or flat), alpha below 1 (those sprites are skipped), real keyboard input and 60 Hz timing (it follows the VGA's 70 Hz retrace), Mode X scrolling, and any speed work for a 486 (the blitter does float maths per pixel).
+Lighting is in (see milestone 4). Not yet: alpha below 1 (those sprites are skipped), real keyboard input and 60 Hz timing (it follows the VGA's 70 Hz retrace), Mode X scrolling, and any speed work for a 486 (the blitter does float maths per pixel).
+
+## Milestone 4: lighting by palette
+
+A VGA palette has 256 entries, so the demo uses them as 16 EGA colours × 14 brightness levels (`byte = level * 16 + colour`; slot 255 is the level's clear colour). While sprites are drawn the high nibble is a marker (lit, actor, glowing); a last pass turns it into the brightness of the 8×8-pixel cell the pixel is in. The cell's light is the sim's ambient light, its sun and its point lights worked out as the web shader does for a sprite facing the screen, with the three colour channels folded into one brightness (the palette can only dim a colour, not tint it). Each light visits only the cells it reaches, the brightness is kept in quarter-levels, and a 2×2 ordered dither picks the level above or below per pixel, so the 14 levels show no bands or blocks. Glowing sprites (lava, pickups) skip the lighting and characters never go below about 0.62, as in the web shader. `N` toggles night mode, where the sim's darker ambient light lets the lamps and crystals do the work.
+
+Costs, in headless DOSBox on a fast machine: level 0 draws in about 3.3 ms a frame and a lit cave in about 5.5 ms, against 12 ms before the blitter was rewritten.
 
 ## Starter app
 

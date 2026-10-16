@@ -2,7 +2,7 @@ LIEUTENANT FIZZ - EPISODE 1 - DOS demo (work in progress)
 =========================================================
 
 This is the real Episode 1 simulation, written in Rust, running as a 32-bit DOS program in VGA mode 13h
-(320x200, 256 colours). Everything is drawn from the game's own sprites. There is no sound, no lighting and no
+(320x200, 256 colours). Everything is drawn from the game's own sprites. There is no sound and no
 menus yet: you start straight in a level.
 
 Run it
@@ -18,6 +18,7 @@ Keys
   Space or C       fire
   PgUp / PgDn      previous / next level (0-15)
   R                restart the level
+  N                night mode (darker ambient light; lamps and glowing things stand out)
   P                pause
   Esc              quit
 

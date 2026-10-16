@@ -24,5 +24,8 @@
   "linker": "i586-pc-msdosdjgpp-gcc",
   "static-position-independent-executables": false,
   "relocation-model": "static",
-  "position-independent-executables": false
+  "position-independent-executables": false,
+  "stack-probes": {
+    "kind": "none"
+  }
 }
