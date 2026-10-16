@@ -116,10 +116,11 @@ pub fn draw(frame: &mut [u8], v: &[i32], cpu: &str) {
     let using = match v[SOUND_USING] {
         1 => "AdLib music and effects",
         2 => "PC speaker effects",
+        4 => "AdLib music, speaker effects",
         _ => "no sound",
     };
     let mut keys = ui::Buf::new();
-    let _ = core::fmt::Write::write_fmt(&mut keys, format_args!("Sound: {using} (A, P, O)"));
+    let _ = core::fmt::Write::write_fmt(&mut keys, format_args!("Sound: {using} (A, M, P, O)"));
     ui::text_fit(frame, fx, y0 + 10, keys.as_str(), CYAN, fw);
     ui::text_centred(frame, W as i32 / 2, y0 + 20, "Press Enter to play, Esc to quit", YELLOW);
 }

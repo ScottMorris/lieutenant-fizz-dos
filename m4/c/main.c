@@ -1,5 +1,5 @@
 /* Episode 1 on a VGA mode 13h screen, with sound.
-   usage: FIZZ [level|map] [ticks] [shot] [nosync] [night] [nosound] [adlib] [speaker] [soundtest]
+   usage: FIZZ [level|map] [ticks] [shot] [nosync] [night] [nosound] [adlib] [mixed] [speaker] [soundtest]
    With no ticks (or 0) it is interactive: arrows or WASD move, Ctrl or Z jump, Alt or X pogo, Space or C fire,
    PgUp and PgDn change level, R restarts it, Backspace goes back to the map, N toggles night, M music, E effects, Esc pauses
    (and goes back in a menu; Quit to title, then Quit, leaves).
@@ -97,6 +97,7 @@ static int speed_test(void) {
 static int sound_using(int choice, int adlib) {
   if (choice == SND_OFF) return 3;
   if (choice == SND_SPEAKER) return 2;
+  if (choice == SND_MIXED) return adlib ? 4 : 2;
   if (adlib) return 1;
   return choice == SND_AUTO ? 2 : 3;
 }
@@ -127,6 +128,7 @@ int main(int argc, char **argv) {
     if (!strcmp(argv[i], "nosound")) sound_mode = SND_OFF;
     if (!strcmp(argv[i], "adlib")) sound_mode = SND_ADLIB;
     if (!strcmp(argv[i], "speaker")) sound_mode = SND_SPEAKER;
+    if (!strcmp(argv[i], "mixed")) sound_mode = SND_MIXED;
     if (!strcmp(argv[i], "soundtest")) soundtest = 1;
     if (!strcmp(argv[i], "sound")) with_sound = 1;
     if (!strcmp(argv[i], "quiet")) quiet = 1;
@@ -137,6 +139,10 @@ int main(int argc, char **argv) {
     if (!strcmp(argv[i], "nopreview")) preview = 0;
     if (!strcmp(argv[i], "pause")) screen = 1;
     if (!strcmp(argv[i], "options")) screen = 2;
+    if (!strcmp(argv[i], "load")) screen = 3;
+    if (!strcmp(argv[i], "save")) screen = 4;
+    if (!strcmp(argv[i], "dialogue")) screen = 5;
+    if (!strncmp(argv[i], "loadslot", 8)) screen = 10 + atoi(argv[i] + 8);
     if (!strcmp(argv[i], "preview")) previewshot = 1;
   }
   fizz_start(level, 1);
@@ -180,6 +186,7 @@ int main(int argc, char **argv) {
       if (kbd_pressed(SC_ENTER) || kbd_pressed(SC_SPACE)) break;
       if (kbd_pressed(SC_ESC)) { vga_close(); kbd_remove(); return 0; }
       if (kbd_pressed(SC_A)) sound_mode = SND_ADLIB;
+      if (kbd_pressed(SC_M)) sound_mode = SND_MIXED;
       if (kbd_pressed(SC_P)) sound_mode = SND_SPEAKER;
       if (kbd_pressed(SC_O)) sound_mode = SND_OFF;
     }

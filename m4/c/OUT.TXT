@@ -1,2 +1,2 @@
-5 ticks, ended in mode 1 (2 map, 3 level) on level 0
-per frame: build 954 us, paint 24253 us (232 sprites), present 82 us; per tick: 103 us
+sound mode 2 (0 auto, 1 adlib, 2 speaker, 3 off)
+ticks 1680, register writes 0

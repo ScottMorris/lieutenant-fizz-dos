@@ -28,6 +28,7 @@ static int title_song, map_song, boss_song;
 static volatile unsigned long tick_count, register_writes;
 static volatile int mode = SND_OFF;
 static volatile int music_enabled = 1, fx_enabled = 1;
+static volatile int have_opl, fx_dev = FXDEV_OFF, music_dev;
 static volatile int want_music = -2, want_fx = -1; /* requests from the game, taken up by the handler */
 static volatile int current_song = -1;
 static Stream music, fx;
@@ -96,10 +97,10 @@ static void take_requests(void) {
   int m = want_music, f = want_fx;
   if (m != -2) {
     want_music = -2;
-    if (mode == SND_ADLIB) {
+    if (have_opl) {
       opl_silence();
       music.on = 0;
-      if (m >= 0 && (unsigned)m < n_songs && music_enabled) {
+      if (m >= 0 && (unsigned)m < n_songs && music_enabled && music_dev) {
         const unsigned char *e = song_table + m * 8;
         stream_start(&music, blob + rd32(e), 1);
       }
@@ -109,10 +110,10 @@ static void take_requests(void) {
     want_fx = -1;
     if (fx_enabled && (unsigned)f < n_fx) {
       const unsigned char *e = fx_table + f * 12;
-      if (mode == SND_ADLIB) {
+      if (fx_dev == FXDEV_ADLIB && have_opl) {
         opl_write(0xB5, 0);
         stream_start(&fx, blob + rd32(e), 0);
-      } else if (mode == SND_SPEAKER) {
+      } else if (fx_dev == FXDEV_SPEAKER) {
         spk_data = (const unsigned short *)(blob + rd32(e + 6));
         spk_frames = rd16(e + 10);
         spk_pos = 0;
@@ -127,10 +128,11 @@ static void call_old(void) { __asm__ volatile("pushfl; lcall *%0" : : "m"(old_is
 static void timer_isr(void) {
   tick_count++;
   take_requests();
-  if (mode == SND_ADLIB) {
+  if (have_opl) {
     stream_step(&music);
     stream_step(&fx);
-  } else if (mode == SND_SPEAKER && spk_on && (tick_count & 3) == 0) {
+  }
+  if (fx_dev == FXDEV_SPEAKER && spk_on && (tick_count & 3) == 0) {
     if (spk_pos >= spk_frames) { spk_on = 0; speaker_off(); }
     else speaker_set(spk_data[spk_pos++]);
   }
@@ -196,11 +198,15 @@ int snd_init(const unsigned char *data, unsigned long length, int requested) {
   map_song = level_table[n_levels + 1];
   boss_song = level_table[n_levels + 2];
   if (requested == SND_OFF) { mode = SND_OFF; return mode; }
-  if (requested == SND_SPEAKER) mode = SND_SPEAKER;
-  else if (opl_detect()) { opl_silence(); mode = SND_ADLIB; opl_write(0x01, 0x20); }
-  else if (requested == SND_ADLIB) mode = SND_OFF;
-  else mode = SND_SPEAKER;
-  if (mode == SND_OFF) return mode;
+  have_opl = requested != SND_SPEAKER && opl_detect();
+  if (have_opl) { opl_silence(); opl_write(0x01, 0x20); }
+  /* Which device plays what: AdLib everything, the music on AdLib and the effects on the speaker, or the speaker alone. */
+  music_dev = have_opl;
+  if (requested == SND_MIXED) fx_dev = FXDEV_SPEAKER;
+  else if (requested == SND_SPEAKER) fx_dev = FXDEV_SPEAKER;
+  else fx_dev = have_opl ? FXDEV_ADLIB : FXDEV_SPEAKER;
+  if (requested == SND_ADLIB && !have_opl) { mode = SND_OFF; return mode; }
+  mode = have_opl ? (fx_dev == FXDEV_SPEAKER ? SND_MIXED : SND_ADLIB) : SND_SPEAKER;
   /* What the handler touches stays in memory: the code, the streams and the data. */
   _go32_dpmi_lock_code((void *)opl_write, (unsigned long)timer_end - (unsigned long)opl_write);
   _go32_dpmi_lock_data((void *)&music, sizeof music);
@@ -226,8 +232,8 @@ void snd_shutdown(void) {
   _go32_dpmi_set_protected_mode_interrupt_vector(8, &old_isr);
   set_pit(0);
   _go32_dpmi_free_iret_wrapper(&new_isr);
-  if (mode == SND_ADLIB) opl_silence();
-  if (mode == SND_SPEAKER) speaker_off();
+  if (have_opl) opl_silence();
+  speaker_off();
   mode = SND_OFF;
 }
 
@@ -237,9 +243,8 @@ unsigned long snd_register_writes(void) { return register_writes; }
 int snd_current_song(void) { return current_song; }
 
 void snd_music(int song) {
-  if (mode != SND_ADLIB) { current_song = song; return; }
   current_song = song;
-  want_music = song;
+  if (have_opl) want_music = song;
 }
 
 void snd_music_for(int level, int boss) {
@@ -267,4 +272,12 @@ void snd_set_music(int on) {
 }
 void snd_set_fx(int on) { fx_enabled = on; }
 int snd_music_enabled(void) { return music_enabled; }
+int snd_have_opl(void) { return have_opl; }
+int snd_fx_device(void) { return fx_dev; }
+void snd_set_fx_device(int dev) {
+  if (mode == SND_OFF) return;
+  if (dev == FXDEV_ADLIB && !have_opl) dev = FXDEV_SPEAKER;
+  fx_dev = dev;
+  mode = have_opl ? (fx_dev == FXDEV_SPEAKER ? SND_MIXED : SND_ADLIB) : SND_SPEAKER;
+}
 int snd_fx_enabled(void) { return fx_enabled; }

@@ -3,10 +3,10 @@ LIEUTENANT FIZZ - EPISODE 1 - DOS demo (work in progress)
 
 This is the real Episode 1 simulation, written in Rust, running as a 32-bit DOS program in VGA mode 13h
 (320x200, 256 colours), with AdLib (OPL2) music and effects, or PC speaker effects if there is no AdLib, the game's own pixel font, a score/lives/Fizz HUD, map prompts, floating caption words, toasts and result cards. Everything is drawn from the game's own sprites. There is no
-settings beyond Music, Effects and Night: after the system check you reach the title (New game, Options, Quit), then the overworld map; walk to a level marker and press Jump, Fire or Enter to go in.
+settings beyond Music, Effects and Night: after the system check you reach the title (New game, Options, Quit), then the overworld map (with Continue and Load game once you have a save); walk to a level marker and press Jump, Fire or Enter to go in.
 
 The first thing you see is a system check in the manner of Keen's: what video, input, sound and maths hardware it found, a
-speed test of the real renderer, and the sound it will use (A, P and O pick AdLib, PC speaker or off). Enter starts the
+speed test of the real renderer, and the sound it will use (A picks AdLib for everything, M the music on AdLib with the effects on the PC speaker, P the PC speaker alone, O off). Enter starts the
 game. Add 'nopreview' on the command line to skip it.
 
 Run it
@@ -31,6 +31,9 @@ Keys
   Esc              pause menu (and back, in a menu); Quit to title, then Quit, leaves the game
 
 Notes
+  - Saves are small files next to FIZZ.EXE: AUTO.SAV (written every time you reach the map) and SLOT1.SAV to SLOT4.SAV (Pause, Save game).
+  - Options (title or pause menu) switch music, effects and night, and choose whether effects play on the AdLib or the PC speaker.
+  - The boss fight now starts with its dialogue: Enter finishes a line and moves on.
   - If it runs slowly with sound on, the OPL emulator is the cost: DOSBOX.CONF uses 'oplemu = compat' (light). Nuked is
     more exact but needs a fast machine.
   - Finishing a level, falling or running out of lives takes you back to the map after a moment (a card says what happened; Enter dismisses it).

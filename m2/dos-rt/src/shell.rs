@@ -14,9 +14,11 @@ use lf_episode_1::{
     enter_map, events_clear, events_len, events_ptr, game_new, load_attract, mode, state_get, step,
 };
 
+use crate::save::{self, SLOTS};
 use crate::ui::{self, Buf};
 use crate::ui_data::{
-    BOSS_DEFEATED, BOSS_INTRO, CAPTIONS, LEVEL_BLURBS, LEVEL_CLEARED, LEVEL_NAMES, SIGNS, TOASTS,
+    BOSS_DEFEATED, BOSS_INTRO, CAPTIONS, LEVEL_BLURBS, LEVEL_CLEARED, LEVEL_NAMES, SIGNS, TITLE_KICKER, TITLE_LINE,
+    TITLE_WORDS, TOASTS,
 };
 use crate::video::{H, W};
 
@@ -28,6 +30,9 @@ extern "C" {
     fn snd_set_fx(on: i32);
     fn snd_music_enabled() -> i32;
     fn snd_fx_enabled() -> i32;
+    fn snd_have_opl() -> i32;
+    fn snd_fx_device() -> i32;
+    fn snd_set_fx_device(device: i32);
 }
 
 /// Effect numbers for the interface (the order of the sound data's effects): a click as the cursor moves, the menu sound
@@ -35,6 +40,7 @@ extern "C" {
 const FX_MOVE: i32 = 12;
 const FX_SELECT: i32 = 30;
 const FX_BACK: i32 = 8;
+const FX_DENY: i32 = 9;
 
 /// Input bit for Escape, which the C side adds.
 const MENU_KEY: u32 = 256;
@@ -83,13 +89,20 @@ enum Screen {
     Play,
     Pause,
     Options(Back),
+    Slots(SlotKind, Back),
 }
 
-/// Where Options goes back to.
+/// Where Options and the slot lists go back to.
 #[derive(Clone, Copy, PartialEq)]
 enum Back {
     Title,
     Pause,
+}
+
+#[derive(Clone, Copy, PartialEq)]
+enum SlotKind {
+    Load,
+    Save,
 }
 
 /// What a fade to black leads to.
@@ -99,6 +112,7 @@ enum Next {
     NewGame,
     Map,
     Quit,
+    Load(u8),
 }
 
 #[derive(Clone, Copy)]
@@ -108,10 +122,47 @@ struct Fade {
     then: Next,
 }
 
+/// A line of the boss's dialogue being typed out.
+#[derive(Clone, Copy)]
+struct Dialogue {
+    id: u8,
+    line: u8,
+    typed: u16,
+}
+
+#[derive(Clone, Copy, PartialEq)]
+enum TitleItem {
+    Continue,
+    New,
+    Load,
+    Options,
+    Quit,
+}
+
+#[derive(Clone, Copy, PartialEq)]
+enum PauseItem {
+    Resume,
+    Save,
+    Options,
+    Map,
+    Title,
+}
+
+#[derive(Clone, Copy, PartialEq)]
+enum OptionItem {
+    Music,
+    Effects,
+    Device,
+    Night,
+    Back,
+}
+
 /// Ticks a fade out or in takes.
 const FADE_TICKS: u32 = 12;
 /// The attract loop shows each of the title's three levels in turn.
 const ATTRACT_LEVELS: u32 = 3;
+/// Characters of dialogue typed a tick.
+const TYPE_RATE: u16 = 2;
 
 struct Shell {
     screen: Screen,
@@ -126,6 +177,11 @@ struct Shell {
     toast: Option<(u16, u32)>,
     captions: [Option<Caption>; 6],
     seen: [u32; CAPTIONS.len()],
+    dialogue: Option<Dialogue>,
+    saves: [Option<save::Info>; SLOTS],
+    /// A short message under the menus: 1 saved (the slot in `note_arg`), 2 could not save.
+    note: Option<(u8, u8, u32)>,
+    played: u32,
     prev_held: u32,
     last_mode: u32,
     attract: u32,
@@ -144,6 +200,10 @@ static mut SHELL: Shell = Shell {
     toast: None,
     captions: [None; 6],
     seen: [0; CAPTIONS.len()],
+    dialogue: None,
+    saves: [None; SLOTS],
+    note: None,
+    played: 0,
     prev_held: 0,
     last_mode: 0,
     attract: 0,
@@ -163,6 +223,7 @@ pub fn reset() {
     s.pending = None;
     s.prompt = None;
     s.toast = None;
+    s.dialogue = None;
     s.captions = [None; 6];
 }
 
@@ -178,6 +239,7 @@ pub fn set_play() {
 pub fn start_title() {
     reset();
     let s = sh();
+    refresh_saves(s);
     s.screen = Screen::Title;
     s.cursor = 0;
     s.attract = 0;
@@ -185,20 +247,33 @@ pub fn start_title() {
     load_attract(0, 0);
 }
 
-/// A check: puts a menu on the screen (1 pause, 2 options from the pause menu).
-pub fn show(n: u32) {
-    let s = sh();
-    s.cursor = 0;
-    s.screen = match n {
-        1 => Screen::Pause,
-        2 => Screen::Options(Back::Pause),
-        _ => Screen::Play,
-    };
-}
-
 /// Whether the player chose to leave the game.
 pub fn quit_requested() -> bool {
     sh().quit
+}
+
+/// A check: puts a screen up (1 pause, 2 options, 3 load list, 4 save list).
+pub fn show(n: u32) {
+    let s = sh();
+    s.cursor = 0;
+    refresh_saves(s);
+    s.screen = match n {
+        1 => Screen::Pause,
+        2 => Screen::Options(Back::Pause),
+        3 => Screen::Slots(SlotKind::Load, Back::Pause),
+        4 => Screen::Slots(SlotKind::Save, Back::Pause),
+        n if n >= 10 => {
+            // A check: load a slot straight away.
+            perform(s, Next::Load((n - 10) as u8));
+            return;
+        }
+        5 => {
+            s.screen = Screen::Play;
+            s.dialogue = Some(Dialogue { id: 0, line: 1, typed: 80 });
+            return;
+        }
+        _ => Screen::Play,
+    };
 }
 
 /// Whether a card is up, so the sim is waiting.
@@ -206,8 +281,25 @@ pub fn card_up() -> bool {
     sh().card.is_some()
 }
 
-fn goto_map() {
+fn refresh_saves(s: &mut Shell) {
+    for i in 0..SLOTS {
+        s.saves[i] = save::info(i as i32);
+    }
+}
+
+fn seconds(s: &Shell) -> u32 {
+    s.played / 60
+}
+
+/// Writes the autosave, as the web build does on every visit to the map.
+fn autosave(s: &mut Shell) {
+    save::write(0, seconds(s));
+    refresh_saves(s);
+}
+
+fn to_map(s: &mut Shell) {
     crate::video::goto_map();
+    autosave(s);
 }
 
 fn night_flag() -> bool {
@@ -230,6 +322,9 @@ enum Pick {
 
 /// Moves the cursor in a menu of `len` rows from the keys that were pressed this tick.
 fn menu_keys(s: &mut Shell, edges: u32, len: usize) -> Pick {
+    if s.cursor >= len {
+        s.cursor = len - 1;
+    }
     if edges & UP != 0 {
         s.cursor = (s.cursor + len - 1) % len;
         cue(FX_MOVE);
@@ -266,10 +361,16 @@ fn perform(s: &mut Shell, then: Next) {
         }
         Next::NewGame => {
             game_new();
-            goto_map();
+            s.played = 0;
+            to_map(s);
         }
-        Next::Map => goto_map(),
+        Next::Map => to_map(s),
         Next::Quit => s.quit = true,
+        Next::Load(slot) => {
+            game_new();
+            s.played = save::load(i32::from(slot)).unwrap_or(0) * 60;
+            to_map(s);
+        }
     }
 }
 
@@ -280,6 +381,9 @@ pub fn advance(held: u32) {
     let edges = held & !s.prev_held;
     s.prev_held = held;
     let sim_held = held & 0xFF;
+    if let Some((k, a, left)) = s.note {
+        s.note = if left <= 1 { None } else { Some((k, a, left - 1)) };
+    }
 
     // A fade out holds everything still until it is black; a fade in lets the screen run.
     if let Some(mut f) = s.fade {
@@ -306,56 +410,97 @@ pub fn advance(held: u32) {
         Screen::Title => title_tick(s, edges),
         Screen::Pause => pause_tick(s, edges),
         Screen::Options(back) => options_tick(s, edges, back),
-        Screen::Play => play_tick(s, held, edges, sim_held),
+        Screen::Slots(kind, back) => slots_tick(s, edges, kind, back),
+        Screen::Play => play_tick(s, edges, sim_held),
     }
 }
 
-const TITLE_ROWS: usize = 3;
+fn title_items(s: &Shell) -> ([TitleItem; 5], usize) {
+    let any = s.saves.iter().any(Option::is_some);
+    let mut v = [TitleItem::New; 5];
+    let mut n = 0;
+    let mut push = |item| {
+        v[n] = item;
+        n += 1;
+    };
+    if any {
+        push(TitleItem::Continue);
+    }
+    push(TitleItem::New);
+    if any {
+        push(TitleItem::Load);
+    }
+    push(TitleItem::Options);
+    push(TitleItem::Quit);
+    (v, n)
+}
+
 fn title_tick(s: &mut Shell, edges: u32) {
     // The attract loop: the sim steps by itself, and each level is shown for one pan across and back.
     step(0);
-    let _ = events_clear();
+    events_clear();
     if state_get(ATTRACT_T) >= state_get(ATTRACT_PERIOD) {
         s.attract = (s.attract + 1) % ATTRACT_LEVELS;
         load_attract(s.attract, 0);
     }
-    match menu_keys(s, edges, TITLE_ROWS) {
-        Pick::Chosen => {
-            cue(FX_SELECT);
-            match s.cursor {
-                0 => fade_to(s, Next::NewGame),
-                1 => {
-                    s.screen = Screen::Options(Back::Title);
-                    s.cursor = 0;
+    let (items, n) = title_items(s);
+    if let Pick::Chosen = menu_keys(s, edges, n) {
+        cue(FX_SELECT);
+        match items[s.cursor] {
+            TitleItem::Continue => {
+                if let Some(slot) = save::newest(&s.saves) {
+                    fade_to(s, Next::Load(slot as u8));
                 }
-                _ => fade_to(s, Next::Quit),
             }
+            TitleItem::New => fade_to(s, Next::NewGame),
+            TitleItem::Load => {
+                s.screen = Screen::Slots(SlotKind::Load, Back::Title);
+                s.cursor = 0;
+            }
+            TitleItem::Options => {
+                s.screen = Screen::Options(Back::Title);
+                s.cursor = 0;
+            }
+            TitleItem::Quit => fade_to(s, Next::Quit),
         }
-        _ => {}
+    }
+}
+
+fn pause_items() -> ([PauseItem; 5], usize) {
+    let mut v = [PauseItem::Resume, PauseItem::Save, PauseItem::Options, PauseItem::Map, PauseItem::Title];
+    if mode() == 3 {
+        (v, 5)
+    } else {
+        v[3] = PauseItem::Title;
+        (v, 4)
     }
 }
 
 fn pause_tick(s: &mut Shell, edges: u32) {
-    // In a level the menu also offers the way back to the map.
-    let in_level = mode() == 3;
-    match menu_keys(s, edges, if in_level { 4 } else { 3 }) {
+    let (items, n) = pause_items();
+    match menu_keys(s, edges, n) {
         Pick::Back => {
             cue(FX_BACK);
             s.screen = Screen::Play;
         }
         Pick::Chosen => {
             cue(FX_SELECT);
-            match s.cursor {
-                0 => s.screen = Screen::Play,
-                1 => {
+            match items[s.cursor] {
+                PauseItem::Resume => s.screen = Screen::Play,
+                PauseItem::Save => {
+                    refresh_saves(s);
+                    s.screen = Screen::Slots(SlotKind::Save, Back::Pause);
+                    s.cursor = 0;
+                }
+                PauseItem::Options => {
                     s.screen = Screen::Options(Back::Pause);
                     s.cursor = 0;
                 }
-                2 if in_level => {
+                PauseItem::Map => {
                     s.screen = Screen::Play;
                     fade_to(s, Next::Map);
                 }
-                _ => {
+                PauseItem::Title => {
                     s.screen = Screen::Play;
                     fade_to(s, Next::Title);
                 }
@@ -365,39 +510,101 @@ fn pause_tick(s: &mut Shell, edges: u32) {
     }
 }
 
-const OPTION_ROWS: usize = 4;
+fn option_items() -> ([OptionItem; 5], usize) {
+    // The device row only makes sense with sound running and an AdLib to choose against the speaker.
+    let both = unsafe { snd_have_opl() != 0 && snd_fx_device() != 0 };
+    if both {
+        ([OptionItem::Music, OptionItem::Effects, OptionItem::Device, OptionItem::Night, OptionItem::Back], 5)
+    } else {
+        ([OptionItem::Music, OptionItem::Effects, OptionItem::Night, OptionItem::Back, OptionItem::Back], 4)
+    }
+}
+
 fn options_tick(s: &mut Shell, edges: u32, back: Back) {
-    let go_back = |s: &mut Shell| {
+    let (items, n) = option_items();
+    let leave = |s: &mut Shell| {
         cue(FX_BACK);
         s.screen = if back == Back::Title { Screen::Title } else { Screen::Pause };
-        s.cursor = 1;
+        s.cursor = if back == Back::Title { 2 } else { 2 };
     };
-    match menu_keys(s, edges, OPTION_ROWS) {
-        Pick::Back => go_back(s),
-        Pick::Chosen | Pick::Left | Pick::Right => {
-            if s.cursor == 3 {
-                go_back(s);
-                return;
+    match menu_keys(s, edges, n) {
+        Pick::Back => leave(s),
+        Pick::Chosen | Pick::Left | Pick::Right => match items[s.cursor] {
+            OptionItem::Back => leave(s),
+            OptionItem::Music => {
+                cue(FX_SELECT);
+                unsafe { snd_set_music(i32::from(snd_music_enabled() == 0)) }
             }
-            cue(FX_SELECT);
-            match s.cursor {
-                0 => unsafe { snd_set_music(i32::from(snd_music_enabled() == 0)) },
-                1 => unsafe { snd_set_fx(i32::from(snd_fx_enabled() == 0)) },
-                _ => crate::video::set_night(!night_flag()),
+            OptionItem::Effects => {
+                cue(FX_SELECT);
+                unsafe { snd_set_fx(i32::from(snd_fx_enabled() == 0)) }
             }
-        }
+            OptionItem::Device => {
+                unsafe {
+                    snd_set_fx_device(if snd_fx_device() == 1 { 2 } else { 1 });
+                }
+                cue(FX_SELECT);
+            }
+            OptionItem::Night => {
+                cue(FX_SELECT);
+                crate::video::set_night(!night_flag());
+            }
+        },
         Pick::Nothing => {}
     }
 }
 
-fn play_tick(s: &mut Shell, held: u32, edges: u32, sim_held: u32) {
-    let confirm = edges & CONFIRM != 0;
-    let _ = held;
+/// How many rows a slot list has, and which slot a row is.
+fn slot_rows(kind: SlotKind) -> (usize, usize) {
+    // (first slot, number of slots): a load list starts at the autosave; a save list cannot write to it.
+    if kind == SlotKind::Load {
+        (0, SLOTS)
+    } else {
+        (1, SLOTS - 1)
+    }
+}
+
+fn slots_tick(s: &mut Shell, edges: u32, kind: SlotKind, back: Back) {
+    let (first, count) = slot_rows(kind);
+    let leave = |s: &mut Shell| {
+        cue(FX_BACK);
+        s.screen = if back == Back::Title { Screen::Title } else { Screen::Pause };
+        s.cursor = if back == Back::Title { 1 } else { 1 };
+    };
+    match menu_keys(s, edges, count + 1) {
+        Pick::Back => leave(s),
+        Pick::Chosen => {
+            if s.cursor == count {
+                leave(s);
+                return;
+            }
+            let slot = first + s.cursor;
+            if kind == SlotKind::Load {
+                if s.saves[slot].is_some() {
+                    cue(FX_SELECT);
+                    fade_to(s, Next::Load(slot as u8));
+                } else {
+                    cue(FX_DENY);
+                }
+            } else {
+                let ok = save::write(slot as i32, seconds(s));
+                refresh_saves(s);
+                cue(if ok { FX_SELECT } else { FX_DENY });
+                s.note = Some((if ok { 1 } else { 2 }, slot as u8, 120));
+            }
+        }
+        _ => {}
+    }
+}
+
+fn play_tick(s: &mut Shell, edges: u32, sim_held: u32) {
+    let confirm = edges & (CONFIRM | JUMP | FIRE) != 0;
     let mode_before = s.last_mode;
+    s.played += 1;
 
     if let Some(card) = s.card {
         s.card_age += 1;
-        if confirm && s.card_age > CARD_ARM {
+        if edges & CONFIRM != 0 && s.card_age > CARD_ARM {
             if matches!(card, Card::GameOver(_)) {
                 fade_to(s, Next::NewGame);
             } else {
@@ -405,6 +612,27 @@ fn play_tick(s: &mut Shell, held: u32, edges: u32, sim_held: u32) {
             }
             s.card = None;
         }
+        return;
+    }
+    // Dialogue: the sim waits while the words are typed, and a press finishes a line, then moves to the next.
+    if let Some(mut d) = s.dialogue {
+        let lines = if d.id == 0 { BOSS_INTRO } else { BOSS_DEFEATED };
+        let len = lines.get(usize::from(d.line)).map_or(0, |l| l.1.chars().count()) as u16;
+        d.typed = (d.typed + TYPE_RATE).min(len);
+        if confirm {
+            if d.typed < len {
+                d.typed = len;
+            } else if usize::from(d.line) + 1 < lines.len() {
+                d.line += 1;
+                d.typed = 0;
+                cue(FX_MOVE);
+            } else {
+                s.dialogue = None;
+                cue(FX_SELECT);
+                return;
+            }
+        }
+        s.dialogue = Some(d);
         return;
     }
     if edges & MENU_KEY != 0 && s.fade.is_none() {
@@ -452,6 +680,7 @@ fn events(s: &mut Shell) {
     const LEVEL_COMPLETE: f32 = 4.0;
     const DIED: f32 = 5.0;
     const GAME_OVER: f32 = 6.0;
+    const DIALOGUE: f32 = 7.0;
     const MAP_PROMPT: f32 = 10.0;
     const LEVEL_START: f32 = 11.0;
     let n = events_len() as usize;
@@ -466,7 +695,7 @@ fn events(s: &mut Shell) {
                 s.toast = Some((a as u16, TOAST_TICKS));
             } else if e[0] == LEVEL_COMPLETE {
                 if a >= SAUCER {
-                    goto_map();
+                    to_map(s);
                     break;
                 }
                 s.pending = Some((Card::Cleared(a as u8), CLEARED_WAIT));
@@ -474,6 +703,8 @@ fn events(s: &mut Shell) {
                 s.pending = Some((Card::Died { lives: a as i32, level: b as u8 }, DIED_WAIT));
             } else if e[0] == GAME_OVER {
                 s.pending = Some((Card::GameOver(a as i32), GAME_OVER_WAIT));
+            } else if e[0] == DIALOGUE {
+                s.dialogue = Some(Dialogue { id: a as u8, line: 0, typed: 0 });
             } else if e[0] == MAP_PROMPT {
                 s.prompt = if a == 0.0 { None } else { Some((a as u8, b as i32, c as i32)) };
             } else if e[0] == LEVEL_START {
@@ -510,7 +741,9 @@ pub fn overlay(frame: &mut [u8], cam_px: (i32, i32)) {
         _ => {
             if m == 2 || m == 3 {
                 captions(frame, s, cam_px);
-                hud(frame);
+                if s.screen == Screen::Play {
+                    hud(frame);
+                }
                 if let Some((id, _)) = s.toast {
                     toast(frame, id);
                 }
@@ -521,31 +754,13 @@ pub fn overlay(frame: &mut [u8], cam_px: (i32, i32)) {
             if let Some(card) = s.card {
                 card_screen(frame, card);
             }
+            if let Some(d) = s.dialogue {
+                dialogue_box(frame, d, s.tick);
+            }
             match s.screen {
-                Screen::Pause => {
-                    ui::dim(frame, 0, 0, W as i32, H as i32, 7);
-                    if m == 3 {
-                        menu(
-                            frame,
-                            "Paused",
-                            &[("Resume", ""), ("Options", ""), ("Back to the map", ""), ("Quit to title", "")],
-                            s.cursor,
-                        );
-                    } else {
-                        menu(frame, "Paused", &[("Resume", ""), ("Options", ""), ("Quit to title", "")], s.cursor);
-                    }
-                }
-                Screen::Options(_) => {
-                    ui::dim(frame, 0, 0, W as i32, H as i32, 7);
-                    let on = |b: bool| if b { "On" } else { "Off" };
-                    let (music, fx) = unsafe { (snd_music_enabled() != 0, snd_fx_enabled() != 0) };
-                    menu(
-                        frame,
-                        "Options",
-                        &[("Music", on(music)), ("Effects", on(fx)), ("Night", on(night_flag())), ("Back", "")],
-                        s.cursor,
-                    );
-                }
+                Screen::Pause => pause_screen(frame, s),
+                Screen::Options(_) => options_screen(frame, s),
+                Screen::Slots(kind, _) => slots_screen(frame, s, kind),
                 _ => {}
             }
         }
@@ -556,29 +771,30 @@ pub fn overlay(frame: &mut [u8], cam_px: (i32, i32)) {
     }
 }
 
-/// A menu in a panel in the middle of the screen: a row each, the chosen one marked with a soda can and drawn in yellow.
-fn menu(frame: &mut [u8], title: &str, rows: &[(&str, &str)], cursor: usize) {
-    let h = ui::Panel::TOP_LEGEND + rows.len() as i32 * 16 + ui::Panel::BOTTOM;
-    let (w, x, y) = (200, (W as i32 - 200) / 2, (H as i32 - h) / 2);
-    let p = ui::Panel { x, y, w, h }.draw(frame, 5, 13);
-    p.legend(frame, title, 5, ui::WHITE);
-    draw_rows(frame, p, rows, cursor, ui::Panel::TOP_LEGEND);
-}
-
-fn draw_rows(frame: &mut [u8], p: ui::Panel, rows: &[(&str, &str)], cursor: usize, top: i32) {
+/// The game's menu rows: a bright plate behind the chosen one in dark ink, the soda can bobbing in the gutter, and white text with a
+/// shadow for the rest. `x` is the left of the gutter, `w` the whole width.
+fn plate_rows(frame: &mut [u8], x: i32, y: i32, w: i32, rows: &[(&str, &str)], cursor: usize, tick: u32) {
     let soda = soda_id();
+    let (px, pw) = (x + 18, w - 18);
     for (i, (label, value)) in rows.iter().enumerate() {
-        let y = p.y + top + i as i32 * 16;
+        let ry = y + i as i32 * 14;
         let on = i == cursor;
+        let vw = ui::text_width(value);
         if on {
-            crate::video::draw_sprite_ui(frame, soda, p.left() - 4, y - 4);
-        }
-        let colour = if on { ui::YELLOW } else { ui::WHITE };
-        let max = p.inner_w() - 22;
-        ui::text_fit(frame, p.left() + 18, y, label, colour, max - ui::text_width(value) - 4);
-        if !value.is_empty() {
-            let vx = p.x + p.w - ui::Panel::SIDE - ui::text_width(value);
-            ui::text(frame, vx, y, value, if on { ui::YELLOW } else { ui::CYAN });
+            // The plate, with its corners clipped.
+            ui::fill(frame, px + 1, ry, pw - 2, 12, ui::YELLOW);
+            ui::fill(frame, px, ry + 1, pw, 10, ui::YELLOW);
+            crate::video::draw_sprite_ui(frame, soda, x, ry - 2 - ((tick / 20) & 1) as i32);
+            let end = ui::text_ink(frame, px + 6, ry + 2, label, ui::BLACK);
+            let _ = end;
+            if vw > 0 {
+                ui::text_ink(frame, px + pw - 6 - vw, ry + 2, value, ui::BLACK);
+            }
+        } else {
+            ui::text_fit(frame, px + 6, ry + 2, label, ui::WHITE, pw - 14 - vw);
+            if vw > 0 {
+                ui::text(frame, px + pw - 6 - vw, ry + 2, value, ui::CYAN);
+            }
         }
     }
 }
@@ -588,19 +804,135 @@ fn soda_id() -> usize {
     lf_episode_1::sprites::SPRITE_NAMES.iter().position(|n| *n == "soda").unwrap_or(0)
 }
 
+fn heading(frame: &mut [u8], s: &str, y: i32) {
+    let w = ui::text_width(s) * 2;
+    ui::text_big(frame, (W as i32 - w) / 2, y, s, ui::WHITE, 2);
+}
+
 /// The title: the attract loop behind, dimmed, with the name and the menu.
 fn title_screen(frame: &mut [u8], s: &Shell) {
-    ui::dim(frame, 0, 0, W as i32, H as i32, 3);
-    let head = ui::Panel { x: 24, y: 8, w: 272, h: 46 }.draw(frame, 5, 13);
-    head.legend(frame, "Liminal HQ DOS port", 5, ui::CYAN);
-    let w = ui::text_width("Lieutenant Fizz") * 2;
-    ui::text_big(frame, (W as i32 - w) / 2, head.top(true) - 1, "Lieutenant Fizz", ui::WHITE, 2);
-    ui::text_centred(frame, W as i32 / 2, head.top(true) + 21, "Episode 1 - The Cocoa Caper", ui::YELLOW);
-    let rows = [("New game", ""), ("Options", ""), ("Quit", "")];
-    let h = ui::Panel::TOP + rows.len() as i32 * 16 + ui::Panel::BOTTOM + 2;
-    let p = ui::Panel { x: 72, y: 78, w: 176, h }.draw(frame, 3, 11);
-    draw_rows(frame, p, &rows, s.cursor, ui::Panel::TOP + 4);
+    ui::dim(frame, 0, 0, W as i32, H as i32, 5);
+    ui::text_centred(frame, W as i32 / 2, 12, TITLE_KICKER, ui::YELLOW);
+    let w = ui::text_width(TITLE_WORDS) * 3;
+    ui::text_big(frame, (W as i32 - w) / 2, 24, TITLE_WORDS, ui::WHITE, 3);
+    ui::text_centred(frame, W as i32 / 2, 56, TITLE_LINE, ui::CYAN);
+    let (items, n) = title_items(s);
+    let mut rows: [(&str, &str); 5] = [("", ""); 5];
+    for i in 0..n {
+        rows[i] = (
+            match items[i] {
+                TitleItem::Continue => "Continue",
+                TitleItem::New => "New game",
+                TitleItem::Load => "Load game",
+                TitleItem::Options => "Options",
+                TitleItem::Quit => "Quit",
+            },
+            "",
+        );
+    }
+    plate_rows(frame, 85, 82, 150, &rows[..n], s.cursor, s.tick);
     ui::text_centred(frame, W as i32 / 2, 188, "Up and Down choose, Enter selects", ui::GREY);
+}
+
+fn pause_screen(frame: &mut [u8], s: &Shell) {
+    ui::dim(frame, 0, 0, W as i32, H as i32, 7);
+    heading(frame, "Paused", 30);
+    let (items, n) = pause_items();
+    let mut rows: [(&str, &str); 5] = [("", ""); 5];
+    for i in 0..n {
+        rows[i] = (
+            match items[i] {
+                PauseItem::Resume => "Resume",
+                PauseItem::Save => "Save game",
+                PauseItem::Options => "Options",
+                PauseItem::Map => "Back to the map",
+                PauseItem::Title => "Quit to title",
+            },
+            "",
+        );
+    }
+    plate_rows(frame, 70, 66, 180, &rows[..n], s.cursor, s.tick);
+}
+
+fn options_screen(frame: &mut [u8], s: &Shell) {
+    ui::dim(frame, 0, 0, W as i32, H as i32, 7);
+    heading(frame, "Options", 30);
+    let on = |b: bool| if b { "On" } else { "Off" };
+    let (music, fx) = unsafe { (snd_music_enabled() != 0, snd_fx_enabled() != 0) };
+    let device = if unsafe { snd_fx_device() } == 1 { "AdLib" } else { "PC speaker" };
+    let (items, n) = option_items();
+    let mut rows: [(&str, &str); 5] = [("", ""); 5];
+    for i in 0..n {
+        rows[i] = match items[i] {
+            OptionItem::Music => ("Music", on(music)),
+            OptionItem::Effects => ("Effects", on(fx)),
+            OptionItem::Device => ("Effects play on", device),
+            OptionItem::Night => ("Night", on(night_flag())),
+            OptionItem::Back => ("Back", ""),
+        };
+    }
+    plate_rows(frame, 50, 66, 220, &rows[..n], s.cursor, s.tick);
+}
+
+fn slots_screen(frame: &mut [u8], s: &Shell, kind: SlotKind) {
+    ui::dim(frame, 0, 0, W as i32, H as i32, 7);
+    heading(frame, if kind == SlotKind::Load { "Load game" } else { "Save game" }, 12);
+    let (first, count) = slot_rows(kind);
+    let mut labels: [Buf; 6] = core::array::from_fn(|_| Buf::new());
+    let mut values: [Buf; 6] = core::array::from_fn(|_| Buf::new());
+    for i in 0..count {
+        let slot = first + i;
+        if slot == 0 {
+            let _ = write!(labels[i], "Autosave");
+        } else {
+            let _ = write!(labels[i], "Slot {slot}");
+        }
+        match s.saves[slot] {
+            None => {
+                let _ = write!(values[i], "empty");
+            }
+            Some(info) => {
+                let _ = write!(values[i], "{} cleared, {} pts, ", info.levels, info.score);
+                save::date(info.stamp, &mut values[i]);
+            }
+        }
+    }
+    let mut rows: [(&str, &str); 6] = [("", ""); 6];
+    for i in 0..count {
+        rows[i] = (labels[i].as_str(), values[i].as_str());
+    }
+    rows[count] = ("Back", "");
+    plate_rows(frame, 15, 40, 290, &rows[..=count], s.cursor, s.tick);
+    match s.note {
+        Some((1, slot, _)) => {
+            let mut b = Buf::new();
+            let _ = write!(b, "Saved to slot {slot}");
+            ui::text_centred(frame, W as i32 / 2, 186, b.as_str(), ui::GREEN);
+        }
+        Some((_, _, _)) => ui::text_centred(frame, W as i32 / 2, 186, "Could not write the file", ui::RED),
+        None => {}
+    }
+}
+
+/// The boss's talk: a box at the foot of the screen, the speaker's name in their colour and the words typed out.
+fn dialogue_box(frame: &mut [u8], d: Dialogue, tick: u32) {
+    let lines = if d.id == 0 { BOSS_INTRO } else { BOSS_DEFEATED };
+    let Some(&(who, text)) = lines.get(usize::from(d.line)) else {
+        return;
+    };
+    let (x, y, w, h) = (6, H as i32 - 62, W as i32 - 12, 56);
+    ui::dim(frame, x, y, w, h, 11);
+    ui::outline(frame, x, y, w, h, ui::GREY);
+    let colour = match who {
+        "Ben" => ui::GREEN,
+        "Tip" => ui::CYAN,
+        _ => 13,
+    };
+    ui::text(frame, x + 8, y + 6, who, colour);
+    ui::paragraph_upto(frame, x + 8, y + 6 + ui::LINE, w - 16, text, ui::WHITE, usize::from(d.typed));
+    if usize::from(d.typed) >= text.chars().count() && (tick / 20) % 2 == 0 {
+        ui::text(frame, x + w - 8 - ui::text_width("Enter"), y + h - ui::LINE - 3, "Enter", ui::CYAN);
+    }
 }
 
 fn captions(frame: &mut [u8], s: &Shell, cam_px: (i32, i32)) {

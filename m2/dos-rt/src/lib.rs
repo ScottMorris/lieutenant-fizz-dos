@@ -4,6 +4,7 @@
 extern crate alloc;
 
 pub mod preview;
+pub mod save;
 pub mod shell;
 pub mod ui;
 pub mod ui_data;

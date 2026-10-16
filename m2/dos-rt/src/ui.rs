@@ -175,6 +175,28 @@ impl Panel {
     }
 }
 
+/// Draws `s` in `colour` with no shadow, for dark ink on a bright plate.
+pub fn text_ink(frame: &mut [u8], x: i32, y: i32, s: &str, colour: u8) -> i32 {
+    draw_glyphs(frame, x, y, s, colour)
+}
+
+/// Draws the first `upto` characters of `s`, word-wrapped as a whole (so a word does not jump line as it is typed).
+pub fn paragraph_upto(frame: &mut [u8], x: i32, y: i32, width: i32, s: &str, colour: u8, upto: usize) {
+    let mut lines = [(0usize, 0usize); 12];
+    let n = wrap(s, width, &mut lines);
+    let mut left = upto;
+    for (i, &(a, b)) in lines[..n].iter().enumerate() {
+        let line = &s[a..b];
+        let count = line.chars().count();
+        if left == 0 {
+            break;
+        }
+        let shown = if left >= count { line } else { &line[..line.char_indices().nth(left).map_or(line.len(), |(i, _)| i)] };
+        text(frame, x, y + i as i32 * LINE, shown, colour);
+        left = left.saturating_sub(count + 1);
+    }
+}
+
 /// Draws `s` centred on `cx`.
 pub fn text_centred(frame: &mut [u8], cx: i32, y: i32, s: &str, colour: u8) {
     text(frame, cx - text_width(s) / 2, y, s, colour);

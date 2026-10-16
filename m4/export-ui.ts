@@ -6,6 +6,7 @@ const GAME = '/home/scott/source/liminal-hq/lieutenant-fizz';
 const { RAW, EXTRA } = await import(`${GAME}/packages/engine/src/font/fizz-glyphs.ts`);
 const { LEVELS, SIGNS, DIALOGUE } = await import(`${GAME}/episodes/episode-1/src/story.ts`);
 const { EGA } = await import(`${GAME}/packages/engine/src/palette.ts`);
+const { TITLE_CARD } = await import(`${GAME}/episodes/episode-1/src/title-card.ts`);
 
 const wasm = readFileSync(`${GAME}/episodes/episode-1/src/wasm/sim.wasm`);
 const { instance } = await WebAssembly.instantiate(wasm, {});
@@ -86,6 +87,9 @@ out.push(`/// The sim's caption words with the colour of each as an EGA colour 0
 out.push(`pub static CAPTIONS: [(&str, u8); ${captions.length}] = [${captions.join(', ')}];`);
 const toasts = table(2);
 out.push(`pub static TOASTS: [&str; ${toasts.length}] = ${list(toasts)};`);
+out.push(`pub static TITLE_KICKER: &str = ${rs(TITLE_CARD.kicker)};`);
+out.push(`pub static TITLE_WORDS: &str = ${rs(TITLE_CARD.words.join(' '))};`);
+out.push(`pub static TITLE_LINE: &str = ${rs(TITLE_CARD.line)};`);
 out.push(`pub static BOSS_INTRO: &[(&str, &str)] = ${dialogue(DIALOGUE.bossIntro)};`);
 out.push(`pub static BOSS_DEFEATED: &[(&str, &str)] = ${dialogue(DIALOGUE.bossDefeated)};`);
 writeSync(1, out.join('\n') + '\n');
