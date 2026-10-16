@@ -298,10 +298,10 @@ fn toast(frame: &mut [u8], id: u16) {
     let text = TOASTS[usize::from(id).min(TOASTS.len() - 1)];
     let mut lines = [(0, 0); 4];
     let n = ui::wrap(text, 290, &mut lines);
-    let h = n as i32 * ui::LINE + 6;
+    let h = n as i32 * ui::LINE + 11;
     ui::dim(frame, 8, 24, W as i32 - 16, h, 9);
     ui::outline(frame, 8, 24, W as i32 - 16, h, ui::DARK);
-    ui::paragraph(frame, 14, 27, 292, text, ui::WHITE);
+    ui::paragraph(frame, 15, 29, 290, text, ui::WHITE);
 }
 
 /// The panel at the foot of the map for the marker Ben is standing at.
@@ -345,17 +345,17 @@ fn prompt(frame: &mut [u8], kind: u8, id: i32, extra: i32) {
         _ => return,
     };
     let mut lines = [(0, 0); 6];
-    let n = ui::wrap(text.as_str(), 292, &mut lines) as i32;
-    let h = 8 + ui::LINE + n * ui::LINE + if action.is_some() { ui::LINE } else { 0 };
+    let n = ui::wrap(text.as_str(), 294, &mut lines) as i32;
+    let h = 13 + ui::LINE + n * ui::LINE + if action.is_some() { ui::LINE } else { 0 };
     let y = H as i32 - 4 - h;
     ui::dim(frame, 6, y, W as i32 - 12, h, 9);
     ui::outline(frame, 6, y, W as i32 - 12, h, ui::DARK);
-    ui::text(frame, 12, y + 4, title, ui::YELLOW);
-    ui::paragraph(frame, 12, y + 4 + ui::LINE, 296, text.as_str(), ui::WHITE);
+    ui::text(frame, 13, y + 6, title, ui::YELLOW);
+    ui::paragraph(frame, 13, y + 6 + ui::LINE, 294, text.as_str(), ui::WHITE);
     if let Some(a) = action {
         let mut label = Buf::new();
         let _ = write!(label, "Press Enter, Jump or Fire to {}", a.to_ascii_lowercase());
-        ui::text(frame, 12, y + 4 + ui::LINE * (n + 1), label.as_str(), ui::CYAN);
+        ui::text(frame, 13, y + 6 + ui::LINE * (n + 1), label.as_str(), ui::CYAN);
     }
 }
 
@@ -391,14 +391,14 @@ fn card_screen(frame: &mut [u8], card: Card) {
     ui::dim(frame, 0, 0, W as i32, H as i32, 6);
     let mut lines = [(0, 0); 8];
     let n = ui::wrap(text.as_str(), 232, &mut lines) as i32;
-    let h = 12 + ui::LINE * 2 + n * ui::LINE + 6;
+    let h = 16 + ui::LINE * 2 + n * ui::LINE + 8;
     let (w, x, y) = (252, (W as i32 - 252) / 2, (H as i32 - h) / 2);
     ui::dim(frame, x, y, w, h, 14);
     ui::fill(frame, x, y, w, 1, ui::YELLOW);
     ui::outline(frame, x, y, w, h, ui::DARK);
-    ui::text_centred(frame, W as i32 / 2, y + 6, title.as_str(), ui::YELLOW);
-    ui::paragraph(frame, x + 10, y + 6 + ui::LINE + 4, 232, text.as_str(), ui::WHITE);
-    ui::text_centred(frame, W as i32 / 2, y + h - ui::LINE - 3, button, ui::CYAN);
+    ui::text_centred(frame, W as i32 / 2, y + 8, title.as_str(), ui::YELLOW);
+    ui::paragraph(frame, x + 10, y + 8 + ui::LINE + 4, 232, text.as_str(), ui::WHITE);
+    ui::text_centred(frame, W as i32 / 2, y + h - ui::LINE - 6, button, ui::CYAN);
 }
 
 /// Unused for now: the boss's dialogue, kept so the data stays linked until the dialogue screens are written.

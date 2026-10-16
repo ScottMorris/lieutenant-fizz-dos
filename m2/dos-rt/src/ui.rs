@@ -110,6 +110,71 @@ pub fn cross_mark(frame: &mut [u8], x: i32, y: i32, colour: u8) {
     }
 }
 
+/// Draws `s` but no wider than `max` pixels: a label that would run on is cut short with two dots, so text never reaches a border.
+pub fn text_fit(frame: &mut [u8], x: i32, y: i32, s: &str, colour: u8, max: i32) -> i32 {
+    if text_width(s) <= max {
+        return text(frame, x, y, s, colour);
+    }
+    let mut end = 0;
+    let mut w = text_width("..");
+    for (i, c) in s.char_indices() {
+        w += advance(c);
+        if w > max {
+            break;
+        }
+        end = i + c.len_utf8();
+    }
+    let mut cut = Buf::new();
+    let _ = core::fmt::Write::write_str(&mut cut, &s[..end]);
+    let _ = core::fmt::Write::write_str(&mut cut, "..");
+    text(frame, x, y, cut.as_str(), colour)
+}
+
+/// A panel with a black shadow, a fill and a double edge drawn inside it. The edge takes the outer four pixels, so
+/// text belongs in `Panel::content`, which keeps clear of it.
+#[derive(Clone, Copy)]
+pub struct Panel {
+    pub x: i32,
+    pub y: i32,
+    pub w: i32,
+    pub h: i32,
+}
+
+impl Panel {
+    /// Pixels between the outer edge and where text may start on the sides and the bottom, and at the top.
+    pub const SIDE: i32 = 9;
+    pub const BOTTOM: i32 = 7;
+    pub const TOP: i32 = 8;
+    /// The top when a legend sits on the top edge.
+    pub const TOP_LEGEND: i32 = 12;
+
+    pub fn draw(self, frame: &mut [u8], fill_colour: u8, edge: u8) -> Self {
+        fill(frame, self.x + 3, self.y + 3, self.w, self.h, BLACK);
+        fill(frame, self.x, self.y, self.w, self.h, fill_colour);
+        outline(frame, self.x + 1, self.y + 1, self.w - 2, self.h - 2, edge);
+        outline(frame, self.x + 3, self.y + 3, self.w - 6, self.h - 6, edge);
+        self
+    }
+
+    /// Text on the top edge, with the panel's colour behind it so the edge does not run through the letters.
+    pub fn legend(self, frame: &mut [u8], s: &str, fill_colour: u8, colour: u8) {
+        let w = text_width(s) + 6;
+        fill(frame, self.x + Self::SIDE - 3, self.y, w, 9, fill_colour);
+        text(frame, self.x + Self::SIDE, self.y, s, colour);
+    }
+
+    /// Where the first line of text goes, and how wide a line may be.
+    pub fn left(self) -> i32 {
+        self.x + Self::SIDE
+    }
+    pub fn inner_w(self) -> i32 {
+        self.w - Self::SIDE * 2
+    }
+    pub fn top(self, legend: bool) -> i32 {
+        self.y + if legend { Self::TOP_LEGEND } else { Self::TOP }
+    }
+}
+
 /// Draws `s` centred on `cx`.
 pub fn text_centred(frame: &mut [u8], cx: i32, y: i32, s: &str, colour: u8) {
     text(frame, cx - text_width(s) / 2, y, s, colour);

@@ -26,25 +26,19 @@ pub const COUNT: usize = 12;
 
 const PANEL: u8 = 3;
 const PANEL_EDGE: u8 = 11;
+const TITLE_PANEL: u8 = 5;
 const MAGENTA: u8 = 13;
+/// Line pitch inside the panels: a glyph is nine rows (capitals seven, descenders two), so lines touch but do not overlap.
+const ROW: i32 = 9;
 
-/// A panel with a heading: filled, with a light double edge and a black shadow, as Keen's are.
-fn panel(frame: &mut [u8], x: i32, y: i32, w: i32, h: i32, title: &str) {
-    ui::fill(frame, x + 3, y + 3, w, h, BLACK);
-    ui::fill(frame, x, y, w, h, PANEL);
-    ui::outline(frame, x + 2, y + 2, w - 4, h - 4, PANEL_EDGE);
-    ui::outline(frame, x + 4, y + 4, w - 8, h - 8, PANEL_EDGE);
-    ui::text(frame, x + 10, y + 6, title, YELLOW);
-}
-
-/// A line with a tick or a cross: wanted and found is white, not found is dim.
-fn item(frame: &mut [u8], x: i32, y: i32, label: &str, found: bool, needed: bool) {
+/// A line with a tick or a cross: wanted and found is white, not found is dim. It never runs past `max` pixels.
+fn item(frame: &mut [u8], x: i32, y: i32, max: i32, label: &str, found: bool, needed: bool) {
     if found {
         ui::tick_mark(frame, x, y, GREEN);
-        ui::text(frame, x + 11, y, label, WHITE);
+        ui::text_fit(frame, x + 11, y, label, WHITE, max - 11);
     } else {
         ui::cross_mark(frame, x, y, if needed { RED } else { DARK });
-        ui::text(frame, x + 11, y, label, if needed { RED } else { DARK });
+        ui::text_fit(frame, x + 11, y, label, if needed { RED } else { DARK }, max - 11);
     }
 }
 
@@ -56,42 +50,46 @@ pub fn draw(frame: &mut [u8], v: &[i32], cpu: &str) {
             frame[y * W + x] = ui::FULL + if (x + y) % 2 == 0 { 1 } else { 9 };
         }
     }
-    // The title.
-    let (tx, ty, tw, th) = (24, 4, 272, 40);
-    ui::fill(frame, tx + 3, ty + 3, tw, th, BLACK);
-    ui::fill(frame, tx, ty, tw, th, 5);
-    ui::outline(frame, tx + 2, ty + 2, tw - 4, th - 4, MAGENTA);
+    // The title, with the port's name on the top edge.
+    let title = ui::Panel { x: 24, y: 4, w: 272, h: 44 }.draw(frame, TITLE_PANEL, MAGENTA);
+    title.legend(frame, "Liminal HQ DOS port - work in progress", TITLE_PANEL, CYAN);
     let w = ui::text_width("Lieutenant Fizz") * 2;
-    ui::text_big(frame, (W as i32 - w) / 2, ty + 6, "Lieutenant Fizz", WHITE, 2);
-    ui::text_centred(frame, W as i32 / 2, ty + 22, "Episode 1 - The Cocoa Caper", YELLOW);
-    ui::text_centred(frame, W as i32 / 2, ty + 30, "A Liminal HQ DOS port - work in progress", CYAN);
+    ui::text_big(frame, (W as i32 - w) / 2, title.top(true) - 1, "Lieutenant Fizz", WHITE, 2);
+    ui::text_centred(frame, W as i32 / 2, title.top(true) + 21, "Episode 1 - The Cocoa Caper", YELLOW);
 
-    let (lx, rx, w2, h2) = (8, 164, 148, 48);
-    let (row1, row2) = (50, 102);
+    let (lx, rx, pw, ph) = (8, 164, 148, 46);
+    let (row1, row2) = (52, 102);
+    let panels = [
+        (lx, row1, "Video"),
+        (rx, row1, "Input"),
+        (lx, row2, "Sound"),
+        (rx, row2, "Machine"),
+    ];
+    for &(x, y, name) in &panels {
+        let p = ui::Panel { x, y, w: pw, h: ph }.draw(frame, PANEL, PANEL_EDGE);
+        p.legend(frame, name, PANEL, YELLOW);
+    }
+    let row = |y: i32, n: i32| y + ui::Panel::TOP_LEGEND + n * ROW;
+    let (max, ix, jx) = (pw - ui::Panel::SIDE * 2, lx + ui::Panel::SIDE, rx + ui::Panel::SIDE);
     // Video.
-    panel(frame, lx, row1, w2, h2, "Video");
-    item(frame, lx + 10, row1 + 16, "VGA 320x200x256", v[VGA] != 0, true);
-    item(frame, lx + 10, row1 + 26, "EGA/VGA adapter", v[EGA] != 0, false);
-    ui::text(frame, lx + 10, row1 + 36, "14 lighting shades", GREY);
+    item(frame, ix, row(row1, 0), max, "VGA 320x200x256", v[VGA] != 0, true);
+    item(frame, ix, row(row1, 1), max, "EGA/VGA adapter", v[EGA] != 0, false);
+    ui::text_fit(frame, ix, row(row1, 2), "14 lighting shades", GREY, max);
     // Input.
-    panel(frame, rx, row1, w2, h2, "Input");
-    item(frame, rx + 10, row1 + 16, "Keyboard", true, true);
-    item(frame, rx + 10, row1 + 26, "Mouse (unused)", v[MOUSE] != 0, false);
-    item(frame, rx + 10, row1 + 36, "Joystick (unused)", v[JOYSTICK] != 0, false);
+    item(frame, jx, row(row1, 0), max, "Keyboard", true, true);
+    item(frame, jx, row(row1, 1), max, "Mouse (unused)", v[MOUSE] != 0, false);
+    item(frame, jx, row(row1, 2), max, "Joystick (unused)", v[JOYSTICK] != 0, false);
     // Sound.
-    panel(frame, lx, row2, w2, h2, "Sound");
-    item(frame, lx + 10, row2 + 16, "PC speaker (effects)", true, false);
-    item(frame, lx + 10, row2 + 26, "AdLib OPL2 (music)", v[ADLIB] != 0, false);
-    item(frame, lx + 10, row2 + 36, "Sound Blaster", v[BLASTER] != 0, false);
+    item(frame, ix, row(row2, 0), max, "PC speaker (effects)", true, false);
+    item(frame, ix, row(row2, 1), max, "AdLib OPL2 (music)", v[ADLIB] != 0, false);
+    item(frame, ix, row(row2, 2), max, "Sound Blaster", v[BLASTER] != 0, false);
     // Machine.
-    panel(frame, rx, row2, w2, h2, "Machine");
-    ui::text(frame, rx + 10, row2 + 16, "Processor", GREY);
-    ui::text(frame, rx + 72, row2 + 16, cpu, WHITE);
-    item(frame, rx + 10, row2 + 26, "x87 maths (needed)", v[FPU] != 0, true);
+    ui::text_fit(frame, jx, row(row2, 0), "Processor", GREY, 56);
+    ui::text_fit(frame, jx + 62, row(row2, 0), cpu, WHITE, max - 62);
+    item(frame, jx, row(row2, 1), max, "x87 maths (needed)", v[FPU] != 0, true);
     let mut line = ui::Buf::new();
-    let mb = v[MEMORY_KB] / 1024;
-    let _ = core::fmt::Write::write_fmt(&mut line, format_args!("{mb} MB memory free"));
-    ui::text(frame, rx + 10, row2 + 36, line.as_str(), WHITE);
+    let _ = core::fmt::Write::write_fmt(&mut line, format_args!("{} MB memory free", v[MEMORY_KB] / 1024));
+    ui::text_fit(frame, jx, row(row2, 2), line.as_str(), WHITE, max);
 
     // Speed and the footer.
     let fps = v[FPS];
@@ -104,17 +102,16 @@ pub fn draw(frame: &mut [u8], v: &[i32], cpu: &str) {
     } else if fps >= 40 {
         ("borderline", YELLOW)
     } else {
-        ("too slow, give it more cycles", RED)
+        ("too slow", RED)
     };
-    let (fx, fy, fw, fh) = (24, 154, 272, 42);
-    ui::fill(frame, fx + 3, fy + 3, fw, fh, BLACK);
-    ui::fill(frame, fx, fy, fw, fh, 5);
-    ui::outline(frame, fx + 2, fy + 2, fw - 4, fh - 4, MAGENTA);
+    let foot = ui::Panel { x: 24, y: 152, w: 272, h: 44 }.draw(frame, TITLE_PANEL, MAGENTA);
+    let (fx, fw) = (foot.left(), foot.inner_w());
+    let y0 = foot.top(false);
     if fps > 0 {
         let mut speed = ui::Buf::new();
         let _ = core::fmt::Write::write_fmt(&mut speed, format_args!("Speed test: {fps} frames a second - "));
-        let end = ui::text(frame, fx + 10, fy + 7, speed.as_str(), WHITE);
-        ui::text(frame, end, fy + 7, verdict, colour);
+        let end = ui::text_fit(frame, fx, y0, speed.as_str(), WHITE, fw);
+        ui::text_fit(frame, end, y0, verdict, colour, fx + fw - end);
     }
     let using = match v[SOUND_USING] {
         1 => "AdLib music and effects",
@@ -122,7 +119,7 @@ pub fn draw(frame: &mut [u8], v: &[i32], cpu: &str) {
         _ => "no sound",
     };
     let mut keys = ui::Buf::new();
-    let _ = core::fmt::Write::write_fmt(&mut keys, format_args!("Sound: {using} (A, P, O change it)"));
-    ui::text(frame, fx + 10, fy + 17, keys.as_str(), CYAN);
-    ui::text_centred(frame, W as i32 / 2, fy + 28, "Press Enter to play, Esc to quit", YELLOW);
+    let _ = core::fmt::Write::write_fmt(&mut keys, format_args!("Sound: {using} (A, P, O)"));
+    ui::text_fit(frame, fx, y0 + 10, keys.as_str(), CYAN, fw);
+    ui::text_centred(frame, W as i32 / 2, y0 + 20, "Press Enter to play, Esc to quit", YELLOW);
 }
