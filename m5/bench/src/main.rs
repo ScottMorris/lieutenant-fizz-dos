@@ -198,7 +198,42 @@ fn walk(t: u32) -> u32 {
     video::scripted_input(t)
 }
 
+/// Pause on the map with Ben standing on a level, choose Resume with Enter and keep it down: the game must not take that as
+/// "enter the level". Prints the game's mode (2 map, 3 level) before and after.
+fn pause_resume_test() {
+    video::start(video::MAP);
+    video::set_press(2); // walk to the Crater Fields marker and stand on it, without pressing
+    for t in 0..3000 {
+        shell::advance(video::scripted_input(t));
+    }
+    println!("before: mode {} (2 is the map)", lf_episode_1::mode());
+    // Control: a fresh press of Enter on the marker enters the level.
+    shell::advance(128);
+    for _ in 0..40 {
+        shell::advance(0);
+    }
+    println!("control, a fresh Enter on the marker: mode {} (3 is a level)", lf_episode_1::mode());
+
+    // The bug: pause, Resume with Enter, keep Enter down for a while.
+    video::start(video::MAP);
+    video::set_press(2);
+    for t in 0..3000 {
+        shell::advance(video::scripted_input(t));
+    }
+    shell::advance(256); // Esc: the pause menu
+    shell::advance(0);
+    shell::advance(128); // Enter on Resume
+    for _ in 0..40 {
+        shell::advance(128); // still held
+    }
+    println!("pause, Resume with Enter held: mode {} (2 is right; 3 is the bug)", lf_episode_1::mode());
+}
+
 fn main() {
+    if std::env::var("PAUSETEST").is_ok() {
+        pause_resume_test();
+        return;
+    }
     let frames: u32 = std::env::args().nth(1).and_then(|a| a.parse().ok()).unwrap_or(300);
     let fd = open_counter();
     if fd < 0 {

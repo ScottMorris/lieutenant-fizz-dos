@@ -195,6 +195,8 @@ struct Shell {
     note: Option<(u8, u8, u32)>,
     played: u32,
     prev_held: u32,
+    /// Keys that a menu or a line of dialogue took as its own press and that are still down: the sim does not see them until they are let go.
+    swallow: u32,
     last_mode: u32,
     attract: u32,
     tick: u32,
@@ -217,6 +219,7 @@ static mut SHELL: Shell = Shell {
     note: None,
     played: 0,
     prev_held: 0,
+    swallow: 0,
     last_mode: 0,
     attract: 0,
     tick: 0,
@@ -392,7 +395,9 @@ pub fn advance(held: u32) {
     s.tick += 1;
     let edges = held & !s.prev_held;
     s.prev_held = held;
-    let sim_held = held & 0xFF;
+    s.swallow &= held;
+    let sim_held = held & 0xFF & !s.swallow;
+    let was_play = s.screen == Screen::Play;
     if let Some((k, a, left)) = s.note {
         s.note = if left <= 1 { None } else { Some((k, a, left - 1)) };
     }
@@ -424,6 +429,10 @@ pub fn advance(held: u32) {
         Screen::Options(back) => options_tick(s, edges, back),
         Screen::Slots(kind, back) => slots_tick(s, edges, kind, back),
         Screen::Play => play_tick(s, edges, sim_held),
+    }
+    // Going back into the game from a menu: the key that chose it is still down, and must not be read as a press in the game.
+    if !was_play && s.screen == Screen::Play {
+        s.swallow = held & (CONFIRM | JUMP | FIRE);
     }
 }
 
@@ -661,6 +670,7 @@ fn play_tick(s: &mut Shell, edges: u32, sim_held: u32) {
                 cue(FX_MOVE);
             } else {
                 s.dialogue = None;
+                s.swallow = s.prev_held & (CONFIRM | JUMP | FIRE);
                 cue(FX_SELECT);
                 return;
             }
