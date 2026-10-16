@@ -252,6 +252,13 @@ int main(int argc, char **argv) {
       if (kbd_pressed(SC_O)) sound_mode = SND_OFF;
     }
   }
+  if (!previewshot && ticks == 0 && !bench && preview) {
+    /* Enter ended the start-up screen; let it go before the menu looks, or the menu would take it as its own press. */
+    while (kbd_down(SC_ENTER) || kbd_down(SC_SPACE)) {}
+    kbd_pressed(SC_ENTER);
+    kbd_pressed(SC_SPACE);
+    kbd_tick_bits();
+  }
   if (!previewshot && (ticks == 0 || with_sound)) {
     if (sound_mode != SND_OFF) {
       snd_init(fizz_sound_data(), fizz_sound_len(), sound_mode);
