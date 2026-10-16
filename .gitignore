@@ -24,3 +24,9 @@ dist/fizz-dos-demo/*.DOC
 dist/*.zip
 CWSDPMI.SWP
 *.SWP
+m4/c/*.exe
+m4/c/OUT.TXT
+m4/c/FRAME.RAW
+m4/c/PAL.RAW
+m4/c/CWSDPMI.EXE
+m4/c/*.SAV

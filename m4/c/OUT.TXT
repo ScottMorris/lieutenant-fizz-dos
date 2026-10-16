@@ -1,3 +1,0 @@
-5 ticks, ended in mode 1 (2 map, 3 level) on level 0
-5 frames drawn for 5 ticks, rate in use 30 Hz
-per frame: build 1486 us, paint 22446 us (227 sprites), present 217 us; per tick: 5 us

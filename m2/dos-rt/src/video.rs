@@ -597,21 +597,55 @@ fn shade(frame: &mut [u8], levels: &[u8; CELLS_X * CELLS_Y]) {
         &*core::ptr::addr_of!(TABLES)
     };
     const BAYER: [[u8; 2]; 2] = [[0, 2], [3, 1]];
-    for y in 0..H {
-        let row = &mut frame[y * W..][..W];
-        let bay = BAYER[y & 1];
-        for cx in 0..CELLS_X {
-            let q = levels[y / CELL * CELLS_X + cx];
-            let (lo, hi) = (
-                &tables[usize::from(1 + ((q + bay[0]) >> 2))],
-                &tables[usize::from(1 + ((q + bay[1]) >> 2))],
-            );
-            for pair in row[cx * CELL..][..CELL].chunks_exact_mut(2) {
-                pair[0] = lo[usize::from(pair[0])];
-                pair[1] = hi[usize::from(pair[1])];
+    for cy in 0..CELLS_Y {
+        // What each cell adds to a lit pixel, for the two kinds of row (the dither swaps the levels along them): four bytes
+        // alternating `lo << 4` and `hi << 4`, the levels of the even and odd pixels.
+        let mut adds = [[0u32; CELLS_X]; 2];
+        for (parity, bay) in BAYER.iter().enumerate() {
+            for cx in 0..CELLS_X {
+                let q = levels[cy * CELLS_X + cx];
+                let (l0, l1) = (u32::from(1 + ((q + bay[0]) >> 2)), u32::from(1 + ((q + bay[1]) >> 2)));
+                adds[parity][cx] = l0 << 4 | l1 << 12 | l0 << 20 | l1 << 28;
+            }
+        }
+        for r in 0..CELL {
+            let y = cy * CELL + r;
+            let row = &mut frame[y * W..][..W];
+            let add_row = &adds[y & 1];
+            let base = row.as_mut_ptr() as *mut u32;
+            for k in 0..W / 4 {
+                let add = add_row[k >> 1];
+                // SAFETY: `k` is under the row's width in words, so the word is inside the row; x86 reads and writes unaligned freely.
+                let w = unsafe { base.add(k).read_unaligned() };
+                let marks = w & 0xf0f0_f0f0;
+                if marks == 0 {
+                    // A lit pixel is its colour 0..15 with a zero high nibble, so four take their level in one add.
+                    unsafe { base.add(k).write_unaligned(w + add) };
+                } else if marks != 0xe0e0_e0e0 {
+                    // (Four glowing pixels are already final.)
+                    unsafe { base.add(k).write_unaligned(shade_word(w, add, tables)) };
+                }
             }
         }
     }
+}
+
+/// Four pixels that are not all lit: glowing ones are already at the top level and take no add; an actor or a clear pixel
+/// goes through the tables.
+#[inline(never)]
+fn shade_word(w: u32, add: u32, tables: &[[u8; 256]; LEVELS + 1]) -> u32 {
+    let u = (w >> 5) & 0x0707_0707;
+    if w & 0x1010_1010 == 0 && u == (u & 0x0101_0101) * 7 {
+        // Lit and glowing pixels only: spread the glowing bytes' 0xE0 into a full mask and leave those bytes out of the add.
+        let g = w & 0xe0e0_e0e0;
+        let g = g | (g >> 3);
+        return w + (add & !(g | ((g >> 6) & 0x0303_0303)));
+    }
+    let (lo, hi) = (&tables[((add >> 4) & 15) as usize], &tables[((add >> 12) & 15) as usize]);
+    u32::from(lo[(w & 255) as usize])
+        | u32::from(hi[((w >> 8) & 255) as usize]) << 8
+        | u32::from(lo[((w >> 16) & 255) as usize]) << 16
+        | u32::from(hi[(w >> 24) as usize]) << 24
 }
 
 /// Draws sprite `id` for the interface (full brightness, no lighting) with its top left at (`x`, `y`).
