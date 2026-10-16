@@ -137,6 +137,8 @@ fn scene(name: &str, level: u32, night: bool, script: fn(u32) -> u32, frames: u3
         video::paint(&mut frame, count);
         total += read_counter() - start;
     }
+    let sum = frame.iter().fold(0u32, |h, &b| h.wrapping_mul(31).wrapping_add(u32::from(b)));
+    println!("{name}: frame checksum {sum:08x}");
     println!("{name}: {} sprites a frame, {} instructions a frame", sprites / frames as usize, total / u64::from(frames));
     for (i, a) in ACC.iter().enumerate() {
         let v = a.load(Ordering::Relaxed) / u64::from(frames);

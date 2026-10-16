@@ -274,11 +274,22 @@ pub fn paint(frame: &mut [u8], count: usize) -> u32 {
     mark(4);
     let inst = unsafe { core::slice::from_raw_parts(instance_ptr(), count * 20) };
     let mut tints = TintCache::new();
+    // Where the light is the same all over (the map, the day levels) the markers are the final bytes' high nibble
+    // already, and no pass is needed after the sprites.
+    let uniform = levels.iter().all(|&q| q == levels[0] && q & 3 == 0);
+    let marks = if uniform {
+        let level = 1 + (levels[0] >> 2);
+        [level << 4, level.max(ACTOR_FLOOR) << 4, (LEVELS as u8) << 4]
+    } else {
+        [0, MARK_ACTOR, MARK_GLOW]
+    };
     for b in inst.chunks_exact(20) {
-        blit(frame, b, cam_px, &mut tints);
+        blit(frame, b, cam_px, &mut tints, &marks);
     }
     mark(5);
-    shade(frame, &levels);
+    if !uniform {
+        shade(frame, &levels);
+    }
     mark(6);
     crate::shell::overlay(frame, cam_px);
     mark(7);
@@ -318,7 +329,7 @@ fn round(v: f32) -> i32 {
 
 const IDENTITY: [u8; 16] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
 
-fn blit(frame: &mut [u8], b: &[f32], cam_px: (i32, i32), tints: &mut TintCache) {
+fn blit(frame: &mut [u8], b: &[f32], cam_px: (i32, i32), tints: &mut TintCache, marks: &[u8; 3]) {
     // Alpha, emissive and actor share one float: alpha + 2 * emissive + 4 * actor.
     let flags = b[19];
     let w2 = if flags >= 3.5 { flags - 4.0 } else { flags };
@@ -327,11 +338,11 @@ fn blit(frame: &mut [u8], b: &[f32], cam_px: (i32, i32), tints: &mut TintCache) 
         return;
     }
     let mark = if w2 >= 1.5 {
-        MARK_GLOW
+        marks[2]
     } else if flags >= 3.5 {
-        MARK_ACTOR
+        marks[1]
     } else {
-        0
+        marks[0]
     };
     let cx = W as f32 / 2.0 + b[12] * TILE - cam_px.0 as f32;
     let cy = H as f32 / 2.0 - b[13] * TILE + cam_px.1 as f32;
@@ -354,7 +365,7 @@ fn blit(frame: &mut [u8], b: &[f32], cam_px: (i32, i32), tints: &mut TintCache) 
         };
         let (sw, sh) = (sp.w, sp.h);
         let tint = b[18] as u32;
-        let identity = tint == 0xff_ffff && mark == 0;
+        let identity = tint == 0xff_ffff;
         let mut lut = if tint == 0xff_ffff { IDENTITY } else { tints.get(tint) };
         for l in lut.iter_mut() {
             *l |= mark;
@@ -383,8 +394,20 @@ fn blit(frame: &mut [u8], b: &[f32], cam_px: (i32, i32), tints: &mut TintCache) 
                 let dst = &mut frame[y as usize * W + cx0 as usize..][..span];
                 if !flip_x {
                     let s = &src[skip..][..span];
-                    if sp.opaque && identity {
+                    if sp.opaque && identity && mark == 0 {
                         dst.copy_from_slice(s);
+                    } else if sp.opaque && identity {
+                        // The colours are 0..15 and the mark is a high nibble, so four at a time add without carrying.
+                        let add = u32::from(mark) * 0x0101_0101;
+                        let mut d4 = dst.chunks_exact_mut(4);
+                        let mut s4 = s.chunks_exact(4);
+                        for (d, c) in (&mut d4).zip(&mut s4) {
+                            let w = u32::from_le_bytes([c[0], c[1], c[2], c[3]]) + add;
+                            d.copy_from_slice(&w.to_le_bytes());
+                        }
+                        for (d, &c) in d4.into_remainder().iter_mut().zip(s4.remainder()) {
+                            *d = c + mark;
+                        }
                     } else if sp.opaque {
                         for (d, &c) in dst.iter_mut().zip(s) {
                             *d = lut[usize::from(c & 15)];
