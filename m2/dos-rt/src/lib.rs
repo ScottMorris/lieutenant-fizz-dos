@@ -127,15 +127,33 @@ pub extern "C" fn fizz_start(level: u32, use_53: c_int) {
     video::start(level);
 }
 
-/// One tick of the scripted walk.
+/// The bits of the scripted walk at `tick`, for runs that must repeat exactly.
 #[no_mangle]
-pub extern "C" fn fizz_tick(tick: u32) {
-    video::advance(video::scripted_input(tick));
+pub extern "C" fn fizz_scripted(tick: u32) -> u32 {
+    video::scripted_input(tick)
 }
 
-/// Draws into `frame` (320 * 200 bytes); returns the clear colour for palette slot 17 as 0x00RRGGBB, 6 bits a channel.
+/// One tick with the given input bits.
 #[no_mangle]
-pub extern "C" fn fizz_draw(frame: *mut u8) -> u32 {
+pub extern "C" fn fizz_tick(held: u32) {
+    video::advance(held);
+}
+
+/// Goes to a level (it wraps round the table), and which level is on now.
+#[no_mangle]
+pub extern "C" fn fizz_goto(level: u32) {
+    video::goto(level);
+}
+
+#[no_mangle]
+pub extern "C" fn fizz_level() -> u32 {
+    video::level()
+}
+
+/// Draws into `frame` (320 * 200 bytes), `alpha` of the way from the last tick to the next; returns the clear colour for
+/// palette slot 17 as 0x00RRGGBB, 6 bits a channel.
+#[no_mangle]
+pub extern "C" fn fizz_draw(frame: *mut u8, alpha: f32) -> u32 {
     let frame = unsafe { core::slice::from_raw_parts_mut(frame, video::W * video::H) };
-    video::draw(frame)
+    video::draw(frame, alpha)
 }

@@ -3,9 +3,11 @@
 // Sprites come from `m3/assets/sprites.bin` (see m3/export-sprites.ts): 0 is transparent, 1..16 the EGA colours.
 // The frame uses palette slots 1..16 for the sprites and 17 for the level's clear colour.
 
+use core::sync::atomic::{AtomicU32, Ordering};
+use lf_episode_1::state::{LEVEL_ID, PLAYER_DEAD, WON};
 use lf_episode_1::{
-    enter_level, game_new, instance_ptr, out_ptr, render, set_view, sprite_table_ptr, step,
-    table_len,
+    enter_level, game_new, instance_ptr, out_ptr, render, set_view, sprite_table_ptr, state_get,
+    step, table_len,
 };
 
 static SPRITES: &[u8] = include_bytes!("../../../m3/assets/sprites.bin");
@@ -87,7 +89,7 @@ fn sprite(i: usize) -> Option<(usize, usize, &'static [u8])> {
 /// sim needs to build its instances (the web shell fills the same table from its atlas).
 pub fn start(level: u32) {
     game_new();
-    enter_level(level);
+    goto(level);
     set_view(f64::from(W as u32) / 32.0, f64::from(H as u32) / 32.0);
     let n = table_len(0) as usize;
     let table = unsafe { core::slice::from_raw_parts_mut(sprite_table_ptr(), n * 6) };
@@ -97,6 +99,23 @@ pub fn start(level: u32) {
     }
 }
 
+/// The number of levels in the sim's table.
+const LEVELS: u32 = 16;
+/// Ticks Ben has been dead, and ticks since the level was won: the demo restarts or moves on after a pause.
+static DEAD_FOR: AtomicU32 = AtomicU32::new(0);
+static WON_FOR: AtomicU32 = AtomicU32::new(0);
+
+/// Enters `level` (wrapping round the table).
+pub fn goto(level: u32) {
+    enter_level(level % LEVELS);
+    DEAD_FOR.store(0, Ordering::Relaxed);
+    WON_FOR.store(0, Ordering::Relaxed);
+}
+
+pub fn level() -> u32 {
+    state_get(LEVEL_ID) as u32
+}
+
 /// A scripted walk to the right with a jump now and then.
 pub fn scripted_input(tick: u32) -> u32 {
     const RIGHT: u32 = 2;
@@ -104,14 +123,25 @@ pub fn scripted_input(tick: u32) -> u32 {
     RIGHT | if tick % 45 < 14 { JUMP } else { 0 }
 }
 
+/// One tick with the given input. The demo has no game flow of its own, so a death restarts the level after a
+/// pause and a win moves on to the next.
 pub fn advance(held: u32) {
     step(held);
+    let dead = if state_get(PLAYER_DEAD) != 0.0 { DEAD_FOR.load(Ordering::Relaxed) + 1 } else { 0 };
+    DEAD_FOR.store(dead, Ordering::Relaxed);
+    let won = if state_get(WON) != 0.0 { WON_FOR.load(Ordering::Relaxed) + 1 } else { 0 };
+    WON_FOR.store(won, Ordering::Relaxed);
+    if dead >= 100 {
+        goto(level());
+    } else if won >= 150 {
+        goto(level() + 1);
+    }
 }
 
 /// Draws the current scene into `frame` (W*H bytes). Returns the clear colour as 0x00RRGGBB with 6-bit channels,
 /// for palette slot 17.
-pub fn draw(frame: &mut [u8]) -> u32 {
-    let count = render(1.0, 0) as usize;
+pub fn draw(frame: &mut [u8], alpha: f32) -> u32 {
+    let count = render(f64::from(alpha), 0) as usize;
     let out = unsafe { core::slice::from_raw_parts(out_ptr(), 32) };
     let (cam_x, cam_y) = (out[1], out[2]);
     let six = |v: f32| (v.clamp(0.0, 1.0) * 63.0 + 0.5) as u32;
