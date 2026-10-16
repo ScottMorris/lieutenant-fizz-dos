@@ -7,6 +7,6 @@ DIR="$(cd "$1" && pwd)"; shift
 cp -n "$HERE/vendor/cwsdpmi/bin/CWSDPMI.EXE" "$DIR/" 2>/dev/null || true
 rm -f "$DIR/OUT.TXT"
 SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy timeout "${DOS_TIMEOUT:-60}" \
-  "$HERE"/vendor/dosbox/*/dosbox --noprimaryconf --nolocalconf --conf "$HERE/tools/dosbox.conf" \
+  "$HERE"/vendor/dosbox/*/dosbox --noprimaryconf --nolocalconf --conf "${DOS_CONF:-$HERE/tools/dosbox.conf}" \
   -c "mount c $DIR" -c "c:" -c "$* > OUT.TXT" -c "exit" >/dev/null 2>&1 || echo "dosbox exit $?"
 [ -f "$DIR/OUT.TXT" ] && cat "$DIR/OUT.TXT"

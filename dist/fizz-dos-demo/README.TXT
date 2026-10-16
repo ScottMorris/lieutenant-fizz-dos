@@ -26,6 +26,8 @@ Keys
   Esc              quit
 
 Notes
+  - If it runs slowly with sound on, the OPL emulator is the cost: DOSBOX.CONF uses 'oplemu = compat' (light). Nuked is
+    more exact but needs a fast machine.
   - Dying restarts the level after a moment; finishing a level moves on to the next.
   - CWSDPMI.EXE must stay next to FIZZ.EXE (it is the DOS extender). Its licence is in CWSDPMI.DOC.
   - Source and build scripts: the fizz-dos side repository.

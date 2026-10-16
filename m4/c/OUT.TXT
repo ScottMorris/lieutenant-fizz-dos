@@ -1,0 +1,3 @@
+600 ticks, ended on level 0
+guest time 473 ms for 600 frames
+per frame: build 157 us, paint 700 us (224 sprites), present 4292083303 us; per tick: 19 us

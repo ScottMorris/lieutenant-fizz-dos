@@ -35,6 +35,9 @@ static unsigned char frame[64000];
 static uclock_t t_tick, t_build, t_draw, t_present;
 static unsigned n_sprites, n_frames;
 
+/* uclock() reads the BIOS timer, which the sound handler has taken over, so it is only used when that is not running. */
+static uclock_t stamp(void) { return snd_mode() != SND_OFF ? 0 : uclock(); }
+
 /* The palette: byte = level * 16 + colour. Levels 1..14 dim the EGA colour to (level - 1) / 13 of itself; level 0 is
    the colour at full brightness (what a byte means before the lighting pass); slot 255 is the level's clear colour. */
 static void build_palette(unsigned char pal[768]) {
@@ -47,17 +50,17 @@ static void build_palette(unsigned char pal[768]) {
 }
 
 static void show(unsigned *clear, int sync, float alpha) {
-  uclock_t a = uclock(), m, b, c;
+  uclock_t a = stamp(), m, b, c;
   unsigned count = fizz_build(alpha);
-  m = uclock();
+  m = stamp();
   *clear = fizz_paint(frame, count);
-  b = uclock();
+  b = stamp();
   n_sprites += count;
   t_build += m - a;
   vga_palette(255, (*clear >> 16) & 63, (*clear >> 8) & 63, *clear & 63);
   if (sync) vga_vsync();
   vga_present(frame);
-  c = uclock();
+  c = stamp();
   t_draw += b - m;
   t_present += c - b;
   n_frames++;
@@ -82,7 +85,7 @@ static void choose_music(void) {
 int main(int argc, char **argv) {
   unsigned level = argc > 1 ? (unsigned)atoi(argv[1]) : 0;
   unsigned ticks = argc > 2 ? (unsigned)atoi(argv[2]) : 0;
-  int shot = 0, nosync = 0, i, paused = 0, night = 0, sound_mode = SND_AUTO, soundtest = 0;
+  int shot = 0, nosync = 0, i, paused = 0, night = 0, sound_mode = SND_AUTO, soundtest = 0, with_sound = 0, quiet = 0, bench = 0;
   unsigned t, clear = 0;
   unsigned char pal[768];
   for (i = 3; i < argc; i++) {
@@ -93,6 +96,9 @@ int main(int argc, char **argv) {
     if (!strcmp(argv[i], "adlib")) sound_mode = SND_ADLIB;
     if (!strcmp(argv[i], "speaker")) sound_mode = SND_SPEAKER;
     if (!strcmp(argv[i], "soundtest")) soundtest = 1;
+    if (!strcmp(argv[i], "sound")) with_sound = 1;
+    if (!strcmp(argv[i], "quiet")) quiet = 1;
+    if (!strcmp(argv[i], "bench")) bench = 1;
   }
   fizz_start(level, 1);
   fizz_night(night);
@@ -112,8 +118,11 @@ int main(int argc, char **argv) {
     return 0;
   }
 
-  if (ticks == 0) {
+  if (ticks == 0 || with_sound) {
     if (sound_mode != SND_OFF) snd_init(fizz_sound_data(), fizz_sound_len(), sound_mode);
+    if ((ticks || bench) && !quiet) snd_music(0);
+  }
+  if (ticks == 0 && !bench) {
     if (kbd_install()) { printf("could not hook the keyboard\n"); snd_shutdown(); return 1; }
   }
   if (vga_open()) { printf("no near pointers\n"); kbd_remove(); snd_shutdown(); return 1; }
@@ -123,7 +132,7 @@ int main(int argc, char **argv) {
   if (ticks) {
     /* A scripted run: one tick a frame, so a screenshot is the same every time. */
     for (t = 0; t < ticks; t++) {
-      { uclock_t a = uclock(); fizz_tick(fizz_scripted(t)); t_tick += uclock() - a; }
+      { uclock_t a = stamp(); fizz_tick(fizz_scripted(t)); t_tick += stamp() - a; }
       show(&clear, !nosync, 1.0f);
     }
   } else {
@@ -133,7 +142,7 @@ int main(int argc, char **argv) {
     t = 0;
     for (;;) {
       unsigned long elapsed = clock560() - base, owed = elapsed * 60 / 560;
-      if (kbd_pressed(SC_ESC)) break;
+      if (bench ? t >= 600 : kbd_pressed(SC_ESC)) break;
       if (kbd_pressed(SC_P)) paused = !paused;
       if (kbd_pressed(SC_PGUP)) fizz_goto(fizz_level() + 15);
       if (kbd_pressed(SC_PGDN)) fizz_goto(fizz_level() + 1);
@@ -144,10 +153,10 @@ int main(int argc, char **argv) {
       if (owed > done + 6) { base = clock560(); done = 0; owed = 0; } /* after a stall, do not rush to catch up */
       if (owed > done) {
         /* The first tick of a frame also gets any quick taps; the rest of a catch-up see what is held. */
-        unsigned bits = kbd_tick_bits();
+        unsigned bits = bench ? fizz_scripted(t) : kbd_tick_bits();
         while (owed > done) {
-          if (!paused) { uclock_t a = uclock(); fizz_tick(bits); t_tick += uclock() - a; t++; }
-          bits = kbd_held();
+          if (!paused) { uclock_t a = stamp(); fizz_tick(bits); t_tick += stamp() - a; t++; }
+          bits = bench ? fizz_scripted(t) : kbd_held();
           done++;
         }
         choose_music();
@@ -166,6 +175,7 @@ int main(int argc, char **argv) {
     if (f) { fwrite(pal, 1, sizeof pal, f); fclose(f); }
   }
   printf("%u ticks, ended on level %u\n", t, fizz_level());
+  if ((ticks && with_sound) || bench) printf("guest time %lu ms for %u frames\n", snd_ticks() * 1000UL / 560UL, ticks);
   if (n_frames)
     printf("per frame: build %lu us, paint %lu us (%u sprites), present %lu us; per tick: %lu us\n",
            (unsigned long)(t_build * 1000000ULL / UCLOCKS_PER_SEC / n_frames),
