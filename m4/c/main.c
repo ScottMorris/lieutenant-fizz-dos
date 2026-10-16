@@ -346,14 +346,19 @@ int main(int argc, char **argv) {
     f = fopen("PAL.RAW", "wb");
     if (f) { fwrite(pal, 1, sizeof pal, f); fclose(f); }
   }
-  printf("%u ticks, ended in mode %u (2 map, 3 level) on level %u\n", t, fizz_mode(), fizz_level());
-  if ((ticks && with_sound) || bench) printf("guest time %lu ms for %u frames\n", snd_ticks() * 1000UL / 560UL, ticks);
-  if (n_frames) printf("%u frames drawn for %u ticks, rate in use %d Hz, detail %s\n", n_frames, t, rate_now, detail_low ? "low" : "high");
-  if (n_frames)
-    printf("per frame: build %lu us, paint %lu us (%u sprites), present %lu us; per tick: %lu us\n",
-           (unsigned long)(t_build * 1000000ULL / UCLOCKS_PER_SEC / n_frames),
-           (unsigned long)(t_draw * 1000000ULL / UCLOCKS_PER_SEC / n_frames), n_sprites / n_frames,
-           (unsigned long)(t_present * 1000000ULL / UCLOCKS_PER_SEC / n_frames),
-           t ? (unsigned long)(t_tick * 1000000ULL / UCLOCKS_PER_SEC / t) : 0UL);
+  if (ticks || bench || shot) {
+    /* The scripted and benchmark runs report what they did; a player who quits just gets a goodbye. */
+    printf("%u ticks, ended in mode %u (2 map, 3 level) on level %u\n", t, fizz_mode(), fizz_level());
+    if ((ticks && with_sound) || bench) printf("guest time %lu ms for %u frames\n", snd_ticks() * 1000UL / 560UL, ticks);
+    if (n_frames) printf("%u frames drawn for %u ticks, rate in use %d Hz, detail %s\n", n_frames, t, rate_now, detail_low ? "low" : "high");
+    if (n_frames)
+      printf("per frame: build %lu us, paint %lu us (%u sprites), present %lu us; per tick: %lu us\n",
+             (unsigned long)(t_build * 1000000ULL / UCLOCKS_PER_SEC / n_frames),
+             (unsigned long)(t_draw * 1000000ULL / UCLOCKS_PER_SEC / n_frames), n_sprites / n_frames,
+             (unsigned long)(t_present * 1000000ULL / UCLOCKS_PER_SEC / n_frames),
+             t ? (unsigned long)(t_tick * 1000000ULL / UCLOCKS_PER_SEC / t) : 0UL);
+  } else {
+    printf("Thanks for playing Lieutenant Fizz. Type FIZZ to play again.\n");
+  }
   return 0;
 }
