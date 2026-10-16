@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include "compat.h"
 #include "kbd.h"
 #include "keymap.h"
 #include "sound.h"
@@ -26,6 +27,7 @@ extern void fizz_goto_map(void);
 extern void fizz_night(int on);
 extern unsigned fizz_build(float alpha);
 extern unsigned fizz_paint(unsigned char *frame, unsigned count);
+extern void fizz_preview(unsigned char *frame, const int *values, const char *cpu);
 extern const unsigned char *fizz_sound_data(void);
 extern unsigned long fizz_sound_len(void);
 
@@ -75,6 +77,27 @@ static unsigned long clock560(void) {
   return (unsigned long)((uclock() * 560ULL) / UCLOCKS_PER_SEC);
 }
 
+/* Frames a second of the real renderer: build and paint a few frames of the current scene and time them. The timer is still
+   the BIOS's here, so uclock() can be trusted. */
+static int speed_test(void) {
+  int i;
+  unsigned count;
+  uclock_t a, us;
+  for (i = 0; i < 3; i++) { count = fizz_build(1.0f); fizz_paint(frame, count); }
+  a = uclock();
+  for (i = 0; i < 30; i++) { count = fizz_build(1.0f); fizz_paint(frame, count); }
+  us = (uclock() - a) * 1000000ULL / UCLOCKS_PER_SEC;
+  return us ? (int)(30ULL * 1000000ULL / us) : 0;
+}
+
+/* What the sound option will really be on this machine. */
+static int sound_using(int choice, int adlib) {
+  if (choice == SND_OFF) return 3;
+  if (choice == SND_SPEAKER) return 2;
+  if (adlib) return 1;
+  return choice == SND_AUTO ? 2 : 3;
+}
+
 static void choose_music(void) {
   static int last_level = -2, last_boss = -2;
   int level = fizz_mode() == 2 ? -1 : (int)fizz_level(), boss = fizz_mode() == 3 && fizz_boss_hp() > 0;
@@ -89,7 +112,9 @@ int main(int argc, char **argv) {
   /* The first argument is a level number, or nothing or "map" for the overworld (255 to the game). */
   unsigned level = argc > 1 && strcmp(argv[1], "map") ? (unsigned)atoi(argv[1]) : 255;
   unsigned ticks = argc > 2 ? (unsigned)atoi(argv[2]) : 0;
-  int shot = 0, nosync = 0, i, paused = 0, night = 0, sound_mode = SND_AUTO, soundtest = 0, with_sound = 0, quiet = 0, bench = 0;
+  int shot = 0, nosync = 0, i, paused = 0, night = 0, sound_mode = SND_AUTO, soundtest = 0, with_sound = 0, quiet = 0, bench = 0, preview = 1, previewshot = 0;
+  int probe[C_COUNT];
+  char cpu[16];
   unsigned t, clear = 0;
   unsigned char pal[768];
   for (i = 3; i < argc; i++) {
@@ -105,6 +130,8 @@ int main(int argc, char **argv) {
     if (!strcmp(argv[i], "bench")) bench = 1;
     if (!strcmp(argv[i], "press")) fizz_press(1);
     if (!strcmp(argv[i], "approach")) fizz_press(2);
+    if (!strcmp(argv[i], "nopreview")) preview = 0;
+    if (!strcmp(argv[i], "preview")) previewshot = 1;
   }
   fizz_start(level, 1);
   fizz_night(night);
@@ -124,10 +151,6 @@ int main(int argc, char **argv) {
     return 0;
   }
 
-  if (ticks == 0 || with_sound) {
-    if (sound_mode != SND_OFF) snd_init(fizz_sound_data(), fizz_sound_len(), sound_mode);
-    if ((ticks || bench) && !quiet) snd_music(0);
-  }
   if (ticks == 0 && !bench) {
     if (kbd_install()) { printf("could not hook the keyboard\n"); snd_shutdown(); return 1; }
   }
@@ -135,7 +158,33 @@ int main(int argc, char **argv) {
   build_palette(pal);
   for (i = 0; i < 255; i++) vga_palette(i, pal[i * 3], pal[i * 3 + 1], pal[i * 3 + 2]);
 
-  if (ticks) {
+  /* The start-up screen: what the machine has, a speed test, and a chance to pick the sound. It runs before the sound handler
+     takes over the timer. */
+  if ((ticks == 0 && !bench && preview) || previewshot) {
+    compat_probe(probe, cpu);
+    probe[C_FPS] = speed_test();
+    for (;;) {
+      probe[C_SOUND_CHOICE] = sound_mode;
+      probe[C_SOUND_USING] = sound_using(sound_mode, probe[C_ADLIB]);
+      fizz_preview(frame, probe, cpu);
+      vga_vsync();
+      vga_present(frame);
+      if (previewshot) break;
+      if (kbd_pressed(SC_ENTER) || kbd_pressed(SC_SPACE)) break;
+      if (kbd_pressed(SC_ESC)) { vga_close(); kbd_remove(); return 0; }
+      if (kbd_pressed(SC_A)) sound_mode = SND_ADLIB;
+      if (kbd_pressed(SC_P)) sound_mode = SND_SPEAKER;
+      if (kbd_pressed(SC_O)) sound_mode = SND_OFF;
+    }
+  }
+  if (!previewshot && (ticks == 0 || with_sound)) {
+    if (sound_mode != SND_OFF) snd_init(fizz_sound_data(), fizz_sound_len(), sound_mode);
+    if ((ticks || bench) && !quiet) snd_music(0);
+  }
+
+  if (previewshot) {
+    /* Nothing more to run: the frame is the screenshot. */
+  } else if (ticks) {
     /* A scripted run: one tick a frame, so a screenshot is the same every time. */
     for (t = 0; t < ticks; t++) {
       { uclock_t a = stamp(); fizz_tick(fizz_scripted(t)); t_tick += stamp() - a; }

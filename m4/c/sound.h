@@ -24,6 +24,10 @@ void snd_set_fx(int on);
 int snd_music_enabled(void);
 int snd_fx_enabled(void);
 
+/* What is on the machine, found without starting the handler. */
+int snd_detect_opl(void);
+int snd_detect_blaster(void);
+
 /* For checks. */
 unsigned long snd_register_writes(void);
 #endif

@@ -71,6 +71,45 @@ pub fn text(frame: &mut [u8], x: i32, y: i32, s: &str, colour: u8) -> i32 {
     draw_glyphs(frame, x, y, s, colour)
 }
 
+/// Draws `s` with every pixel `k` pixels square (a headline), with a shadow.
+pub fn text_big(frame: &mut [u8], x: i32, y: i32, s: &str, colour: u8, k: i32) -> i32 {
+    let mut end = x;
+    for pass in 0..2 {
+        let (dx, dy, c) = if pass == 0 { (k, k, BLACK) } else { (0, 0, colour) };
+        let mut at = x + dx;
+        for ch in s.chars() {
+            if let Some(g) = glyph(ch) {
+                for (row, bits) in g.rows.iter().enumerate() {
+                    for col in 0..g.w {
+                        if bits >> (g.w - 1 - col) & 1 != 0 {
+                            fill(frame, at + i32::from(col) * k, y + dy + row as i32 * k, k, k, c);
+                        }
+                    }
+                }
+            }
+            at += advance(ch) * k;
+        }
+        end = at - dx;
+    }
+    end
+}
+
+/// A tick mark, 7 pixels wide.
+pub fn tick_mark(frame: &mut [u8], x: i32, y: i32, colour: u8) {
+    for (dx, dy) in [(0, 3), (1, 4), (2, 5), (3, 4), (4, 3), (5, 2), (6, 1), (7, 0)] {
+        put(frame, x + dx, y + dy, colour);
+        put(frame, x + dx, y + dy + 1, colour);
+    }
+}
+
+/// A cross, 6 pixels wide.
+pub fn cross_mark(frame: &mut [u8], x: i32, y: i32, colour: u8) {
+    for d in 0..6 {
+        put(frame, x + d, y + 1 + d, colour);
+        put(frame, x + 5 - d, y + 1 + d, colour);
+    }
+}
+
 /// Draws `s` centred on `cx`.
 pub fn text_centred(frame: &mut [u8], cx: i32, y: i32, s: &str, colour: u8) {
     text(frame, cx - text_width(s) / 2, y, s, colour);

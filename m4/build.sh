@@ -11,7 +11,7 @@ LEVEL="${1:-0}"; TICKS="${2:-240}"
 (cd m2 && RUSTC_BOOTSTRAP=1 cargo build --release -p dos-rt)
 tools/coff2go32.py m2/target/dos/release/libdos_rt.a m2/dos_rt_go32.a i586-pc-msdosdjgpp-ar
 i586-pc-msdosdjgpp-gcc -O2 -fno-toplevel-reorder -o m4/c/fizz.exe m4/c/main.c m4/c/vga.c m4/c/kbd.c m4/c/keymap.c \
-  m4/c/chkstk.c m4/c/sound.c m2/dos_rt_go32.a -lm
+  m4/c/chkstk.c m4/c/sound.c m4/c/compat.c m2/dos_rt_go32.a -lm
 [ "$RUN" = 1 ] || exit 0
 rm -f m4/c/FRAME.RAW m4/c/PAL.RAW
 DOS_TIMEOUT=300 tools/dosrun.sh m4/c "FIZZ.EXE $LEVEL $TICKS shot nosync nosound"

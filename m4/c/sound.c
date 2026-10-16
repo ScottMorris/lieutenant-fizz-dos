@@ -159,6 +159,21 @@ static int opl_detect(void) {
   return (s1 & 0xE0) == 0 && (s2 & 0xE0) == 0xC0;
 }
 
+int snd_detect_opl(void) { return opl_detect(); }
+
+/* A Sound Blaster answers a reset of its DSP at port 0x220 with the byte 0xAA. */
+int snd_detect_blaster(void) {
+  int tries;
+  outportb(0x226, 1);
+  delay(1);
+  outportb(0x226, 0);
+  for (tries = 0; tries < 20; tries++) {
+    delay(1);
+    if ((inportb(0x22E) & 0x80) && inportb(0x22A) == 0xAA) return 1;
+  }
+  return 0;
+}
+
 static void set_pit(unsigned divisor) {
   outportb(0x43, 0x36);
   outportb(0x40, divisor & 255);

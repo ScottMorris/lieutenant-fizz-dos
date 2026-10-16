@@ -3,6 +3,7 @@
 
 extern crate alloc;
 
+pub mod preview;
 pub mod shell;
 pub mod ui;
 pub mod ui_data;
@@ -214,4 +215,22 @@ pub extern "C" fn fizz_goto_map() {
 #[no_mangle]
 pub extern "C" fn fizz_press(on: c_int) {
     video::set_press(on);
+}
+
+/// Draws the start-up screen: `values` is `preview::COUNT` numbers from the C side and `cpu` a C string.
+#[no_mangle]
+pub extern "C" fn fizz_preview(frame: *mut u8, values: *const i32, cpu: *const u8) {
+    let frame = unsafe { core::slice::from_raw_parts_mut(frame, video::W * video::H) };
+    let v = unsafe { core::slice::from_raw_parts(values, preview::COUNT) };
+    let mut name = [0u8; 16];
+    let mut n = 0;
+    while n < 15 {
+        let c = unsafe { *cpu.add(n) };
+        if c == 0 {
+            break;
+        }
+        name[n] = c;
+        n += 1;
+    }
+    preview::draw(frame, v, core::str::from_utf8(&name[..n]).unwrap_or("?"));
 }
