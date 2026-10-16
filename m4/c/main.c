@@ -74,6 +74,13 @@ static void show(unsigned *clear, int sync, float alpha) {
   n_frames++;
 }
 
+/* The frame rate setting: auto, 60 Hz or 30 Hz. At 30 the screen is drawn on every second tick. Auto picks one from what the
+   frames cost (see the main loop). */
+static int rate = 0, rate_now = 60;
+int rate_mode(void) { return rate; }
+void rate_set(int mode) { rate = mode; if (mode) rate_now = mode == 2 ? 30 : 60; }
+int rate_active(void) { return rate_now; }
+
 /* The game's clock in 1/560 s: the sound handler's count when it is running, else the BIOS clock. */
 static unsigned long clock560(void) {
   if (snd_mode() != SND_OFF) return snd_ticks();
@@ -144,6 +151,9 @@ int main(int argc, char **argv) {
     if (!strcmp(argv[i], "dialogue")) screen = 5;
     if (!strncmp(argv[i], "loadslot", 8)) screen = 10 + atoi(argv[i] + 8);
     if (!strcmp(argv[i], "preview")) previewshot = 1;
+    if (!strcmp(argv[i], "fps60")) rate_set(1);
+    if (!strcmp(argv[i], "fps30")) rate_set(2);
+    if (!strcmp(argv[i], "fpsauto")) rate_set(0);
   }
   fizz_start(level, 1);
   fizz_night(night);
@@ -207,7 +217,8 @@ int main(int argc, char **argv) {
   } else {
     /* Interactive: the sim runs at 60 Hz from the sound clock (or the BIOS clock), the screen follows the retrace and
        draws between ticks. */
-    unsigned long base = clock560(), done = 0;
+    unsigned long base = clock560(), done = 0, spent = 0;
+    unsigned drawn = 0, frames = 0;
     t = 0;
     for (;;) {
       unsigned long elapsed = clock560() - base, owed = elapsed * 60 / 560;
@@ -230,7 +241,25 @@ int main(int argc, char **argv) {
         }
         choose_music();
       }
-      show(&clear, 1, (float)((elapsed * 60) % 560) / 560.0f);
+      if (rate_now == 30 && t < drawn + 2) continue; /* 30 Hz: every second tick */
+      {
+        unsigned long a = clock560();
+        show(&clear, 1, (float)((elapsed * 60) % 560) / 560.0f);
+        drawn = t;
+        if (rate == 0) {
+          /* The average cost of a frame over 32, in 1/560 s: a sixtieth of a second is 9.3. */
+          spent += clock560() - a;
+          if (++frames == 32) {
+            /* A frame's cost against a sixtieth of a second, in percent. Between that and about 1.7 times it, 30 Hz keeps the pace
+               steady; dearer than that a cap would only throw frames away, so the screen is drawn as often as it can be. */
+            unsigned long pct = spent * 60 * 100 / (32UL * 560);
+            if (pct > 100 && pct <= 170) rate_now = 30;
+            else if (pct > 185 || pct < 67) rate_now = 60;
+            spent = 0;
+            frames = 0;
+          }
+        }
+      }
     }
   }
   vga_close();
@@ -245,6 +274,7 @@ int main(int argc, char **argv) {
   }
   printf("%u ticks, ended in mode %u (2 map, 3 level) on level %u\n", t, fizz_mode(), fizz_level());
   if ((ticks && with_sound) || bench) printf("guest time %lu ms for %u frames\n", snd_ticks() * 1000UL / 560UL, ticks);
+  if (n_frames) printf("%u frames drawn for %u ticks, rate in use %d Hz\n", n_frames, t, rate_now);
   if (n_frames)
     printf("per frame: build %lu us, paint %lu us (%u sprites), present %lu us; per tick: %lu us\n",
            (unsigned long)(t_build * 1000000ULL / UCLOCKS_PER_SEC / n_frames),

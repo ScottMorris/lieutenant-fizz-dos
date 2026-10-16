@@ -42,6 +42,19 @@ pub extern "C" fn snd_have_opl() -> i32 {
     1
 }
 #[no_mangle]
+pub extern "C" fn rate_mode() -> i32 {
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn rate_set(_mode: i32) {}
+
+#[no_mangle]
+pub extern "C" fn rate_active() -> i32 {
+    60
+}
+
+#[no_mangle]
 pub extern "C" fn snd_fx_device() -> i32 {
     1
 }
