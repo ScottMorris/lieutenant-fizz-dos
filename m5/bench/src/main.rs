@@ -238,13 +238,16 @@ fn main() {
         return;
     }
     let frames: u32 = std::env::args().nth(1).and_then(|a| a.parse().ok()).unwrap_or(300);
-    let fd = open_counter();
-    if fd < 0 {
-        eprintln!("could not open the instruction counter (perf_event_paranoid too strict?)");
-        std::process::exit(1);
+    // NOCOUNT=1 skips the instruction counter (a CI runner may not allow it) and only prints the frame checksums.
+    if std::env::var("NOCOUNT").is_err() {
+        let fd = open_counter();
+        if fd < 0 {
+            eprintln!("could not open the instruction counter (perf_event_paranoid too strict?); NOCOUNT=1 runs without it");
+            std::process::exit(1);
+        }
+        FD.store(fd, Ordering::Relaxed);
+        video::set_hook(hook);
     }
-    FD.store(fd, Ordering::Relaxed);
-    video::set_hook(hook);
     scene("map", video::MAP, false, walk, frames);
     scene("level 0 (day)", 0, false, walk, frames);
     scene("level 1 (cave)", 1, false, walk, frames);
