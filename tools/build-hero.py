@@ -5,49 +5,50 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 #
 # usage: python3 -I tools/build-hero.py > assets/hero.svg
+import os
+import re
 import sys
 
-# A 5 x 7 pixel font for the letters the banner's screen needs.
-FONT = {
-    "A": ["01110", "10001", "10001", "11111", "10001", "10001", "10001"],
-    "B": ["11110", "10001", "10001", "11110", "10001", "10001", "11110"],
-    "E": ["11111", "10000", "10000", "11110", "10000", "10000", "11111"],
-    "F": ["11111", "10000", "10000", "11110", "10000", "10000", "10000"],
-    "G": ["01110", "10001", "10000", "10111", "10001", "10001", "01111"],
-    "I": ["11111", "00100", "00100", "00100", "00100", "00100", "11111"],
-    "L": ["10000", "10000", "10000", "10000", "10000", "10000", "11111"],
-    "M": ["10001", "11011", "10101", "10101", "10001", "10001", "10001"],
-    "N": ["10001", "11001", "10101", "10101", "10011", "10001", "10001"],
-    "O": ["01110", "10001", "10001", "10001", "10001", "10001", "01110"],
-    "P": ["11110", "10001", "10001", "11110", "10000", "10000", "10000"],
-    "S": ["01111", "10000", "10000", "01110", "00001", "00001", "11110"],
-    "T": ["11111", "00100", "00100", "00100", "00100", "00100", "00100"],
-    "U": ["10001", "10001", "10001", "10001", "10001", "10001", "01110"],
-    "W": ["10001", "10001", "10001", "10101", "10101", "11011", "10001"],
-    "Z": ["11111", "00001", "00010", "00100", "01000", "10000", "11111"],
-    " ": ["00000"] * 7,
-}
+DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "m2", "dos-rt", "src", "ui_data.rs")
+
+# The game's own pixel font, read from the generated interface data (see m4/export-ui.ts): each glyph has a width and rows from the
+# top of a capital letter, the leftmost pixel in the highest bit; a letter advances by its width plus one pixel.
+SPACE = 3
+GLYPHS = {}
+for cp, w, rows in re.findall(r"Glyph \{ cp: (\d+), w: (\d+), rows: &\[([^\]]*)\] \}", open(DATA).read()):
+    GLYPHS[chr(int(cp))] = (int(w), [int(r) for r in rows.split(",") if r.strip()])
+
+
+def advance(ch):
+    return SPACE if ch == " " or ch not in GLYPHS else GLYPHS[ch][0] + 1
 
 
 def text(s, x, y, k, fill):
-    """Rects for `s` in the pixel font with `k` px per font pixel, from the top left (x, y)."""
+    """Rects for `s` in the game's font with `k` px per font pixel, from the top left (x, y)."""
     out = []
     for ch in s:
-        g = FONT[ch]
-        for r, row in enumerate(g):
-            run = None
-            for c, bit in enumerate(row + "0"):
-                if bit == "1" and run is None:
-                    run = c
-                elif bit != "1" and run is not None:
-                    out.append(f'<rect x="{x + run * k}" y="{y + r * k}" width="{(c - run) * k}" height="{k}" fill="{fill}"/>')
-                    run = None
-        x += 6 * k
+        if ch in GLYPHS:
+            w, rows = GLYPHS[ch]
+            for r, bits in enumerate(rows):
+                run = None
+                for c in range(w + 1):
+                    on = c < w and (bits >> (w - 1 - c)) & 1
+                    if on and run is None:
+                        run = c
+                    elif not on and run is not None:
+                        out.append(f'<rect x="{x + run * k}" y="{y + r * k}" width="{(c - run) * k}" height="{k}" fill="{fill}"/>')
+                        run = None
+        x += advance(ch) * k
     return "".join(out)
 
 
 def width(s, k):
-    return len(s) * 6 * k - k
+    return (sum(advance(ch) for ch in s) - 1) * k
+
+
+def logo(s, x, y, k, colour="#ffffff", edge="#ff5555"):
+    """The wordmark: `colour` letters, an `edge` line a font pixel under them, a black line under that."""
+    return "".join(text(s, x, y + dy, k, c) for dy, c in ((2 * k, "#000000"), (k, edge), (0, colour)))
 
 
 # The screen is 320 x 200 art pixels drawn at 1.2 px each.
@@ -69,18 +70,16 @@ screen.append(f'<polygon points="{pts}" fill="#7a1f7a"/>')
 screen.append(art(0, 150, 320, 50, "#4a1a6a"))
 screen.append(art(0, 149, 320, 2, "#2f9e2f"))
 # The wordmark: white letters, a red edge a pixel under them, a black line under that.
-title = "LIEUTENANT FIZZ"
+title = "Lieutenant Fizz"
 k = 3
-tw = width(title, k)
-tx = (320 - tw) // 2
-for dy, colour in ((2 * k, "#000000"), (k, "#ff5555"), (0, "#ffffff")):
-    screen.append(text(title, SX + tx * K, SY + (30 + dy) * K, k * K, colour))
-kick = "BEN BLAZE IN"
+tx = (320 - width(title, k)) // 2
+screen.append(logo(title, SX + tx * K, SY + 30 * K, k * K))
+kick = "Ben Blaze in"
 screen.append(text(kick, SX + ((320 - width(kick, 1)) // 2) * K, SY + 14 * K, K, "#ffff55"))
 # The menu: the chosen row is a yellow plate with black ink.
 screen.append(art(110, 112, 130, 12, "#ffff55"))
-screen.append(text("NEW GAME", SX + 120 * K, SY + 114 * K, K, "#000000"))
-screen.append(text("OPTIONS", SX + 120 * K, SY + 128 * K, K, "#aaaaaa"))
+screen.append(text("New game", SX + 120 * K, SY + 114 * K, K, "#000000"))
+screen.append(text("Options", SX + 120 * K, SY + 128 * K, K, "#aaaaaa"))
 # The soda can that marks the chosen row, bobbing.
 can = (
     f'<g class="bob"><rect x="{SX + 94 * K}" y="{SY + 109 * K}" width="{9 * K}" height="{16 * K}" fill="#aa0000"/>'
@@ -88,6 +87,10 @@ can = (
     f'<rect x="{SX + 94 * K}" y="{SY + 109 * K}" width="{9 * K}" height="{K}" fill="#aaaaaa"/></g>'
 )
 screen = "".join(screen)
+# The name on the right, in the same lettering: as large as fits between the monitor and the edge.
+BIG_X, BIG_W = 612, 560
+BIG_K = BIG_W // (sum(advance(ch) for ch in 'Lieutenant Fizz') - 1)
+big = logo('Lieutenant Fizz', BIG_X, 70, BIG_K)
 
 svg = f'''<!-- Hero banner for the Lieutenant Fizz for DOS README. -->
 <!-- -->
@@ -117,12 +120,6 @@ svg = f'''<!-- Hero banner for the Lieutenant Fizz for DOS README. -->
       <stop offset="0%" stop-color="#050507"/>
       <stop offset="100%" stop-color="#15121f"/>
     </linearGradient>
-    <!-- House hero-text gradient: white into Afterglow orange and rose. -->
-    <linearGradient id="brand" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="20%" stop-color="#ffffff"/>
-      <stop offset="65%" stop-color="#ffaa40"/>
-      <stop offset="100%" stop-color="#f43f5e"/>
-    </linearGradient>
     <radialGradient id="halo" cx="0.5" cy="0.5" r="0.5">
       <stop offset="0%" stop-color="#f43f5e" stop-opacity="0.35"/>
       <stop offset="100%" stop-color="#f43f5e" stop-opacity="0"/>
@@ -143,7 +140,7 @@ svg = f'''<!-- Hero banner for the Lieutenant Fizz for DOS README. -->
   </g>
 
   <!-- The name and the prompt. -->
-  <text x="610" y="130" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" font-size="62" font-weight="700" fill="url(#brand)">Lieutenant Fizz</text>
+  {big}
   <text x="614" y="170" font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" font-size="24" fill="#ffffff" fill-opacity="0.85">Episode 1 · The Cocoa Caper · for DOS</text>
   <g font-family="'JetBrains Mono', 'DejaVu Sans Mono', Menlo, Consolas, monospace" font-size="22">
     <text x="614" y="230" fill="#aaaaaa">C:\\&gt; FIZZ.EXE</text>
