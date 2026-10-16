@@ -219,14 +219,19 @@ pub fn outline(frame: &mut [u8], x: i32, y: i32, w: i32, h: i32, colour: u8) {
 
 /// Darkens what is under a rectangle by `steps` brightness levels, so text on it reads while the scene still shows through.
 pub fn dim(frame: &mut [u8], x: i32, y: i32, w: i32, h: i32, steps: u8) {
-    for yy in y.max(0)..(y + h).min(H as i32) {
-        for xx in x.max(0)..(x + w).min(W as i32) {
-            let p = &mut frame[yy as usize * W + xx as usize];
-            *p = if *p == 255 {
-                16
-            } else {
-                ((*p >> 4).saturating_sub(steps)).max(1) << 4 | (*p & 15)
-            };
+    let (x0, x1) = (x.max(0) as usize, (x + w).min(W as i32).max(0) as usize);
+    let (y0, y1) = (y.max(0) as usize, (y + h).min(H as i32).max(0) as usize);
+    if x1 <= x0 || y1 <= y0 {
+        return;
+    }
+    // One lookup a pixel instead of the shifts and clamps.
+    let mut lut = [0u8; 256];
+    for (p, o) in lut.iter_mut().enumerate() {
+        *o = if p == 255 { 16 } else { ((p as u8 >> 4).saturating_sub(steps)).max(1) << 4 | (p as u8 & 15) };
+    }
+    for row in y0..y1 {
+        for p in frame[row * W + x0..row * W + x1].iter_mut() {
+            *p = lut[usize::from(*p)];
         }
     }
 }

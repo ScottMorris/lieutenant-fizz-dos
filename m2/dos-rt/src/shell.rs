@@ -643,7 +643,9 @@ fn play_tick(s: &mut Shell, edges: u32, sim_held: u32) {
     }
 
     step(sim_held);
+    crate::video::mark(8);
     events(s);
+    crate::video::mark(9);
     // A level entered or left from inside the sim fades in from black.
     let now = mode();
     if mode_before != 0 && now != mode_before && s.fade.is_none() {

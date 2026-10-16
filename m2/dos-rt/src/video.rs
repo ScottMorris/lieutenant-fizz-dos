@@ -225,6 +225,25 @@ pub fn advance(held: u32) {
     crate::shell::advance(held);
 }
 
+/// A hook the native benchmark sets to count instructions between the stages of a frame; the DOS build leaves it empty.
+static HOOK: core::sync::atomic::AtomicUsize = core::sync::atomic::AtomicUsize::new(0);
+
+/// Sets the profiling hook (a `fn(u8)` called at the end of each stage).
+pub fn set_hook(f: fn(u8)) {
+    HOOK.store(f as usize, Ordering::Relaxed);
+}
+
+/// Marks the end of a stage: 1 the sim's render, 3 the lights, 4 the clear, 5 the sprites, 6 the shading, 7 the overlay,
+/// 8 the sim's step, 9 reading its events.
+#[inline(always)]
+pub fn mark(stage: u8) {
+    let h = HOOK.load(Ordering::Relaxed);
+    if h != 0 {
+        // SAFETY: only `set_hook` stores here, and it stores a `fn(u8)`.
+        unsafe { core::mem::transmute::<usize, fn(u8)>(h)(stage) };
+    }
+}
+
 /// Draws the current scene into `frame` (W*H bytes). Returns the clear colour as 0x00RRGGBB with 6-bit channels,
 /// for palette slot 17.
 pub fn draw(frame: &mut [u8], alpha: f32) -> u32 {
@@ -235,7 +254,9 @@ pub fn draw(frame: &mut [u8], alpha: f32) -> u32 {
 /// The sim writes the scene into its instance buffer; returns how many sprites.
 pub fn build(alpha: f32) -> usize {
     let night = if NIGHT.load(Ordering::Relaxed) != 0 { lf_episode_1::render::flags::NIGHT } else { 0 };
-    render(f64::from(alpha), lf_episode_1::render::flags::CULLING | night) as usize
+    let n = render(f64::from(alpha), lf_episode_1::render::flags::CULLING | night) as usize;
+    mark(1);
+    n
 }
 
 /// Draws what `build` wrote into `frame`.
@@ -247,15 +268,20 @@ pub fn paint(frame: &mut [u8], count: usize) -> u32 {
     let six = |v: f32| (v.clamp(0.0, 1.0) * 63.0 + 0.5) as u32;
     let clear = six(out[5]) << 16 | six(out[6]) << 8 | six(out[7]);
     let levels = light_levels(out, cam_px);
+    mark(3);
     // The list is in painter's order and little of the screen is covered twice, so it is drawn back to front.
     frame.fill(CLEAR_SLOT);
+    mark(4);
     let inst = unsafe { core::slice::from_raw_parts(instance_ptr(), count * 20) };
     let mut tints = TintCache::new();
     for b in inst.chunks_exact(20) {
         blit(frame, b, cam_px, &mut tints);
     }
+    mark(5);
     shade(frame, &levels);
+    mark(6);
     crate::shell::overlay(frame, cam_px);
+    mark(7);
     clear
 }
 
@@ -525,20 +551,28 @@ fn light_levels(out: &[f32], cam_px: (i32, i32)) -> [u8; CELLS_X * CELLS_Y] {
 /// A cell's light is in quarter-levels; a 2x2 ordered dither picks the level above or below for each pixel, so the
 /// 14 levels do not show as bands or blocks.
 fn shade(frame: &mut [u8], levels: &[u8; CELLS_X * CELLS_Y]) {
-    // One table per level: frame byte in, final palette index out.
-    let mut tables = [[0u8; 256]; LEVELS + 1];
-    for (lvl, t) in tables.iter_mut().enumerate().skip(1) {
-        for (v, o) in t.iter_mut().enumerate() {
-            let (hi, c) = ((v >> 4) as u8, (v & 15) as u8);
-            let l = match hi {
-                0 => lvl as u8,
-                0xD => (lvl as u8).max(ACTOR_FLOOR),
-                0xE => LEVELS as u8,
-                _ => 0,
-            };
-            *o = if v == usize::from(CLEAR_SLOT) { CLEAR_SLOT } else { l * 16 + c };
+    // One table per level: frame byte in, final palette index out. They never change, so they are built once.
+    static mut TABLES: [[u8; 256]; LEVELS + 1] = [[0; 256]; LEVELS + 1];
+    static mut BUILT: bool = false;
+    let tables = unsafe {
+        let t = &mut *core::ptr::addr_of_mut!(TABLES);
+        if !BUILT {
+            for (lvl, t) in t.iter_mut().enumerate().skip(1) {
+                for (v, o) in t.iter_mut().enumerate() {
+                    let (hi, c) = ((v >> 4) as u8, (v & 15) as u8);
+                    let l = match hi {
+                        0 => lvl as u8,
+                        0xD => (lvl as u8).max(ACTOR_FLOOR),
+                        0xE => LEVELS as u8,
+                        _ => 0,
+                    };
+                    *o = if v == usize::from(CLEAR_SLOT) { CLEAR_SLOT } else { l * 16 + c };
+                }
+            }
+            BUILT = true;
         }
-    }
+        &*core::ptr::addr_of!(TABLES)
+    };
     const BAYER: [[u8; 2]; 2] = [[0, 2], [3, 1]];
     for y in 0..H {
         let row = &mut frame[y * W..][..W];

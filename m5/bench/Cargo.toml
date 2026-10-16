@@ -1,0 +1,19 @@
+[package]
+name = "render-bench"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+lf-episode-1 = { path = "../../m2/game" }
+lf-sim = { path = "../../m2/sim" }
+libc = "0.2"
+
+[workspace]
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+debug = 1
