@@ -11,6 +11,8 @@
   var playButton = document.getElementById('play');
   var muteButton = document.getElementById('mute');
   var fullButton = document.getElementById('full');
+  var restartButton = document.getElementById('restart');
+  var player = null;
   var ci = null;
   var muted = params.has('mute');
 
@@ -25,11 +27,10 @@
     else ci.unmute();
   }
 
-  function start() {
-    playButton.disabled = true;
-    playButton.textContent = 'Loading…';
+  function launch() {
     host.hidden = false;
-    window.Dos(host, {
+    ci = null;
+    player = window.Dos(host, {
       url: 'game.jsdos',
       pathPrefix: 'vendor/js-dos/emulators/',
       autoStart: true,
@@ -45,6 +46,23 @@
         }
       },
     });
+    restartButton.disabled = false;
+  }
+
+  function start() {
+    playButton.disabled = true;
+    playButton.textContent = 'Loading…';
+    launch();
+  }
+
+  // Leaving the game and typing `exit` at the DOS prompt stops the emulator; this starts a fresh one from the start-up screen.
+  function restart() {
+    restartButton.disabled = true;
+    var stopped = player && player.stop ? Promise.resolve(player.stop()).catch(function () {}) : Promise.resolve();
+    stopped.then(function () {
+      host.replaceChildren();
+      launch();
+    });
   }
 
   muteButton.addEventListener('click', function () {
@@ -56,6 +74,7 @@
     if (stage.requestFullscreen) stage.requestFullscreen();
   });
   playButton.addEventListener('click', start);
+  restartButton.addEventListener('click', restart);
   showMuted();
   if (params.has('autoplay')) start();
 })();
