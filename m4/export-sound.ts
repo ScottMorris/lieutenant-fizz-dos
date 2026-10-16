@@ -1,5 +1,5 @@
 // Writes the DOS build's sound data: the OPL2 songs, the OPL2 and PC-speaker effects and the tables that choose them.
-//   bun m4/export-sound.ts > m4/assets/sound.bin   (reads the Keen lab's converters and the main repository, changes nothing in them)
+//   bun m4/export-sound.ts > m4/assets/sound.bin   (converts the songs and effects in m4/sound; reads the main repository and changes nothing in it)
 //
 // Layout (little endian):
 //   "FZSN", u8 version 1, u8 songs, u8 effects, u8 captions, u8 levels
@@ -12,12 +12,10 @@
 import { readFileSync, writeSync } from 'node:fs';
 
 const GAME = process.env.FIZZ_GAME ?? new URL('../../../liminal-hq/lieutenant-fizz', import.meta.url).pathname; // the main game's checkout; FIZZ_GAME overrides
-// The converters live in a separate lab checkout (the committed m4/assets/sound.bin is what builds use); FIZZ_IMF_LAB points at its src.
-const LAB = process.env.FIZZ_IMF_LAB ?? new URL('../../keen-exploration/imf-transcription-lab/src', import.meta.url).pathname;
-const { PATTERNS } = await import(`${LAB}/fizz-game/patterns.ts`);
-const { SONGS, planSong } = await import(`${LAB}/fizz-songs.ts`);
-const { convertSong } = await import(`${LAB}/fizz-dos/song.ts`);
-const { convertSfx } = await import(`${LAB}/fizz-dos/sfx.ts`);
+const { PATTERNS } = await import('./sound/fizz-game/patterns.ts');
+const { SONGS, planSong } = await import('./sound/fizz-songs.ts');
+const { convertSong } = await import('./sound/fizz-dos/song.ts');
+const { convertSfx } = await import('./sound/fizz-dos/sfx.ts');
 const { LEVELS } = await import(`${GAME}/episodes/episode-1/src/story.ts`);
 
 // The sim's own caption and level tables, read the way the web shell reads them.
