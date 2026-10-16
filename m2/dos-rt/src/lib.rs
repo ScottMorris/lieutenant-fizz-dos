@@ -157,3 +157,15 @@ pub extern "C" fn fizz_draw(frame: *mut u8, alpha: f32) -> u32 {
     let frame = unsafe { core::slice::from_raw_parts_mut(frame, video::W * video::H) };
     video::draw(frame, alpha)
 }
+
+/// The two halves of `fizz_draw`, so each can be timed: the sim builds its instance list, then it is painted.
+#[no_mangle]
+pub extern "C" fn fizz_build(alpha: f32) -> u32 {
+    video::build(alpha) as u32
+}
+
+#[no_mangle]
+pub extern "C" fn fizz_paint(frame: *mut u8, count: u32) -> u32 {
+    let frame = unsafe { core::slice::from_raw_parts_mut(frame, video::W * video::H) };
+    video::paint(frame, count as usize)
+}

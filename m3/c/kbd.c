@@ -55,6 +55,20 @@ void kbd_remove(void) {
 }
 
 unsigned kbd_held(void) { return keymap_bits(keys); }
+
+unsigned kbd_tick_bits(void) {
+  /* Keys of the game only: a press of Esc, P, R or the page keys is for the main loop, which reads it by itself. */
+  static const unsigned char game_keys[] = {SC_LEFT, SC_RIGHT, SC_UP, SC_DOWN, SC_A, SC_D, SC_W, SC_S,
+                                            SC_CTRL, SC_Z, SC_ALT, SC_X, SC_SPACE, SC_C};
+  unsigned char taps[128];
+  unsigned i;
+  memset(taps, 0, sizeof taps);
+  for (i = 0; i < sizeof game_keys; i++) {
+    taps[game_keys[i]] = latch[game_keys[i]];
+    latch[game_keys[i]] = 0;
+  }
+  return keymap_bits(keys) | keymap_bits(taps);
+}
 int kbd_down(int sc) { return keys[sc & 0x7F]; }
 int kbd_pressed(int sc) {
   int was = latch[sc & 0x7F];

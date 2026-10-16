@@ -17,7 +17,8 @@ extern unsigned fizz_scripted(unsigned tick);
 extern void fizz_tick(unsigned held);
 extern void fizz_goto(unsigned level);
 extern unsigned fizz_level(void);
-extern unsigned fizz_draw(unsigned char *frame, float alpha);
+extern unsigned fizz_build(float alpha);
+extern unsigned fizz_paint(unsigned char *frame, unsigned count);
 
 /* The 16 EGA colours as 6-bit VGA channels, in the sprite DSL's order (k B G C R M N L D b g c r m y W). */
 static const unsigned char ega[16][3] = {
@@ -25,12 +26,25 @@ static const unsigned char ega[16][3] = {
   {21, 21, 21}, {21, 21, 63}, {21, 63, 21}, {21, 63, 63}, {63, 21, 21}, {63, 21, 63}, {63, 63, 21}, {63, 63, 63}};
 
 static unsigned char frame[64000];
+static uclock_t t_tick, t_build, t_draw, t_present;
+static unsigned n_sprites;
+static unsigned n_frames;
 
 static void show(unsigned *clear, int sync, float alpha) {
-  *clear = fizz_draw(frame, alpha);
+  uclock_t a = uclock(), m, b, c;
+  unsigned count = fizz_build(alpha);
+  m = uclock();
+  *clear = fizz_paint(frame, count);
+  b = uclock();
+  n_sprites += count;
+  t_build += m - a;
   vga_palette(17, (*clear >> 16) & 63, (*clear >> 8) & 63, *clear & 63);
   if (sync) vga_vsync();
   vga_present(frame);
+  c = uclock();
+  t_draw += b - m;
+  t_present += c - b;
+  n_frames++;
 }
 
 int main(int argc, char **argv) {
@@ -52,7 +66,7 @@ int main(int argc, char **argv) {
   if (ticks) {
     /* A scripted run: one tick a frame, so a screenshot is the same every time. */
     for (t = 0; t < ticks; t++) {
-      fizz_tick(fizz_scripted(t));
+      { uclock_t a = uclock(); fizz_tick(fizz_scripted(t)); t_tick += uclock() - a; }
       show(&clear, !nosync, 1.0f);
     }
   } else {
@@ -70,9 +84,14 @@ int main(int argc, char **argv) {
       if (kbd_pressed(SC_PGUP)) fizz_goto(fizz_level() + 15);
       if (kbd_pressed(SC_PGDN)) fizz_goto(fizz_level() + 1);
       if (kbd_pressed(SC_R)) fizz_goto(fizz_level());
-      while (acc >= step) {
-        if (!paused) { fizz_tick(kbd_held()); t++; }
-        acc -= step;
+      if (acc >= step) {
+        /* The first tick of a frame also gets any quick taps; the rest of a catch-up see what is held. */
+        unsigned bits = kbd_tick_bits();
+        while (acc >= step) {
+          if (!paused) { uclock_t a = uclock(); fizz_tick(bits); t_tick += uclock() - a; t++; }
+          bits = kbd_held();
+          acc -= step;
+        }
       }
       show(&clear, 1, paused ? 1.0f : (float)acc / (float)step);
     }
@@ -89,5 +108,11 @@ int main(int argc, char **argv) {
     if (f) { fwrite(pal, 1, sizeof pal, f); fclose(f); }
   }
   printf("%u ticks, ended on level %u\n", t, fizz_level());
+  if (n_frames)
+    printf("per frame: build %lu us, paint %lu us (%u sprites), present %lu us; per tick: %lu us\n",
+           (unsigned long)(t_build * 1000000ULL / UCLOCKS_PER_SEC / n_frames),
+           (unsigned long)(t_draw * 1000000ULL / UCLOCKS_PER_SEC / n_frames), n_sprites / n_frames,
+           (unsigned long)(t_present * 1000000ULL / UCLOCKS_PER_SEC / n_frames),
+           t ? (unsigned long)(t_tick * 1000000ULL / UCLOCKS_PER_SEC / t) : 0UL);
   return 0;
 }

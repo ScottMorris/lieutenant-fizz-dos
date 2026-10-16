@@ -75,14 +75,32 @@ fn u32_at(o: usize) -> usize {
     u16_at(o) | u16_at(o + 2) << 16
 }
 
-/// Sprite `i`: its width, height and pixels.
-fn sprite(i: usize) -> Option<(usize, usize, &'static [u8])> {
+/// One sprite of the sheet.
+#[derive(Clone, Copy)]
+struct Sprite {
+    w: usize,
+    h: usize,
+    /// Every pixel is drawn (a tile): rows copy whole.
+    opaque: bool,
+    /// Every pixel is this colour, when the sprite is one flat colour (a fill): a row is one `fill`.
+    flat: Option<u8>,
+    pix: &'static [u8],
+}
+
+fn sprite(i: usize) -> Option<Sprite> {
     if i >= u16_at(0) {
         return None;
     }
     let o = u32_at(2 + i * 4);
     let (w, h) = (u16_at(o), u16_at(o + 2));
-    Some((w, h, &SPRITES[o + 4..o + 4 + w * h]))
+    let flags = SPRITES[o + 4];
+    Some(Sprite {
+        w,
+        h,
+        opaque: flags & 1 != 0,
+        flat: (flags & 2 != 0).then(|| SPRITES[o + 5]),
+        pix: &SPRITES[o + 6..o + 6 + w * h],
+    })
 }
 
 /// Starts a level: a new game, the level, the 20x12.5 tile view of a 320x200 screen, and the sprite sizes the
@@ -94,7 +112,7 @@ pub fn start(level: u32) {
     let n = table_len(0) as usize;
     let table = unsafe { core::slice::from_raw_parts_mut(sprite_table_ptr(), n * 6) };
     for (i, s) in table.chunks_exact_mut(6).enumerate() {
-        let (w, h) = sprite(i).map_or((1, 1), |(w, h, _)| (w, h));
+        let (w, h) = sprite(i).map_or((1, 1), |sp| (sp.w, sp.h));
         s.copy_from_slice(&[i as f32, 0.0, 1.0, 1.0, w as f32, h as f32]);
     }
 }
@@ -141,20 +159,65 @@ pub fn advance(held: u32) {
 /// Draws the current scene into `frame` (W*H bytes). Returns the clear colour as 0x00RRGGBB with 6-bit channels,
 /// for palette slot 17.
 pub fn draw(frame: &mut [u8], alpha: f32) -> u32 {
-    let count = render(f64::from(alpha), 0) as usize;
+    let count = build(alpha);
+    paint(frame, count)
+}
+
+/// The sim writes the scene into its instance buffer; returns how many sprites.
+pub fn build(alpha: f32) -> usize {
+    render(f64::from(alpha), lf_episode_1::render::flags::CULLING) as usize
+}
+
+/// Draws what `build` wrote into `frame`.
+pub fn paint(frame: &mut [u8], count: usize) -> u32 {
     let out = unsafe { core::slice::from_raw_parts(out_ptr(), 32) };
     let (cam_x, cam_y) = (out[1], out[2]);
     let six = |v: f32| (v.clamp(0.0, 1.0) * 63.0 + 0.5) as u32;
     let clear = six(out[5]) << 16 | six(out[6]) << 8 | six(out[7]);
+    // The list is in painter's order and little of the screen is covered twice, so it is drawn back to front.
     frame.fill(CLEAR_SLOT);
     let inst = unsafe { core::slice::from_raw_parts(instance_ptr(), count * 20) };
+    let mut tints = TintCache::new();
     for b in inst.chunks_exact(20) {
-        blit(frame, b, cam_x, cam_y);
+        blit(frame, b, cam_x, cam_y, &mut tints);
     }
     clear
 }
 
-fn blit(frame: &mut [u8], b: &[f32], cam_x: f32, cam_y: f32) {
+/// The last few tints seen and their colour tables, so a tint shared by many sprites is worked out once a frame.
+struct TintCache {
+    keys: [u32; 4],
+    luts: [[u8; 17]; 4],
+    next: usize,
+}
+
+impl TintCache {
+    fn new() -> Self {
+        TintCache { keys: [0xff_ffff; 4], luts: [[0; 17]; 4], next: 0 }
+    }
+
+    fn get(&mut self, tint: u32) -> [u8; 17] {
+        for i in 0..4 {
+            if self.keys[i] == tint {
+                return self.luts[i];
+            }
+        }
+        let lut = tint_lut(tint);
+        self.keys[self.next] = tint;
+        self.luts[self.next] = lut;
+        self.next = (self.next + 1) % 4;
+        lut
+    }
+}
+
+/// `v` rounded to the nearest integer (positions here are above -1000, so no floor call is needed).
+fn round(v: f32) -> i32 {
+    (v + 1000.5) as i32 - 1000
+}
+
+const IDENTITY: [u8; 17] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+
+fn blit(frame: &mut [u8], b: &[f32], cam_x: f32, cam_y: f32, tints: &mut TintCache) {
     // Alpha, emissive and actor share one float: alpha + 2 * emissive + 4 * actor.
     let flags = b[19];
     let w2 = if flags >= 3.5 { flags - 4.0 } else { flags };
@@ -162,19 +225,117 @@ fn blit(frame: &mut [u8], b: &[f32], cam_x: f32, cam_y: f32) {
     if alpha < 0.5 {
         return;
     }
-    let Some((sw, sh, pix)) = sprite(b[16] as usize) else {
+    let cx = W as f32 / 2.0 + (b[12] - cam_x) * TILE;
+    let cy = H as f32 / 2.0 - (b[13] - cam_y) * TILE;
+    let (m00, m01, m10, m11) = (b[0], b[1], b[4], b[5]);
+    // Most sprites are not turned: they are copied, flipped or scaled by whole steps of fixed-point, with no
+    // floating-point work per pixel (the x87 is slow, and DOSBox's emulation of it slower).
+    if m01 == 0.0 && m10 == 0.0 {
+        let (dw, dh) = (round(m00.abs() * TILE), round(m11.abs() * TILE));
+        if dw <= 0 || dh <= 0 {
+            return;
+        }
+        let x0 = round(cx - m00.abs() * TILE * 0.5);
+        let y0 = round(cy - m11.abs() * TILE * 0.5);
+        if x0 >= W as i32 || y0 >= H as i32 || x0 + dw <= 0 || y0 + dh <= 0 {
+            return;
+        }
+        let Some(sp) = sprite(b[16] as usize) else {
+            return;
+        };
+        let (sw, sh) = (sp.w, sp.h);
+        let tint = b[18] as u32;
+        let identity = tint == 0xff_ffff;
+        let lut = if identity { IDENTITY } else { tints.get(tint) };
+        let (flip_x, flip_y) = (m00 < 0.0, m11 < 0.0);
+        let (cx0, cx1) = (x0.max(0), (x0 + dw).min(W as i32));
+        let (cy0, cy1) = (y0.max(0), (y0 + dh).min(H as i32));
+        let span = (cx1 - cx0) as usize;
+        // A flat sprite (the big background fills) is one `fill` a row.
+        if let Some(c) = sp.flat {
+            let colour = lut[usize::from(c)];
+            for y in cy0..cy1 {
+                frame[y as usize * W + cx0 as usize..][..span].fill(colour);
+            }
+            return;
+        }
+        if dw as usize == sw && dh as usize == sh {
+            // Drawn at its own size, the common case: rows are copied, whole when the sprite is opaque.
+            let skip = (cx0 - x0) as usize;
+            for y in cy0..cy1 {
+                let mut r = (y - y0) as usize;
+                if flip_y {
+                    r = sh - 1 - r;
+                }
+                let src = &sp.pix[r * sw..][..sw];
+                let dst = &mut frame[y as usize * W + cx0 as usize..][..span];
+                if !flip_x {
+                    let s = &src[skip..][..span];
+                    if sp.opaque && identity {
+                        dst.copy_from_slice(s);
+                    } else if sp.opaque {
+                        for (d, &c) in dst.iter_mut().zip(s) {
+                            *d = lut[usize::from(c)];
+                        }
+                    } else {
+                        for (d, &c) in dst.iter_mut().zip(s) {
+                            if c != 0 {
+                                *d = lut[usize::from(c)];
+                            }
+                        }
+                    }
+                } else {
+                    for (i, d) in dst.iter_mut().enumerate() {
+                        let c = src[sw - 1 - (skip + i)];
+                        if c != 0 {
+                            *d = lut[usize::from(c)];
+                        }
+                    }
+                }
+            }
+            return;
+        }
+        // Scaled: fixed-point steps through the sprite, no floating point per pixel.
+        let ustep = ((sw as i32) << 16) / dw;
+        let vstep = ((sh as i32) << 16) / dh;
+        for y in cy0..cy1 {
+            let mut row = (((y - y0) * vstep + vstep / 2) >> 16) as usize;
+            if flip_y {
+                row = sh - 1 - row.min(sh - 1);
+            }
+            let src = &sp.pix[row.min(sh - 1) * sw..][..sw];
+            let dst = &mut frame[y as usize * W..][..W];
+            let mut u = (cx0 - x0) * ustep + ustep / 2;
+            for x in cx0..cx1 {
+                let mut col = (u >> 16) as usize;
+                if flip_x {
+                    col = sw - 1 - col.min(sw - 1);
+                }
+                let c = src[col.min(sw - 1)];
+                if c != 0 {
+                    dst[x as usize] = lut[usize::from(c)];
+                }
+                u += ustep;
+            }
+        }
+        return;
+    }
+    blit_turned(frame, b, cx, cy, tints);
+}
+
+/// A sprite that is rotated (a few effects): each screen pixel is mapped back through the instance's matrix.
+fn blit_turned(frame: &mut [u8], b: &[f32], cx: f32, cy: f32, tints: &mut TintCache) {
+    let Some(sp) = sprite(b[16] as usize) else {
         return;
     };
+    let (sw, sh, pix) = (sp.w, sp.h, sp.pix);
     let tint = b[18] as u32;
-    let lut = if tint == 0xff_ffff { None } else { Some(tint_lut(tint)) };
+    let lut = if tint == 0xff_ffff { IDENTITY } else { tints.get(tint) };
     let (m00, m01, m10, m11) = (b[0], b[1], b[4], b[5]);
     let det = m00 * m11 - m10 * m01;
     if det == 0.0 {
         return;
     }
-    // The quad's centre on the screen, and the box that holds its (possibly rotated) corners.
-    let cx = W as f32 / 2.0 + (b[12] - cam_x) * TILE;
-    let cy = H as f32 / 2.0 - (b[13] - cam_y) * TILE;
     let ex = (m00.abs() + m10.abs()) * 0.5 * TILE;
     let ey = (m01.abs() + m11.abs()) * 0.5 * TILE;
     let x0 = ((cx - ex) as i32).max(0);
@@ -194,7 +355,7 @@ fn blit(frame: &mut [u8], b: &[f32], cam_x: f32, cam_y: f32) {
             let row = ((0.5 - py) * sh as f32) as usize;
             let c = pix[row.min(sh - 1) * sw + col.min(sw - 1)];
             if c != 0 {
-                frame[y as usize * W + x as usize] = lut.map_or(c, |l| l[usize::from(c)]);
+                frame[y as usize * W + x as usize] = lut[usize::from(c)];
             }
         }
     }
