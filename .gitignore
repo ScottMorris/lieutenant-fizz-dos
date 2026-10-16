@@ -19,3 +19,6 @@ m3/c/FRAME.RAW
 m3/c/PAL.RAW
 m3/c/OUT.TXT
 m3/c/CWSDPMI.EXE
+dist/fizz-dos-demo/*.EXE
+dist/fizz-dos-demo/*.DOC
+dist/*.zip
