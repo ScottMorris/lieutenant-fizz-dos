@@ -94,6 +94,29 @@ pub fn text_big(frame: &mut [u8], x: i32, y: i32, s: &str, colour: u8, k: i32) -
     end
 }
 
+/// The logo's lettering: `colour` letters with a coloured edge one glyph pixel under them and a black line under that, as the web
+/// build's wordmark has. Every pixel is `k` pixels square. Returns where the text ended.
+pub fn text_logo(frame: &mut [u8], x: i32, y: i32, s: &str, colour: u8, edge: u8, k: i32) -> i32 {
+    let mut end = x;
+    for (dy, c) in [(2 * k, BLACK), (k, edge), (0, colour)] {
+        let mut at = x;
+        for ch in s.chars() {
+            if let Some(g) = glyph(ch) {
+                for (row, bits) in g.rows.iter().enumerate() {
+                    for col in 0..g.w {
+                        if bits >> (g.w - 1 - col) & 1 != 0 {
+                            fill(frame, at + i32::from(col) * k, y + dy + row as i32 * k, k, k, c);
+                        }
+                    }
+                }
+            }
+            at += advance(ch) * k;
+        }
+        end = at;
+    }
+    end
+}
+
 /// A tick mark, 7 pixels wide.
 pub fn tick_mark(frame: &mut [u8], x: i32, y: i32, colour: u8) {
     for (dx, dy) in [(0, 3), (1, 4), (2, 5), (3, 4), (4, 3), (5, 2), (6, 1), (7, 0)] {

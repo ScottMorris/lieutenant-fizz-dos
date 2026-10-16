@@ -828,7 +828,7 @@ fn title_screen(frame: &mut [u8], s: &Shell) {
     ui::dim(frame, 0, 0, W as i32, H as i32, 5);
     ui::text_centred(frame, W as i32 / 2, 12, TITLE_KICKER, ui::YELLOW);
     let w = ui::text_width(TITLE_WORDS) * 3;
-    ui::text_big(frame, (W as i32 - w) / 2, 24, TITLE_WORDS, ui::WHITE, 3);
+    ui::text_logo(frame, (W as i32 - w) / 2, 24, TITLE_WORDS, ui::WHITE, ui::RED, 3);
     ui::text_centred(frame, W as i32 / 2, 56, TITLE_LINE, ui::CYAN);
     let (items, n) = title_items(s);
     let mut rows: [(&str, &str); 5] = [("", ""); 5];
