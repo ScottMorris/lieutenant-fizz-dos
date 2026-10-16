@@ -3,6 +3,8 @@
 
 extern crate alloc;
 
+pub mod video;
+
 use alloc::alloc::{GlobalAlloc, Layout};
 use core::ffi::{c_char, c_int, c_void};
 
@@ -112,4 +114,28 @@ pub extern "C" fn fizz_m0(ticks: u32, use_53: c_int) {
         }
     }
     unsafe { fflush(core::ptr::null_mut()) };
+}
+
+// ---------- Milestone 3: the screen ----------
+
+/// Starts `level` and sets up the sprite table.
+#[no_mangle]
+pub extern "C" fn fizz_start(level: u32, use_53: c_int) {
+    if use_53 != 0 {
+        fpu_53();
+    }
+    video::start(level);
+}
+
+/// One tick of the scripted walk.
+#[no_mangle]
+pub extern "C" fn fizz_tick(tick: u32) {
+    video::advance(video::scripted_input(tick));
+}
+
+/// Draws into `frame` (320 * 200 bytes); returns the clear colour for palette slot 17 as 0x00RRGGBB, 6 bits a channel.
+#[no_mangle]
+pub extern "C" fn fizz_draw(frame: *mut u8) -> u32 {
+    let frame = unsafe { core::slice::from_raw_parts_mut(frame, video::W * video::H) };
+    video::draw(frame)
 }

@@ -44,6 +44,16 @@ Not yet: panics and allocation (`alloc` builds but has no allocator), the sim cr
 
 The run used `libm` on DOS and Rust's own float functions on the web build, and they agree over this input; the web build would have to switch to `libm` too for that to be guaranteed.
 
+## Milestone 3: a VGA mode 13h screen
+
+`m3/build.sh [level] [ticks]` builds the DOS `.EXE`, runs it headless in DOSBox with a scripted walk, writes the last frame and palette from the DOS side, and converts them to `out/level<N>.png` (scaled 3×). Running `FIZZ.EXE <level> <ticks>` in a real DOSBox window shows it live (Esc quits; `ticks` 0 runs until Esc).
+
+- **Screen:** `m3/c/vga.c` sets mode 13h through `INT 10h`, programs the DAC (EGA colours in slots 1–16, the level's clear colour in 17), waits for retrace and copies a 64,000-byte frame to `0xA0000` through DJGPP near pointers.
+- **Sprites:** `m3/export-sprites.ts` writes the 253 sprites the sim draws, in its own id order, as 8-bit indexed images (`m3/assets/sprites.bin`, 88.8 KB raw). The Rust side fills the sim's sprite table with those sizes, so the sim builds the same instance buffer the web renderer draws.
+- **Blitter:** `m2/dos-rt/src/video.rs` walks the instance buffer and, for each sprite, maps screen pixels back through the instance's 2×2 matrix (so flip, scale and rotation work), and reads the sprite's pixel. Tints are mapped to the nearest EGA colour. The view is 20 × 12.5 tiles (the web build shows about 13 tall).
+
+Not yet: lighting (caves and the night wall are black or flat), alpha below 1 (those sprites are skipped), real keyboard input and 60 Hz timing (it follows the VGA's 70 Hz retrace), Mode X scrolling, and any speed work for a 486 (the blitter does float maths per pixel).
+
 ## Starter app
 
 `starter` is a title screen that hands over to the real sim and prints the draw list as text (`fizz-starter --auto --seconds 5 --level 0`, add `--x87-53` on i586). Its `Host` trait is the seam a DOS front end would fill in. Its output on i586 (53-bit) and x86_64 is byte-identical. The text view is crude: the sprite table is a placeholder, so it shows presence only.

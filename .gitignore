@@ -14,3 +14,8 @@ m2/c/*.exe
 m2/c/OUT.TXT
 m2/c/CWSDPMI.EXE
 m2/*.a
+m3/c/*.exe
+m3/c/FRAME.RAW
+m3/c/PAL.RAW
+m3/c/OUT.TXT
+m3/c/CWSDPMI.EXE
