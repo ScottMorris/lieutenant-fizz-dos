@@ -1,0 +1,179 @@
+diff -ruN a/Cargo.toml b/Cargo.toml
+--- a/Cargo.toml	2026-10-05 20:55:14.000000000 -0400
++++ b/Cargo.toml	2026-10-15 23:36:46.000000000 -0400
+@@ -1,16 +1,13 @@
+ [package]
++edition = "2021"
++license = "Apache-2.0 OR MIT"
+ name = "lf-episode-1"
+ version = "0.1.0"
+ description = "Episode 1 (The Cocoa Caper) simulation, compiled to WASM"
+-edition.workspace = true
+-authors.workspace = true
+-license.workspace = true
+-homepage.workspace = true
+-repository.workspace = true
+ publish = false
+ 
+ [lib]
+-crate-type = ["cdylib", "rlib"]
++crate-type = ["rlib"]
+ 
+ [dependencies]
+-lf-sim = { path = "../../../crates/sim" }
++lf-sim = { path = "../sim" }
+diff -ruN a/src/ents.rs b/src/ents.rs
+--- a/src/ents.rs	2026-10-07 15:53:19.000000000 -0400
++++ b/src/ents.rs	2026-10-15 20:39:37.000000000 -0400
+@@ -3,6 +3,10 @@
+ // (c) Copyright 2026 Liminal HQ, Scott Morris
+ // SPDX-License-Identifier: Apache-2.0 OR MIT
+ 
++#[allow(unused_imports)]
++use alloc::{boxed::Box, vec, vec::Vec};
++#[allow(unused_imports)]
++use lf_sim::fmath::{FloatMath, FloatMath32};
+ use lf_sim::Body;
+ 
+ #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+diff -ruN a/src/levels.rs b/src/levels.rs
+--- a/src/levels.rs	2026-10-14 03:11:15.000000000 -0400
++++ b/src/levels.rs	2026-10-15 20:39:37.000000000 -0400
+@@ -5,6 +5,10 @@
+ 
+ //! Level and overworld builders: a port of the prototype's `levels.js`.
+ 
++#[allow(unused_imports)]
++use alloc::{boxed::Box, vec, vec::Vec};
++#[allow(unused_imports)]
++use lf_sim::fmath::{FloatMath, FloatMath32};
+ use crate::ents::{Item, ItemKind, Kind, Spawn};
+ use crate::render::Theme;
+ use crate::sprites::Spr;
+@@ -2839,7 +2843,7 @@
+                 "sign {i} is in Crater Fields"
+             );
+             for (j, o) in m.points.iter().enumerate() {
+-                if std::ptr::eq(*s, o) {
++                if core::ptr::eq(*s, o) {
+                     continue;
+                 }
+                 let d = (s.x - o.x).hypot(s.y - o.y);
+diff -ruN a/src/lib.rs b/src/lib.rs
+--- a/src/lib.rs	2026-10-14 03:11:15.000000000 -0400
++++ b/src/lib.rs	2026-10-15 20:39:42.000000000 -0400
+@@ -10,6 +10,17 @@
+ //! - an `out` array of per-frame render facts (camera, light count, clear colour, ...),
+ //! - light uniform arrays, an event queue, and a small indexed state array for the HUD/saves.
+ 
++#![no_std]
++
++extern crate alloc;
++#[cfg(test)]
++extern crate std;
++
++#[allow(unused_imports)]
++use alloc::{boxed::Box, vec, vec::Vec};
++#[allow(unused_imports)]
++use lf_sim::fmath::{FloatMath, FloatMath32};
++
+ pub mod ents;
+ pub mod levels;
+ pub mod render;
+@@ -23,7 +34,7 @@
+ #[cfg(test)]
+ mod tests;
+ 
+-use std::ptr::addr_of_mut;
++use core::ptr::addr_of_mut;
+ use world::{Mode, World};
+ 
+ static mut WORLD: Option<Box<World>> = None;
+@@ -61,7 +72,7 @@
+ pub extern "C" fn name_ptr(t: u32, i: u32) -> *const u8 {
+     table(t)
+         .get(i as usize)
+-        .map_or(std::ptr::null(), |s| s.as_ptr())
++        .map_or(core::ptr::null(), |s| s.as_ptr())
+ }
+ 
+ #[no_mangle]
+diff -ruN a/src/render.rs b/src/render.rs
+--- a/src/render.rs	2026-10-14 03:11:15.000000000 -0400
++++ b/src/render.rs	2026-10-15 20:39:37.000000000 -0400
+@@ -6,6 +6,10 @@
+ //! Scene drawing: walks the visible region of the world and writes sprite instances into the
+ //! shared buffer (painter's order), plus the per-frame light selection.
+ 
++#[allow(unused_imports)]
++use alloc::{boxed::Box, vec, vec::Vec};
++#[allow(unused_imports)]
++use lf_sim::fmath::{FloatMath, FloatMath32};
+ use crate::ents::*;
+ use crate::sprites::*;
+ use crate::tiles::*;
+@@ -1296,7 +1300,7 @@
+         for i in 0..self.map_lights.len() {
+             let l = self.map_lights[i];
+             let k = if l.pulse > 0.0 {
+-                0.85 + 0.15 * (t * std::f64::consts::TAU * l.pulse).sin()
++                0.85 + 0.15 * (t * core::f64::consts::TAU * l.pulse).sin()
+             } else {
+                 1.0
+             };
+diff -ruN a/src/sprites.rs b/src/sprites.rs
+--- a/src/sprites.rs	2026-10-14 03:11:15.000000000 -0400
++++ b/src/sprites.rs	2026-10-15 20:39:37.000000000 -0400
+@@ -6,6 +6,10 @@
+ //! Sprite ids drawn by the sim. The names must exist in the TypeScript sprite set; the shell
+ //! reads this table at boot and fails loudly if one is missing.
+ 
++#[allow(unused_imports)]
++use alloc::{boxed::Box, vec, vec::Vec};
++#[allow(unused_imports)]
++use lf_sim::fmath::{FloatMath, FloatMath32};
+ macro_rules! sprites {
+     ($($id:ident = $name:expr),* $(,)?) => {
+         /// Sprite id (index into the sprite rect table the shell fills at boot).
+diff -ruN a/src/text.rs b/src/text.rs
+--- a/src/text.rs	2026-10-07 15:53:19.000000000 -0400
++++ b/src/text.rs	2026-10-15 20:39:37.000000000 -0400
+@@ -6,6 +6,10 @@
+ //! Sound-cue captions and toasts the sim can emit. Captions double as sound-effect triggers
+ //! (a caption with colour 0 is silent on screen but still triggers its sound).
+ 
++#[allow(unused_imports)]
++use alloc::{boxed::Box, vec, vec::Vec};
++#[allow(unused_imports)]
++use lf_sim::fmath::{FloatMath, FloatMath32};
+ macro_rules! captions {
+     ($($id:ident = ($text:expr, $col:expr)),* $(,)?) => {
+         #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+diff -ruN a/src/tiles.rs b/src/tiles.rs
+--- a/src/tiles.rs	2026-10-07 15:53:19.000000000 -0400
++++ b/src/tiles.rs	2026-10-15 20:39:37.000000000 -0400
+@@ -3,6 +3,10 @@
+ // (c) Copyright 2026 Liminal HQ, Scott Morris
+ // SPDX-License-Identifier: Apache-2.0 OR MIT
+ 
++#[allow(unused_imports)]
++use alloc::{boxed::Box, vec, vec::Vec};
++#[allow(unused_imports)]
++use lf_sim::fmath::{FloatMath, FloatMath32};
+ use lf_sim::tilemap::{
+     TileProps, CLIMB, CONVEY_L, CONVEY_R, LADDER as LADDER_FLAG, ONEWAY, SLOPE_L22A, SLOPE_L22B,
+     SLOPE_L45, SLOPE_R22A, SLOPE_R22B, SLOPE_R45, SOLID, SWITCHED,
+diff -ruN a/src/world.rs b/src/world.rs
+--- a/src/world.rs	2026-10-14 03:11:15.000000000 -0400
++++ b/src/world.rs	2026-10-15 20:39:37.000000000 -0400
+@@ -7,6 +7,10 @@
+ //! A port of the prototype's `engine.js` simulation half, with f64 state and a deterministic
+ //! fixed 60 Hz step.
+ 
++#[allow(unused_imports)]
++use alloc::{boxed::Box, vec, vec::Vec};
++#[allow(unused_imports)]
++use lf_sim::fmath::{FloatMath, FloatMath32};
+ use crate::ents::*;
+ use crate::levels::{self, Arena, MapPoint, PtKind, Room};
+ use crate::render::{CamMode, Theme};
