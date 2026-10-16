@@ -11,8 +11,9 @@
 //   the data
 import { readFileSync, writeSync } from 'node:fs';
 
-const LAB = '/home/scott/source/experiments/keen-exploration/imf-transcription-lab/src';
-const GAME = '/home/scott/source/liminal-hq/lieutenant-fizz';
+const GAME = process.env.FIZZ_GAME ?? new URL('../../../liminal-hq/lieutenant-fizz', import.meta.url).pathname; // the main game's checkout; FIZZ_GAME overrides
+// The converters live in a separate lab checkout (the committed m4/assets/sound.bin is what builds use); FIZZ_IMF_LAB points at its src.
+const LAB = process.env.FIZZ_IMF_LAB ?? new URL('../../keen-exploration/imf-transcription-lab/src', import.meta.url).pathname;
 const { PATTERNS } = await import(`${LAB}/fizz-game/patterns.ts`);
 const { SONGS, planSong } = await import(`${LAB}/fizz-songs.ts`);
 const { convertSong } = await import(`${LAB}/fizz-dos/song.ts`);

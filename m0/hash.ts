@@ -1,7 +1,9 @@
 // The same run as src/main.rs, but through the web build's sim.wasm: `bun m0/hash.ts <path to sim.wasm>`.
 import { readFileSync } from 'node:fs';
 
-const wasm = readFileSync(process.argv[2] ?? '/home/scott/source/liminal-hq/lieutenant-fizz/episodes/episode-1/src/wasm/sim.wasm');
+const GAME = process.env.FIZZ_GAME ?? new URL('../../../liminal-hq/lieutenant-fizz', import.meta.url).pathname; // the main game's checkout; FIZZ_GAME overrides
+
+const wasm = readFileSync(process.argv[2] ?? `${GAME}/episodes/episode-1/src/wasm/sim.wasm`);
 const { instance } = await WebAssembly.instantiate(wasm, {});
 const x = instance.exports as unknown as {
   game_new(): void;

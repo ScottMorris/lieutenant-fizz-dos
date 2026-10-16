@@ -1,6 +1,7 @@
 // Which sprites the sim draws for a level, how many of each, and how many pixels that is: bun m3/census.ts [level] [ticks]
 import { readFileSync } from 'node:fs';
-const wasm = readFileSync('/home/scott/source/liminal-hq/lieutenant-fizz/episodes/episode-1/src/wasm/sim.wasm');
+const GAME = process.env.FIZZ_GAME ?? new URL('../../../liminal-hq/lieutenant-fizz', import.meta.url).pathname; // the main game's checkout; FIZZ_GAME overrides
+const wasm = readFileSync(`${GAME}/episodes/episode-1/src/wasm/sim.wasm`);
 const { instance } = await WebAssembly.instantiate(wasm, {});
 const x = instance.exports as any;
 const level = Number(process.argv[2] ?? 0), ticks = Number(process.argv[3] ?? 120);

@@ -39,7 +39,7 @@ The Rust side owns the game: simulation, drawing, screens, menus, saves and the 
 
 DJGPP's linker reads only `coff-go32`, and Rust emits PE-style COFF. `tools/coff2go32.py` adds `-(offset + 4)` to the in-place addend of every `REL32` relocation (go32's convention), folds the PE sections (`.text$x`, `.rdata`, …) into go32's `.text`, `.data` and `.bss`, and drops the `compiler_builtins` objects (DJGPP's libgcc and libc supply those helpers). `m4/c/chkstk.c` provides the `_alloca` helper the stack probes would need.
 
-`m3/export-sprites.ts`, `m4/export-sound.ts` and `m4/export-ui.ts` read the main game and write `m3/assets/sprites.bin` (253 sprites as 8-bit indexed images), `m4/assets/sound.bin` (the converted music and effects) and `m2/dos-rt/src/ui_data.rs` (the pixel font and the strings). They are committed, so a build needs neither Bun nor the main game.
+`m3/export-sprites.ts`, `m4/export-sound.ts` and `m4/export-ui.ts` read the main game and write `m3/assets/sprites.bin` (253 sprites as 8-bit indexed images), `m4/assets/sound.bin` (the converted music and effects) and `m2/dos-rt/src/ui_data.rs` (the pixel font and the strings). They are committed, so a build needs neither Bun nor the main game. To regenerate them, the exporters find the main game at `../../../liminal-hq/lieutenant-fizz` from the repository (override with `FIZZ_GAME`), and the sound exporter also needs the converters from a separate lab checkout (`FIZZ_IMF_LAB`, the lab's `src` folder).
 
 ## Keeping the simulation identical
 

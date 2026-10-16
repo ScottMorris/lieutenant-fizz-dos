@@ -3,10 +3,11 @@
 // Format (little endian): u16 count; count × u32 offsets from the start of the file; then per sprite u16 w, u16 h, u8 flags
 // (1 = every pixel opaque, 2 = every pixel one colour), u8 that colour (when flag 2), and w*h bytes: the EGA colour 0..15, or 255 where the sprite is transparent.
 import { readFileSync, writeSync } from 'node:fs';
-import { defineSprites } from '/home/scott/source/liminal-hq/lieutenant-fizz/episodes/episode-1/src/sprites/catalog';
-import { EGA } from '/home/scott/source/liminal-hq/lieutenant-fizz/packages/engine/src/palette';
+const GAME = process.env.FIZZ_GAME ?? new URL('../../../liminal-hq/lieutenant-fizz', import.meta.url).pathname; // the main game's checkout; FIZZ_GAME overrides
+const { defineSprites } = await import(`${GAME}/episodes/episode-1/src/sprites/catalog`);
+const { EGA } = await import(`${GAME}/packages/engine/src/palette`);
 
-const wasm = readFileSync('/home/scott/source/liminal-hq/lieutenant-fizz/episodes/episode-1/src/wasm/sim.wasm');
+const wasm = readFileSync(`${GAME}/episodes/episode-1/src/wasm/sim.wasm`);
 const { instance } = await WebAssembly.instantiate(wasm, {});
 const x = instance.exports as unknown as {
   memory: WebAssembly.Memory;

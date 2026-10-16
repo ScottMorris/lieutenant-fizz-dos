@@ -2,7 +2,7 @@
 //   bun m4/export-ui.ts > m2/dos-rt/src/ui_data.rs   (reads the main repository, changes nothing in it)
 import { readFileSync, writeSync } from 'node:fs';
 
-const GAME = '/home/scott/source/liminal-hq/lieutenant-fizz';
+const GAME = process.env.FIZZ_GAME ?? new URL('../../../liminal-hq/lieutenant-fizz', import.meta.url).pathname; // the main game's checkout; FIZZ_GAME overrides
 const { RAW, EXTRA } = await import(`${GAME}/packages/engine/src/font/fizz-glyphs.ts`);
 const { LEVELS, SIGNS, DIALOGUE } = await import(`${GAME}/episodes/episode-1/src/story.ts`);
 const { EGA } = await import(`${GAME}/packages/engine/src/palette.ts`);
