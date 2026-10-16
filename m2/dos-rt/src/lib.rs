@@ -175,3 +175,22 @@ pub extern "C" fn fizz_paint(frame: *mut u8, count: u32) -> u32 {
 pub extern "C" fn fizz_night(on: c_int) {
     video::set_night(on != 0);
 }
+
+/// How much health the level's boss has left (0 when there is none), so the music can change for the fight.
+#[no_mangle]
+pub extern "C" fn fizz_boss_hp() -> u32 {
+    video::boss_hp()
+}
+
+static SOUND: &[u8] = include_bytes!("../../../m4/assets/sound.bin");
+
+/// The sound data (songs, effects and the tables that choose them) for the C driver.
+#[no_mangle]
+pub extern "C" fn fizz_sound_data() -> *const u8 {
+    SOUND.as_ptr()
+}
+
+#[no_mangle]
+pub extern "C" fn fizz_sound_len() -> usize {
+    SOUND.len()
+}

@@ -3,7 +3,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 D=dist/fizz-dos-demo
-cp m3/c/fizz.exe "$D/FIZZ.EXE"
+cp m4/c/fizz.exe "$D/FIZZ.EXE"
 cp vendor/cwsdpmi/bin/CWSDPMI.EXE "$D/CWSDPMI.EXE"
 cp vendor/cwsdpmi/bin/cwsdpmi.doc "$D/CWSDPMI.DOC"
 rm -f dist/fizz-dos-demo.zip

@@ -8,9 +8,9 @@
 // comes from the sim's ambient light and point lights. The palette holds every colour at 14 brightness levels.
 
 use core::sync::atomic::{AtomicU32, Ordering};
-use lf_episode_1::state::{LEVEL_ID, PLAYER_DEAD, WON};
+use lf_episode_1::state::{BOSS_HP, LEVEL_ID, PLAYER_DEAD, WON};
 use lf_episode_1::{
-    enter_level, game_new, instance_ptr, lights_col_ptr, lights_pos_ptr, out_ptr, render, set_view,
+    enter_level, events_clear, events_len, events_ptr, game_new, instance_ptr, lights_col_ptr, lights_pos_ptr, out_ptr, render, set_view,
     sprite_table_ptr, state_get, step, table_len,
 };
 
@@ -153,6 +153,10 @@ pub fn goto(level: u32) {
     WON_FOR.store(0, Ordering::Relaxed);
 }
 
+pub fn boss_hp() -> u32 {
+    state_get(BOSS_HP) as u32
+}
+
 pub fn level() -> u32 {
     state_get(LEVEL_ID) as u32
 }
@@ -164,10 +168,32 @@ pub fn scripted_input(tick: u32) -> u32 {
     RIGHT | if tick % 45 < 14 { JUMP } else { 0 }
 }
 
+extern "C" {
+    /// The sound driver (C): plays the effect for a sim caption id.
+    fn snd_caption(id: u32);
+}
+
+/// Hands the sim's events to the sound driver and empties the queue. A caption event carries the caption's id in its third
+/// number (`c`), the way the web shell reads it.
+fn dispatch_events() {
+    const CAPTION: f32 = 1.0;
+    let n = events_len() as usize;
+    if n > 0 {
+        let events = unsafe { core::slice::from_raw_parts(events_ptr(), n * 6) };
+        for e in events.chunks_exact(6) {
+            if e[0] == CAPTION {
+                unsafe { snd_caption(e[3] as u32) };
+            }
+        }
+    }
+    events_clear();
+}
+
 /// One tick with the given input. The demo has no game flow of its own, so a death restarts the level after a
 /// pause and a win moves on to the next.
 pub fn advance(held: u32) {
     step(held);
+    dispatch_events();
     let dead = if state_get(PLAYER_DEAD) != 0.0 { DEAD_FOR.load(Ordering::Relaxed) + 1 } else { 0 };
     DEAD_FOR.store(dead, Ordering::Relaxed);
     let won = if state_get(WON) != 0.0 { WON_FOR.load(Ordering::Relaxed) + 1 } else { 0 };

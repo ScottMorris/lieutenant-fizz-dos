@@ -2,7 +2,7 @@ LIEUTENANT FIZZ - EPISODE 1 - DOS demo (work in progress)
 =========================================================
 
 This is the real Episode 1 simulation, written in Rust, running as a 32-bit DOS program in VGA mode 13h
-(320x200, 256 colours). Everything is drawn from the game's own sprites. There is no sound and no
+(320x200, 256 colours), with AdLib (OPL2) music and effects, or PC speaker effects if there is no AdLib. Everything is drawn from the game's own sprites. There is no
 menus yet: you start straight in a level.
 
 Run it
@@ -10,6 +10,7 @@ Run it
   2. In this folder, run:  dosbox --conf DOSBOX.CONF      (RUN.BAT on Windows, ./run.sh on macOS and Linux)
      DOSBox mounts this folder as C: and starts FIZZ.EXE.
   Or by hand, from a DOSBox prompt:   mount c <this folder>    c:    FIZZ.EXE [level]
+  Sound options after the level: adlib, speaker or nosound (the default finds an AdLib, else the PC speaker).
 
 Keys
   Arrows or WASD   move (Up and Down also climb and look)
@@ -19,6 +20,8 @@ Keys
   PgUp / PgDn      previous / next level (0-15)
   R                restart the level
   N                night mode (darker ambient light; lamps and glowing things stand out)
+  M                music on/off
+  E                sound effects on/off
   P                pause
   Esc              quit
 
