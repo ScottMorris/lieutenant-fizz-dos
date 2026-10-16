@@ -68,6 +68,15 @@ if [ "$FETCH" = 1 ]; then
   fi
 fi
 
+if [ "$FETCH" = 1 ] || [ -d vendor/djgpp ]; then
+  step "DOS toolchain runs"
+  if PATH="$ROOT/vendor/djgpp/djgpp/bin:$PATH" i586-pc-msdosdjgpp-ar --version >/dev/null 2>&1; then
+    echo "DJGPP's tools start"
+  else
+    echo "warning: DJGPP's tools did not start; they load libfl.so.2 (libfl2 on Debian and Ubuntu, flex on Arch and Fedora)" >&2
+  fi
+fi
+
 step "JavaScript dependencies"
 bun install --frozen-lockfile 2>/dev/null || bun install
 
