@@ -1,6 +1,6 @@
 # Milestones
 
-The port was built in stages, each in its own folder and each with a check that still runs. This page records what each stage established; `ARCHITECTURE.md` describes the result and `STATUS.md` what is left.
+The port was built in stages, each in its own folder; the first stages' code now lives in `attic/`. This page records what each stage established; `ARCHITECTURE.md` describes the result and `STATUS.md` what is left.
 
 ## Milestone 0: does the sim survive 32-bit x87 floating point?
 
@@ -19,7 +19,7 @@ So: x87 with the precision control set to 53 bits reproduces the web build's f64
 
 ## Milestone 1: Rust in a DOS .EXE
 
-`m1/build.sh` builds a `no_std` Rust library for a custom COFF target (`m1/rust/dos.json`: `i486`, x87 only, `_`-prefixed names), links it with a C `main` using DJGPP, and runs the `.EXE` in headless DOSBox Staging. It prints `Hello from Rust in DOSBox` and `rust_hello returned 3.250000` (an f64 returned on the x87 stack through the C ABI).
+`attic/m1/build.sh` builds a `no_std` Rust library for a custom COFF target (`attic/m1/rust/dos.json`: `i486`, x87 only, `_`-prefixed names), links it with a C `main` using DJGPP, and runs the `.EXE` in headless DOSBox Staging. It prints `Hello from Rust in DOSBox` and `rust_hello returned 3.250000` (an f64 returned on the x87 stack through the C ABI).
 
 Two things the link needed, both in `tools/coff2go32.py`:
 - DJGPP's `ld` reads only `coff-go32`, and Rust emits PE-style COFF for a `*-windows-gnu`-like target. The tool adds `-(offset + 4)` to the in-place addend of every `REL32` relocation (go32's convention) and folds the PE sections (`.text$x`, `.rdata`, ...) into go32's `.text`, `.data` and `.bss`. Without the section fold, the code is placed past the loaded image and the program dies silently; without the addend fix, calls land 10 bytes into `puts`.

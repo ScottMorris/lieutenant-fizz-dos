@@ -6,6 +6,9 @@ The simulation in m2/sim and m2/game, and the sprites, sounds, font glyphs and s
 exported into m3/assets, m4/assets and m2/dos-rt/src/ui_data.rs, come from
 liminal-hq/lieutenant-fizz (Apache-2.0 OR MIT).
 
+The sound converters in m4/sound keep the headers they were written with (MIT, or Apache-2.0 OR MIT for the voice
+data generated from the main game); they import @liminal-hq/undertone (MIT), which the exporter installs with Bun.
+
 Third-party material shipped beside the game or linked into it:
 
 CWSDPMI (dist/fizz-dos-demo/CWSDPMI.EXE, with its notes in CWSDPMI.DOC)

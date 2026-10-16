@@ -37,17 +37,18 @@ The Options screen has music, effects, which chip plays the effects, **frame rat
 
 ## Build it
 
-You need `bash`, `python3`, `zip`, Bun (for the asset exporters, only when regenerating them) and `rustup`. The toolchain for DOS comes from `tools/fetch-tools.sh`, which downloads DJGPP, DOSBox Staging and CWSDPMI into `vendor/` with checksums.
+You need `bash`, `python3`, `zip`, `curl`, `git`, `gcc` with 32-bit libraries, `rustup` and [Bun](https://bun.sh). `tools/setup.sh` checks for them (it does not install system packages), installs the Rust pieces that `rust-toolchain.toml` lists, downloads DJGPP, DOSBox Staging and CWSDPMI into `vendor/` with checksums, and clones the main game next to this repository if it is not there (the exporters and the determinism check read it; the committed assets build the game without it).
 
 ```bash
-tools/fetch-tools.sh           # DJGPP, DOSBox Staging and CWSDPMI into vendor/
-rustup component add rust-src  # for -Zbuild-std
+tools/setup.sh                 # prepare a fresh clone
 m2/build.sh                    # build the simulation for DOS and compare it with the web build: PASS: 800 checkpoints
 m4/build.sh --no-run           # build the playable m4/c/fizz.exe
 tools/make-dist.sh             # pack dist/fizz-dos-demo.zip
+tools/check.sh                 # everything the CI runs
+tools/clean.sh                 # remove build outputs when disk space is short (--all also removes vendor/)
 ```
 
-`m2/build.sh` is the check that matters most: it runs 16 levels for 3000 ticks and compares 800 state hashes with the web build's wasm. `m5/bench` counts instructions per frame natively, and prints a frame checksum for five scenes, so speed work can show the picture did not change.
+`m2/build.sh` is the check that matters most: it runs 16 levels for 3000 ticks and compares 800 state hashes with the web build's wasm. `m5/bench` counts instructions per frame natively and checks a frame checksum for five scenes, so speed work can show the picture did not change.
 
 ## How it works
 
@@ -56,14 +57,14 @@ The simulation never learns it is on DOS. A patched `no_std` copy of it (`m2/sim
 | Folder | What it holds |
 |---|---|
 | `m0` | Native determinism harness: hashes the simulation's state, to compare with the web build |
-| `m1` | The first Rust-in-DOS proof (a hello world) and its build recipe |
-| `m2` | The simulation for DOS (`sim`, `game`), the DOS runtime (`dos-rt`) and the custom i486 target |
-| `m3` | Sprite export |
-| `m4` | The playable build: the C layer, the sound and UI exporters |
-| `m5` | `bench`, the instruction counter |
-| `tools` | Fetch, run, pack and convert scripts, the DOSBox configuration |
+| `m2` | The simulation for DOS (`sim` and `game`: the main game's crates plus `patches/`), the DOS runtime (`dos-rt`) and the custom i486 target |
+| `m3` | Sprite export, the sprite census and the screenshot converter |
+| `m4` | The playable build: the C layer, the exporters and the sound converters |
+| `m5` | `bench`, the instruction counter and frame checksums |
+| `tools` | Setup, check, clean, fetch, run, pack and convert scripts, the DOSBox configuration |
 | `dist`, `site` | The demo folder, and the GitHub Pages page |
 | `docs` | Status, architecture and the milestone notes |
+| `attic` | Superseded code from the first milestones, not built or tested |
 
 ## Licence
 
