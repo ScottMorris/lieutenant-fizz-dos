@@ -3,6 +3,9 @@
 
 extern crate alloc;
 
+pub mod shell;
+pub mod ui;
+pub mod ui_data;
 pub mod video;
 
 use alloc::alloc::{GlobalAlloc, Layout};
@@ -210,5 +213,5 @@ pub extern "C" fn fizz_goto_map() {
 /// A check: make the scripted walk press Jump on the map.
 #[no_mangle]
 pub extern "C" fn fizz_press(on: c_int) {
-    video::set_press(on != 0);
+    video::set_press(on);
 }

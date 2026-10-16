@@ -10,8 +10,8 @@
 use core::sync::atomic::{AtomicU32, Ordering};
 use lf_episode_1::state::{BOSS_HP, LEVEL_ID};
 use lf_episode_1::{
-    enter_level, enter_map, events_clear, events_len, events_ptr, game_new, instance_ptr, lights_col_ptr, lights_pos_ptr, out_ptr, render, set_view,
-    sprite_table_ptr, state_get, step, table_len,
+    enter_level, enter_map, game_new, instance_ptr, lights_col_ptr, lights_pos_ptr, out_ptr, render, set_view,
+    sprite_table_ptr, state_get, table_len,
 };
 use lf_episode_1::mode;
 
@@ -141,27 +141,14 @@ pub fn start(level: u32) {
 
 /// The number of levels in the sim's table.
 const TABLE_LEVELS: u32 = 16;
-/// What the shell will do after a pause, since it has no cards yet: back to the map, or a fresh game.
-const NOTHING: u32 = 0;
-const TO_MAP: u32 = 1;
-const NEW_GAME: u32 = 2;
-static ACTION: AtomicU32 = AtomicU32::new(NOTHING);
-static ACTION_IN: AtomicU32 = AtomicU32::new(0);
 /// The level number the demo asks for to mean the overworld.
 pub const MAP: u32 = 255;
-/// The saucer is the last level; it has no goal, so leaving it goes straight back to the map.
-const SAUCER: f32 = 15.0;
 
-fn later(action: u32, ticks: u32) {
-    ACTION.store(action, Ordering::Relaxed);
-    ACTION_IN.store(ticks, Ordering::Relaxed);
-}
-
-/// A check: the scripted walk presses Jump on the map at tick 60, which enters the level Ben stands at.
+/// A check: 1 steers the scripted walk to the Crater Fields marker and presses Jump there; 2 steers but never presses.
 static PRESS: AtomicU32 = AtomicU32::new(0);
 
-pub fn set_press(on: bool) {
-    PRESS.store(u32::from(on), Ordering::Relaxed);
+pub fn set_press(mode: i32) {
+    PRESS.store(mode as u32, Ordering::Relaxed);
 }
 
 /// The render flags the player chose (night).
@@ -173,13 +160,13 @@ pub fn set_night(on: bool) {
 
 /// Enters `level` (wrapping round the table).
 pub fn goto(level: u32) {
-    later(NOTHING, 0);
+    crate::shell::reset();
     enter_level(level % TABLE_LEVELS);
 }
 
 /// Enters the overworld.
 pub fn goto_map() {
-    later(NOTHING, 0);
+    crate::shell::reset();
     enter_map();
 }
 
@@ -209,7 +196,7 @@ pub fn scripted_input(tick: u32) -> u32 {
             let (x, y) = (state_get(lf_episode_1::state::PLAYER_X), state_get(lf_episode_1::state::PLAYER_Y));
             let (dx, dy) = (14.0 - x, 6.0 - y);
             if dx.abs() < 0.3 && dy.abs() < 0.3 {
-                return if tick % 6 < 2 { JUMP } else { 0 };
+                return if PRESS.load(Ordering::Relaxed) == 1 && tick % 6 < 2 { JUMP } else { 0 };
             }
             let mut held = 0;
             if dx > 0.25 { held |= RIGHT } else if dx < -0.25 { held |= LEFT }
@@ -222,53 +209,9 @@ pub fn scripted_input(tick: u32) -> u32 {
     RIGHT | if tick % 45 < 14 { JUMP } else { 0 }
 }
 
-extern "C" {
-    /// The sound driver (C): plays the effect for a sim caption id.
-    fn snd_caption(id: u32);
-}
-
-/// Reads the sim's events and empties the queue. A caption event plays its sound (its id is the third number, `c`, as
-/// the web shell reads it); the end of a level, a fall and the end of the game start a pause before the shell moves on.
-fn dispatch_events() {
-    const CAPTION: f32 = 1.0;
-    const LEVEL_COMPLETE: f32 = 4.0;
-    const DIED: f32 = 5.0;
-    const GAME_OVER: f32 = 6.0;
-    let n = events_len() as usize;
-    if n > 0 {
-        let events = unsafe { core::slice::from_raw_parts(events_ptr(), n * 6) };
-        for e in events.chunks_exact(6) {
-            if e[0] == CAPTION {
-                unsafe { snd_caption(e[3] as u32) };
-            } else if e[0] == LEVEL_COMPLETE {
-                later(TO_MAP, if e[1] >= SAUCER { 1 } else { 150 });
-            } else if e[0] == DIED {
-                later(TO_MAP, 70);
-            } else if e[0] == GAME_OVER {
-                later(NEW_GAME, 120);
-            }
-        }
-    }
-    events_clear();
-}
-
-/// One tick with the given input. The demo has no game flow of its own, so a death restarts the level after a
-/// pause and a win moves on to the next.
+/// One tick with the given input: the shell steps the sim and reads its events.
 pub fn advance(held: u32) {
-    step(held);
-    dispatch_events();
-    let action = ACTION.load(Ordering::Relaxed);
-    if action != NOTHING {
-        let left = ACTION_IN.load(Ordering::Relaxed);
-        if left > 1 {
-            ACTION_IN.store(left - 1, Ordering::Relaxed);
-        } else if action == NEW_GAME {
-            game_new();
-            goto_map();
-        } else {
-            goto_map();
-        }
-    }
+    crate::shell::advance(held);
 }
 
 /// Draws the current scene into `frame` (W*H bytes). Returns the clear colour as 0x00RRGGBB with 6-bit channels,
@@ -287,18 +230,21 @@ pub fn build(alpha: f32) -> usize {
 /// Draws what `build` wrote into `frame`.
 pub fn paint(frame: &mut [u8], count: usize) -> u32 {
     let out = unsafe { core::slice::from_raw_parts(out_ptr(), 32) };
-    let (cam_x, cam_y) = (out[1], out[2]);
+    // The camera is snapped to whole pixels first: a sprite's place is its own world position rounded, less the camera, so
+    // things that are still stay still relative to each other as the camera glides.
+    let cam_px = (round(out[1] * TILE), round(out[2] * TILE));
     let six = |v: f32| (v.clamp(0.0, 1.0) * 63.0 + 0.5) as u32;
     let clear = six(out[5]) << 16 | six(out[6]) << 8 | six(out[7]);
-    let levels = light_levels(out);
+    let levels = light_levels(out, cam_px);
     // The list is in painter's order and little of the screen is covered twice, so it is drawn back to front.
     frame.fill(CLEAR_SLOT);
     let inst = unsafe { core::slice::from_raw_parts(instance_ptr(), count * 20) };
     let mut tints = TintCache::new();
     for b in inst.chunks_exact(20) {
-        blit(frame, b, cam_x, cam_y, &mut tints);
+        blit(frame, b, cam_px, &mut tints);
     }
     shade(frame, &levels);
+    crate::shell::overlay(frame, cam_px);
     clear
 }
 
@@ -335,7 +281,7 @@ fn round(v: f32) -> i32 {
 
 const IDENTITY: [u8; 16] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
 
-fn blit(frame: &mut [u8], b: &[f32], cam_x: f32, cam_y: f32, tints: &mut TintCache) {
+fn blit(frame: &mut [u8], b: &[f32], cam_px: (i32, i32), tints: &mut TintCache) {
     // Alpha, emissive and actor share one float: alpha + 2 * emissive + 4 * actor.
     let flags = b[19];
     let w2 = if flags >= 3.5 { flags - 4.0 } else { flags };
@@ -350,8 +296,8 @@ fn blit(frame: &mut [u8], b: &[f32], cam_x: f32, cam_y: f32, tints: &mut TintCac
     } else {
         0
     };
-    let cx = W as f32 / 2.0 + (b[12] - cam_x) * TILE;
-    let cy = H as f32 / 2.0 - (b[13] - cam_y) * TILE;
+    let cx = W as f32 / 2.0 + b[12] * TILE - cam_px.0 as f32;
+    let cy = H as f32 / 2.0 - b[13] * TILE + cam_px.1 as f32;
     let (m00, m01, m10, m11) = (b[0], b[1], b[4], b[5]);
     // Most sprites are not turned: they are copied, flipped or scaled by whole steps of fixed-point, with no
     // floating-point work per pixel (the x87 is slow, and DOSBox's emulation of it slower).
@@ -360,8 +306,9 @@ fn blit(frame: &mut [u8], b: &[f32], cam_x: f32, cam_y: f32, tints: &mut TintCac
         if dw <= 0 || dh <= 0 {
             return;
         }
-        let x0 = round(cx - m00.abs() * TILE * 0.5);
-        let y0 = round(cy - m11.abs() * TILE * 0.5);
+        // Rounded in the world first, then moved by the whole-pixel camera.
+        let x0 = round(b[12] * TILE - m00.abs() * TILE * 0.5) + W as i32 / 2 - cam_px.0;
+        let y0 = H as i32 / 2 + cam_px.1 - round(b[13] * TILE + m11.abs() * TILE * 0.5);
         if x0 >= W as i32 || y0 >= H as i32 || x0 + dw <= 0 || y0 + dh <= 0 {
             return;
         }
@@ -513,7 +460,7 @@ const QMAX: f32 = ((LEVELS - 1) * 4) as f32;
 /// point lights, worked out as the web shader does for a sprite facing the screen, with the three colour channels folded
 /// into one brightness (the palette can only dim a colour, not tint it). Each point light only visits the cells it can
 /// reach.
-fn light_levels(out: &[f32]) -> [u8; CELLS_X * CELLS_Y] {
+fn light_levels(out: &[f32], cam_px: (i32, i32)) -> [u8; CELLS_X * CELLS_Y] {
     // The shader lights only when `LIGHTING` is on.
     if out[12] < 0.5 {
         return [QMAX as u8; CELLS_X * CELLS_Y];
@@ -521,7 +468,7 @@ fn light_levels(out: &[f32]) -> [u8; CELLS_X * CELLS_Y] {
     let count = (out[3] as usize).min(16);
     let pos = unsafe { core::slice::from_raw_parts(lights_pos_ptr(), 64) };
     let col = unsafe { core::slice::from_raw_parts(lights_col_ptr(), 48) };
-    let (cam_x, cam_y) = (out[1], out[2]);
+    let (cam_x, cam_y) = (cam_px.0 as f32 / TILE, cam_px.1 as f32 / TILE);
     // A sprite faces the screen, so a sun at (x, y, z) lights it by its z.
     let base = lum(out[9], out[10], out[11]) + lum(out[17], out[18], out[19]) * out[16].max(0.0);
     let mut grid = [base; CELLS_X * CELLS_Y];

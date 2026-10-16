@@ -1,2 +1,2 @@
-3000 ticks, ended in mode 3 (2 map, 3 level) on level 8
-per frame: build 430 us, paint 4357 us (518 sprites), present 43 us; per tick: 40 us
+200 ticks, ended in mode 3 (2 map, 3 level) on level 0
+per frame: build 317 us, paint 3960 us (225 sprites), present 46 us; per tick: 49 us

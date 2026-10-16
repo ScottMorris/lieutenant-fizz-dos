@@ -9,5 +9,6 @@ unsigned keymap_bits(const volatile unsigned char *k) {
   if (k[SC_CTRL] || k[SC_Z]) b |= IN_JUMP;
   if (k[SC_ALT] || k[SC_X]) b |= IN_POGO;
   if (k[SC_SPACE] || k[SC_C]) b |= IN_FIRE;
+  if (k[SC_ENTER]) b |= IN_CONFIRM;
   return b;
 }

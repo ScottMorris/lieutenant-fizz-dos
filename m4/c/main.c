@@ -104,6 +104,7 @@ int main(int argc, char **argv) {
     if (!strcmp(argv[i], "quiet")) quiet = 1;
     if (!strcmp(argv[i], "bench")) bench = 1;
     if (!strcmp(argv[i], "press")) fizz_press(1);
+    if (!strcmp(argv[i], "approach")) fizz_press(2);
   }
   fizz_start(level, 1);
   fizz_night(night);

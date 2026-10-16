@@ -18,6 +18,8 @@ int main(void) {
   expect("Alt up left", keymap_bits(k), IN_POGO | IN_UP | IN_LEFT);
   memset((void *)k, 0, sizeof k); k[SC_ESC] = 1; k[SC_PGUP] = 1;
   expect("keys that are not game input", keymap_bits(k), 0);
+  memset((void *)k, 0, sizeof k); k[SC_ENTER] = 1;
+  expect("Enter confirms", keymap_bits(k), IN_CONFIRM);
   if (!failed) printf("keymap ok\n");
   return failed;
 }
