@@ -17,7 +17,7 @@
 
 ## Play it
 
-**In a browser:** [scottmorris.github.io/lieutenant-fizz-dos](https://scottmorris.github.io/lieutenant-fizz-dos/). Click Play (browsers need a click before they will make sound) and use the keyboard. `?opl=default` or `?opl=fast` in the address loads the game with another OPL (AdLib) emulator from js-dos, to compare the sound.
+**In a browser:** [scottmorris.github.io/lieutenant-fizz-dos](https://scottmorris.github.io/lieutenant-fizz-dos/). Click Play (browsers need a click before they will make sound) and use the keyboard. `?opl=default` or `?opl=fast` in the address loads the game with another OPL (AdLib) emulator from js-dos, to compare the sound. To check the sound itself, choose Quit from the title and type `TONETEST` at the DOS prompt: it plays an A (440 Hz) on the AdLib and then on the PC speaker (Restart starts the game again).
 
 **In DOSBox:** unpack `dist/fizz-dos-demo.zip` (or build it, below) and run `dosbox --conf DOSBOX.CONF` in the folder. `FIZZ.EXE` starts at a system check in the manner of Keen's — the hardware it found, a speed test of the real renderer and the sound it will use (A AdLib for everything, M music on AdLib with effects on the speaker, P speaker only, O off) — and Enter continues to the title.
 

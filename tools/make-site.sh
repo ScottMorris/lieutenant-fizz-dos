@@ -16,14 +16,16 @@ mkdir "$STAGE/.jsdos"
 cp m4/c/fizz.exe "$STAGE/FIZZ.EXE"
 cp vendor/cwsdpmi/bin/CWSDPMI.EXE "$STAGE/CWSDPMI.EXE"
 cp vendor/cwsdpmi/bin/cwsdpmi.doc "$STAGE/CWSDPMI.DOC"
+# A test tone for the sound, to run from the DOS prompt after leaving the game (tools/dos/tonetest.c).
+PATH="$PWD/vendor/djgpp/djgpp/bin:$PATH" i586-pc-msdosdjgpp-gcc -O2 -o "$STAGE/TONETEST.EXE" tools/dos/tonetest.c
 cp site/dosbox.web.conf "$STAGE/.jsdos/dosbox.conf"
 printf '{"version":"8.xx"}\n' > "$STAGE/.jsdos/jsdos.json"
 rm -f site/game.jsdos site/game-default.jsdos site/game-fast.jsdos
-(cd "$STAGE" && zip -q -r -X "$OLDPWD/site/game.jsdos" .jsdos FIZZ.EXE CWSDPMI.EXE CWSDPMI.DOC)
+(cd "$STAGE" && zip -q -r -X "$OLDPWD/site/game.jsdos" .jsdos FIZZ.EXE TONETEST.EXE CWSDPMI.EXE CWSDPMI.DOC)
 # The same bundle with another OPL emulator, for comparing by ear: the page loads one with ?opl=default or ?opl=fast.
 for opl in default fast; do
   sed "s/^oplemu = compat/oplemu = $opl/" site/dosbox.web.conf > "$STAGE/.jsdos/dosbox.conf"
-  (cd "$STAGE" && zip -q -r -X "$OLDPWD/site/game-$opl.jsdos" .jsdos FIZZ.EXE CWSDPMI.EXE CWSDPMI.DOC)
+  (cd "$STAGE" && zip -q -r -X "$OLDPWD/site/game-$opl.jsdos" .jsdos FIZZ.EXE TONETEST.EXE CWSDPMI.EXE CWSDPMI.DOC)
 done
 mkdir -p site/img
 cp assets/hero.svg site/img/hero.svg
