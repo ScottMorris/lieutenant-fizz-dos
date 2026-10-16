@@ -1,3 +1,9 @@
+/* Interface to the start-up system check's hardware probes.
+ *
+ * (c) Copyright 2026 Liminal HQ, Scott Morris
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
+ */
+
 #ifndef COMPAT_H
 #define COMPAT_H
 /* What the machine has, for the start-up screen. The numbers go in the same slots as the Rust side's `preview` constants. */

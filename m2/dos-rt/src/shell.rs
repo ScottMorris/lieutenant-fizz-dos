@@ -1,5 +1,8 @@
 // The shell around the sim: what the web build's TypeScript does with the sim's events, for the DOS build.
 //
+// (c) Copyright 2026 Liminal HQ, Scott Morris
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+//
 // It keeps the map prompt, the toast, the floating caption words and the cards (level cleared, a fall, game over); the sim
 // waits behind a card until Enter is pressed. All text is drawn over the finished frame (see `ui`).
 

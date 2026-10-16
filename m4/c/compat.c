@@ -1,3 +1,9 @@
+/* The start-up system check's probes: CPU, FPU, video, input and sound hardware.
+ *
+ * (c) Copyright 2026 Liminal HQ, Scott Morris
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
+ */
+
 #include <dos.h>
 #include <dpmi.h>
 #include <go32.h>

@@ -1,4 +1,8 @@
 // Writes the DOS build's sound data: the OPL2 songs, the OPL2 and PC-speaker effects and the tables that choose them.
+//
+// (c) Copyright 2026 Liminal HQ, Scott Morris
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+//
 //   bun m4/export-sound.ts > m4/assets/sound.bin   (converts the songs and effects in m4/sound; reads the main repository and changes nothing in it)
 //
 // Layout (little endian):
@@ -9,6 +13,7 @@
 //   levels    × u8 song number, in the sim's level order
 //   u8 title song, u8 map song, u8 boss song
 //   the data
+
 import { readFileSync, writeSync } from 'node:fs';
 
 const GAME = process.env.FIZZ_GAME ?? new URL('../../../liminal-hq/lieutenant-fizz', import.meta.url).pathname; // the main game's checkout; FIZZ_GAME overrides

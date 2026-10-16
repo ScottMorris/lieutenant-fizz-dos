@@ -1,3 +1,9 @@
+/* Interface to the VGA mode 13h screen.
+ *
+ * (c) Copyright 2026 Liminal HQ, Scott Morris
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
+ */
+
 #ifndef VGA_H
 #define VGA_H
 /* VGA mode 13h: 320x200, 256 colours, one byte a pixel at 0xA0000. */

@@ -1,3 +1,9 @@
+/* The `_alloca` helper that Rust's COFF objects call before a function with a large stack frame.
+ *
+ * (c) Copyright 2026 Liminal HQ, Scott Morris
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
+ */
+
 /* Rust's x86 Windows-style target (the one we borrow for its COFF objects) calls `_alloca` before a function that
    needs a big stack frame, with the size in EAX; it expects the stack pointer moved down by that much. DJGPP has no
    such helper under that name, so this is the usual one: touch each page on the way down, then adjust ESP and

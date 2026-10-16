@@ -1,3 +1,9 @@
+/* VGA mode 13h: sets the mode, programs the palette and copies a frame to video memory.
+ *
+ * (c) Copyright 2026 Liminal HQ, Scott Morris
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
+ */
+
 #include <dpmi.h>
 #include <pc.h>
 #include <string.h>

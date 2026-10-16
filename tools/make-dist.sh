@@ -1,5 +1,9 @@
 #!/bin/bash
 # Packs dist/fizz-dos-demo.zip from the latest m4 build (run m4/build.sh --no-run first). The static files live in dist/fizz-dos-demo.
+#
+# (c) Copyright 2026 Liminal HQ, Scott Morris
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+
 set -euo pipefail
 cd "$(dirname "$0")/.."
 D=dist/fizz-dos-demo

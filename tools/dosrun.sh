@@ -1,6 +1,11 @@
 #!/bin/bash
-# usage: tools/dosrun.sh <dir with the .EXE and CWSDPMI.EXE> <command line...>
 # Runs a DOS program headless in DOSBox Staging with the dir mounted as C:, output captured to <dir>/OUT.TXT.
+#
+# (c) Copyright 2026 Liminal HQ, Scott Morris
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+#
+# usage: tools/dosrun.sh <dir with the .EXE and CWSDPMI.EXE> <command line...>
+
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 DIR="$(cd "$1" && pwd)"; shift

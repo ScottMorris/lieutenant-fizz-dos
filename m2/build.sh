@@ -1,5 +1,9 @@
 #!/bin/bash
 # Milestone 2: the real Episode 1 sim (a no_std copy under m2/sim and m2/game) as a DOS .EXE, checked against the web build.
+#
+# (c) Copyright 2026 Liminal HQ, Scott Morris
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+
 set -euo pipefail
 cd "$(dirname "$0")/.."
 export PATH="$PWD/vendor/djgpp/djgpp/bin:$PATH"

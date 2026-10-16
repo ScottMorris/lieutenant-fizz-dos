@@ -1,3 +1,9 @@
+/* Interface to the IRQ 1 keyboard handler.
+ *
+ * (c) Copyright 2026 Liminal HQ, Scott Morris
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
+ */
+
 #ifndef KBD_H
 #define KBD_H
 int kbd_install(void);   /* hook IRQ 1; 0 on success */

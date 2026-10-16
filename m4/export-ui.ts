@@ -1,5 +1,10 @@
 // Writes the DOS build's text data as Rust source: the Fizz pixel font and the game's strings.
+//
+// (c) Copyright 2026 Liminal HQ, Scott Morris
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+//
 //   bun m4/export-ui.ts > m2/dos-rt/src/ui_data.rs   (reads the main repository, changes nothing in it)
+
 import { readFileSync, writeSync } from 'node:fs';
 
 const GAME = process.env.FIZZ_GAME ?? new URL('../../../liminal-hq/lieutenant-fizz', import.meta.url).pathname; // the main game's checkout; FIZZ_GAME overrides

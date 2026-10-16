@@ -1,5 +1,8 @@
-// Counts the instructions the DOS build's renderer and sim spend on a frame, stage by stage, on a native 32-bit x87 build
-// (the closest thing to the DOS code that a modern machine will run), with the CPU's own instruction counter.
+// Counts the instructions the DOS build's renderer and sim spend on a frame, stage by stage, on a native 32-bit x87 build (the
+// closest thing to the DOS code that a modern machine will run), with the CPU's own instruction counter.
+//
+// (c) Copyright 2026 Liminal HQ, Scott Morris
+// SPDX-License-Identifier: Apache-2.0 OR MIT
 //
 //   cargo run --release --target i586-unknown-linux-gnu -- [frames]
 

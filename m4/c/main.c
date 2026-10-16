@@ -1,3 +1,9 @@
+/* Episode 1 on a VGA mode 13h screen: start-up, the main loop, the options file and the frame-rate and detail policy.
+ *
+ * (c) Copyright 2026 Liminal HQ, Scott Morris
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
+ */
+
 /* Episode 1 on a VGA mode 13h screen, with sound.
    usage: FIZZ [level|map] [ticks] [shot] [nosync] [night] [nosound] [adlib] [mixed] [speaker] [soundtest]
    With no ticks (or 0) it is interactive: arrows or WASD move, Ctrl or Z jump, Alt or X pogo, Space or C fire,

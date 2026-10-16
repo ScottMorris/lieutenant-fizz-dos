@@ -1,7 +1,12 @@
 // Writes the sprites the Episode 1 sim draws, in the sim's own id order, as 8-bit indexed images for the DOS blitter.
+//
+// (c) Copyright 2026 Liminal HQ, Scott Morris
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+//
 //   bun m3/export-sprites.ts > m3/assets/sprites.bin   (reads the main repository, changes nothing in it)
 // Format (little endian): u16 count; count × u32 offsets from the start of the file; then per sprite u16 w, u16 h, u8 flags
 // (1 = every pixel opaque, 2 = every pixel one colour), u8 that colour (when flag 2), and w*h bytes: the EGA colour 0..15, or 255 where the sprite is transparent.
+
 import { readFileSync, writeSync } from 'node:fs';
 const GAME = process.env.FIZZ_GAME ?? new URL('../../../liminal-hq/lieutenant-fizz', import.meta.url).pathname; // the main game's checkout; FIZZ_GAME overrides
 const { defineSprites } = await import(`${GAME}/episodes/episode-1/src/sprites/catalog`);

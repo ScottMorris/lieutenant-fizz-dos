@@ -1,3 +1,9 @@
+/* Maps keyboard scancodes to the game's input bits.
+ *
+ * (c) Copyright 2026 Liminal HQ, Scott Morris
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
+ */
+
 #include "keymap.h"
 
 unsigned keymap_bits(const volatile unsigned char *k) {

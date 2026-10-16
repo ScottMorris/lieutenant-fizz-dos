@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+# Makes PE-style COFF objects from rustc linkable by DJGPP's ld: fixes REL32 addends and folds sections into go32 ones.
+#
+# (c) Copyright 2026 Liminal HQ, Scott Morris
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+
 """Make PE-style COFF objects (what rustc emits for a *-windows-gnu target) linkable by DJGPP's ld.
 
 DJGPP's coff-go32 expects the in-place addend of a PC-relative relocation to include -(offset of the field + 4); the

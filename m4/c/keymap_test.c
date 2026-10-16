@@ -1,3 +1,9 @@
+/* Native check of the key map.
+ *
+ * (c) Copyright 2026 Liminal HQ, Scott Morris
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
+ */
+
 /* Native check of the key map: gcc -o keymap_test keymap_test.c keymap.c && ./keymap_test */
 #include <stdio.h>
 #include <string.h>

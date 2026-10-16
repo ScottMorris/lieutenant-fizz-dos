@@ -1,4 +1,8 @@
 // Which sprites the sim draws for a level, how many of each, and how many pixels that is: bun m3/census.ts [level] [ticks]
+//
+// (c) Copyright 2026 Liminal HQ, Scott Morris
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+
 import { readFileSync } from 'node:fs';
 const GAME = process.env.FIZZ_GAME ?? new URL('../../../liminal-hq/lieutenant-fizz', import.meta.url).pathname; // the main game's checkout; FIZZ_GAME overrides
 const wasm = readFileSync(`${GAME}/episodes/episode-1/src/wasm/sim.wasm`);
