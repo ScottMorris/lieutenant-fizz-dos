@@ -3,7 +3,7 @@ target/
 out/
 target-tests/
 *.so
-vendor/
+/vendor/
 m1/c/*.exe
 m1/c/OUT.TXT
 m1/c/CWSDPMI.EXE

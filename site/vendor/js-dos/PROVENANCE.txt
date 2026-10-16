@@ -1,0 +1,9 @@
+js-dos 8.5.3 (GPL-2.0), https://js-dos.com, source: https://github.com/caiiiycuk/js-dos
+
+Copied unmodified from the npm package js-dos@8.5.3 (tarball sha256 711f7741486daef927c7f2b6ac6c1037b830dffc75ebf7d7106173f18fbe8756):
+  dist/js-dos.js, dist/js-dos.css, and from dist/emulators: emulators.js, wdosbox.js, wdosbox.wasm,
+  wlibzip.js, wlibzip.wasm.
+The DOSBox-X backends and the networking files in the package are left out because the page does not use them.
+
+The licence is the GNU General Public License, version 2 (LICENSE-GPL-2.0.txt). The corresponding source is
+available from the project's repository above.

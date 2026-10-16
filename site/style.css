@@ -1,0 +1,42 @@
+/* The page around the player: dark, with the project's orange and rose. */
+:root {
+  --bg: #050507;
+  --panel: #15121f;
+  --ink: #f2f0f7;
+  --muted: #a9a4b8;
+  --orange: #ffaa40;
+  --rose: #f43f5e;
+  --cyan: #55ffff;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+main, footer { max-width: 980px; margin: 0 auto; padding: 0 16px; }
+.hero img { display: block; width: 100%; max-width: 1200px; margin: 0 auto; }
+h1, h2 { line-height: 1.2; }
+h1 { font-size: 1.6rem; margin: 1.2rem 0 0.8rem; }
+h2 { font-size: 1.25rem; margin: 2rem 0 0.6rem; color: var(--orange); }
+a { color: var(--cyan); }
+.stage { position: relative; aspect-ratio: 16 / 10; width: 100%; background: #000; border: 3px solid #2a2733; border-radius: 12px; overflow: hidden; }
+.dos { position: absolute; inset: 0; }
+.cover[hidden], .dos[hidden] { display: none; }
+.cover { position: absolute; inset: 0; display: grid; place-items: center; }
+.cover img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; image-rendering: pixelated; filter: brightness(0.55); }
+.cover button { position: relative; font: inherit; font-size: 1.4rem; font-weight: 700; padding: 0.7rem 2.4rem; color: #000; background: #ffff55; border: 3px solid #000; border-radius: 8px; cursor: pointer; box-shadow: 0 4px 0 #aa5500; }
+.cover button:hover, .cover button:focus-visible { background: #fff; outline: 3px solid var(--rose); outline-offset: 3px; }
+.hint { color: var(--muted); }
+.actions button { font: inherit; padding: 0.35rem 0.9rem; color: var(--ink); background: var(--panel); border: 1px solid #3a3550; border-radius: 6px; cursor: pointer; }
+.actions button:hover, .actions button:focus-visible { border-color: var(--orange); outline: none; }
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 0.45rem 0.6rem; border-bottom: 1px solid #25213a; vertical-align: top; }
+th { white-space: nowrap; font-weight: 600; width: 1%; }
+kbd { font: 0.85em ui-monospace, "DejaVu Sans Mono", monospace; padding: 0.1em 0.45em; background: var(--panel); border: 1px solid #3a3550; border-bottom-width: 2px; border-radius: 4px; }
+.shots { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+.shots img { width: 100%; height: auto; display: block; border: 2px solid #2a2733; border-radius: 6px; image-rendering: pixelated; }
+footer { margin-top: 2.5rem; padding-bottom: 2rem; color: var(--muted); font-size: 0.9rem; }
+@media (max-width: 560px) { th { white-space: normal; } }

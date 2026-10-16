@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en-CA">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lieutenant Fizz for DOS</title>
+  <meta name="description" content="Lieutenant Fizz Episode 1 for DOS — a Rust port with VGA graphics and AdLib sound, playable in your browser.">
+  <meta name="theme-color" content="#050507">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%23050507'/%3E%3Crect x='5' y='2' width='6' height='12' fill='%23aa0000'/%3E%3Crect x='6' y='5' width='4' height='3' fill='%23fff'/%3E%3Crect x='5' y='2' width='6' height='1' fill='%23aaa'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="vendor/js-dos/js-dos.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="hero">
+    <img src="img/hero.svg" alt="Lieutenant Fizz for DOS — a pixel-art CRT showing the game's title screen beside a DOS prompt running FIZZ.EXE">
+  </header>
+
+  <main>
+    <section class="player" aria-labelledby="play-title">
+      <h1 id="play-title">Play Episode 1 in your browser</h1>
+      <div id="stage" class="stage">
+        <div id="dos" class="dos" hidden></div>
+        <div id="cover" class="cover">
+          <img src="img/title-logo.png" alt="The game's title screen, with the two-tone Lieutenant Fizz logo, over a purple cave level" width="960" height="600">
+          <button id="play" type="button">Play</button>
+        </div>
+      </div>
+      <p class="hint">A click starts the game and the sound. A keyboard is needed: this page has no touch controls. The game starts at a system check; press <kbd>Enter</kbd> to continue to the title.</p>
+      <p class="actions"><button id="mute" type="button" aria-pressed="false">Sound on</button> <button id="full" type="button">Fullscreen</button></p>
+    </section>
+
+    <section aria-labelledby="keys-title">
+      <h2 id="keys-title">Keys</h2>
+      <table>
+        <tbody>
+          <tr><th scope="row"><kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd> or <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd></th><td>Move (Up and Down also climb and look)</td></tr>
+          <tr><th scope="row"><kbd>Ctrl</kbd> or <kbd>Z</kbd></th><td>Jump</td></tr>
+          <tr><th scope="row"><kbd>Alt</kbd> or <kbd>X</kbd></th><td>Pogo stick</td></tr>
+          <tr><th scope="row"><kbd>Space</kbd> or <kbd>C</kbd></th><td>Fire</td></tr>
+          <tr><th scope="row"><kbd>Enter</kbd></th><td>Confirm: enter a level marker, dismiss a card</td></tr>
+          <tr><th scope="row"><kbd>Esc</kbd></th><td>Pause menu, and back in a menu</td></tr>
+          <tr><th scope="row"><kbd>Backspace</kbd></th><td>Back to the overworld map</td></tr>
+          <tr><th scope="row"><kbd>PgUp</kbd> <kbd>PgDn</kbd></th><td>Previous or next level</td></tr>
+          <tr><th scope="row"><kbd>R</kbd> <kbd>N</kbd> <kbd>M</kbd> <kbd>E</kbd></th><td>Restart the level; night mode; music on or off; effects on or off</td></tr>
+        </tbody>
+      </table>
+      <p>On the system check, <kbd>A</kbd> plays everything on AdLib, <kbd>M</kbd> puts the music on AdLib and the effects on the PC speaker, <kbd>P</kbd> uses the PC speaker alone and <kbd>O</kbd> turns sound off. Options has frame rate and detail settings if it runs slowly. In the browser, saves and options last until the page is reloaded.</p>
+    </section>
+
+    <section aria-labelledby="about-title">
+      <h2 id="about-title">What this is</h2>
+      <p><em>Lieutenant Fizz — Episode 1: The Cocoa Caper</em> for MS-DOS. The game's own Rust simulation, from <a href="https://github.com/liminal-hq/lieutenant-fizz">liminal-hq/lieutenant-fizz</a>, runs as a 32-bit DOS program in VGA mode 13h (320 × 200, 256 colours) with AdLib music and effects, or PC-speaker effects. The page runs it in an emulated DOSBox through <a href="https://js-dos.com">js-dos</a>. The program is under 1 MB, so it fits a 1.44 MB floppy with room to spare.</p>
+      <p>It matches the web build's simulation exactly (800 checked state hashes), so the levels, enemies and bosses behave the same. It is not finished: the opening cinematic, the ending and credits, and the controls screen are not in yet, and it has not run on real hardware. <a href="https://github.com/ScottMorris/lieutenant-fizz-dos/blob/main/docs/STATUS.md">The status page</a> has the full list.</p>
+    </section>
+
+    <section aria-labelledby="shots-title">
+      <h2 id="shots-title">Screenshots</h2>
+      <ul class="shots">
+        <li><img src="img/level0.png" alt="Crater Fields, a day level with green ground and crystals" loading="lazy" width="960" height="600"></li>
+        <li><img src="img/level1.png" alt="Crystal Caves, a dark level lit by crystals" loading="lazy" width="960" height="600"></li>
+        <li><img src="img/map240.png" alt="The overworld map with Ben standing by a path" loading="lazy" width="960" height="600"></li>
+        <li><img src="img/scr-dialogue.png" alt="A boss dialogue box over the game" loading="lazy" width="960" height="600"></li>
+        <li><img src="img/scr-pause.png" alt="The pause menu" loading="lazy" width="960" height="600"></li>
+        <li><img src="img/preview.png" alt="The start-up system check screen" loading="lazy" width="960" height="600"></li>
+      </ul>
+    </section>
+  </main>
+
+  <footer>
+    <p><a href="https://github.com/ScottMorris/lieutenant-fizz-dos">Source on GitHub</a> · Apache-2.0 OR MIT · js-dos is GPL-2.0, <a href="vendor/js-dos/PROVENANCE.txt">where it came from</a> · CWSDPMI by Charles W Sandmann</p>
+  </footer>
+
+  <script src="vendor/js-dos/js-dos.js"></script>
+  <script src="player.js"></script>
+</body>
+</html>
