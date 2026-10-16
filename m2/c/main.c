@@ -7,3 +7,8 @@ int main(int argc, char **argv) {
   fizz_m0(ticks, use53);
   return 0;
 }
+
+/* The interface's frame rate setting lives in the full game's main loop; the hash check has none. */
+int rate_mode(void) { return 0; }
+void rate_set(int mode) { (void)mode; }
+int rate_active(void) { return 60; }
