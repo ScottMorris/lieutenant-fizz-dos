@@ -234,3 +234,15 @@ pub extern "C" fn fizz_preview(frame: *mut u8, values: *const i32, cpu: *const u
     }
     preview::draw(frame, v, core::str::from_utf8(&name[..n]).unwrap_or("?"));
 }
+
+/// Whether the player chose to leave the game from a menu.
+#[no_mangle]
+pub extern "C" fn fizz_quit() -> u32 {
+    u32::from(shell::quit_requested())
+}
+
+/// A check: shows a menu (1 pause, 2 options).
+#[no_mangle]
+pub extern "C" fn fizz_show(n: u32) {
+    shell::show(n);
+}

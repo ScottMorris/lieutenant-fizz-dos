@@ -3,7 +3,7 @@ LIEUTENANT FIZZ - EPISODE 1 - DOS demo (work in progress)
 
 This is the real Episode 1 simulation, written in Rust, running as a 32-bit DOS program in VGA mode 13h
 (320x200, 256 colours), with AdLib (OPL2) music and effects, or PC speaker effects if there is no AdLib, the game's own pixel font, a score/lives/Fizz HUD, map prompts, floating caption words, toasts and result cards. Everything is drawn from the game's own sprites. There is no
-menus yet: you start on the overworld map, walk to a level marker and press Jump, Fire or Enter to go in.
+settings beyond Music, Effects and Night: after the system check you reach the title (New game, Options, Quit), then the overworld map; walk to a level marker and press Jump, Fire or Enter to go in.
 
 The first thing you see is a system check in the manner of Keen's: what video, input, sound and maths hardware it found, a
 speed test of the real renderer, and the sound it will use (A, P and O pick AdLib, PC speaker or off). Enter starts the
@@ -28,13 +28,12 @@ Keys
   N                night mode (darker ambient light; lamps and glowing things stand out)
   M                music on/off
   E                sound effects on/off
-  P                pause
-  Esc              quit
+  Esc              pause menu (and back, in a menu); Quit to title, then Quit, leaves the game
 
 Notes
   - If it runs slowly with sound on, the OPL emulator is the cost: DOSBOX.CONF uses 'oplemu = compat' (light). Nuked is
     more exact but needs a fast machine.
   - Finishing a level, falling or running out of lives takes you back to the map after a moment (a card says what happened; Enter dismisses it).
-  - 'FIZZ.EXE map' (the default) starts on the overworld, 'FIZZ.EXE 3' starts in level 3.
+  - 'FIZZ.EXE' starts at the title, 'FIZZ.EXE map' on the overworld and 'FIZZ.EXE 3' in level 3.
   - CWSDPMI.EXE must stay next to FIZZ.EXE (it is the DOS extender). Its licence is in CWSDPMI.DOC.
   - Source and build scripts: the fizz-dos side repository.

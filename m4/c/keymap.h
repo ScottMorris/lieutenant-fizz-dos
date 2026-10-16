@@ -9,6 +9,7 @@
 #define IN_POGO 32
 #define IN_FIRE 64
 #define IN_CONFIRM 128
+#define IN_MENU 256 /* Escape: pauses, and goes back in a menu */
 /* Scancodes (set 1, the low 7 bits of what port 0x60 gives; the 0xE0 prefix is ignored, so the grey arrows and the numpad arrows are the same). */
 enum {
   SC_ESC = 0x01, SC_ENTER = 0x1C, SC_W = 0x11, SC_R = 0x13, SC_CTRL = 0x1D, SC_A = 0x1E, SC_S = 0x1F, SC_D = 0x20,

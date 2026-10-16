@@ -10,5 +10,6 @@ unsigned keymap_bits(const volatile unsigned char *k) {
   if (k[SC_ALT] || k[SC_X]) b |= IN_POGO;
   if (k[SC_SPACE] || k[SC_C]) b |= IN_FIRE;
   if (k[SC_ENTER]) b |= IN_CONFIRM;
+  if (k[SC_ESC]) b |= IN_MENU;
   return b;
 }

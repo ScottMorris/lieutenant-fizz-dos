@@ -246,6 +246,7 @@ void snd_music_for(int level, int boss) {
   int song;
   if (!blob) return;
   if (boss) song = boss_song;
+  else if (level == -2) song = title_song;
   else if (level < 0) song = map_song;
   else if ((unsigned)level < n_levels) song = level_table[level];
   else song = title_song;

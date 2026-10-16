@@ -59,7 +59,7 @@ unsigned kbd_held(void) { return keymap_bits(keys); }
 unsigned kbd_tick_bits(void) {
   /* Keys of the game only: a press of Esc, P, R or the page keys is for the main loop, which reads it by itself. */
   static const unsigned char game_keys[] = {SC_LEFT, SC_RIGHT, SC_UP, SC_DOWN, SC_A, SC_D, SC_W, SC_S,
-                                            SC_CTRL, SC_Z, SC_ALT, SC_X, SC_SPACE, SC_C, SC_ENTER};
+                                            SC_CTRL, SC_Z, SC_ALT, SC_X, SC_SPACE, SC_C, SC_ENTER, SC_ESC};
   unsigned char taps[128];
   unsigned i;
   memset(taps, 0, sizeof taps);

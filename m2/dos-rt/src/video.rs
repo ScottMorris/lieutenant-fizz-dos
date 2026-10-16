@@ -125,7 +125,9 @@ fn sprite(i: usize) -> Option<Sprite> {
 /// sim needs to build its instances (the web shell fills the same table from its atlas).
 pub fn start(level: u32) {
     game_new();
-    if level >= MAP {
+    if level == TITLE {
+        crate::shell::start_title();
+    } else if level >= MAP {
         goto_map();
     } else {
         goto(level);
@@ -142,7 +144,9 @@ pub fn start(level: u32) {
 /// The number of levels in the sim's table.
 const TABLE_LEVELS: u32 = 16;
 /// The level number the demo asks for to mean the overworld.
-pub const MAP: u32 = 255;
+pub const MAP: u32 = 254;
+/// ... and 255 to mean the title screen.
+pub const TITLE: u32 = 255;
 
 /// A check: 1 steers the scripted walk to the Crater Fields marker and presses Jump there; 2 steers but never presses.
 static PRESS: AtomicU32 = AtomicU32::new(0);
@@ -158,15 +162,19 @@ pub fn set_night(on: bool) {
     NIGHT.store(u32::from(on), Ordering::Relaxed);
 }
 
+pub fn night() -> bool {
+    NIGHT.load(Ordering::Relaxed) != 0
+}
+
 /// Enters `level` (wrapping round the table).
 pub fn goto(level: u32) {
-    crate::shell::reset();
+    crate::shell::set_play();
     enter_level(level % TABLE_LEVELS);
 }
 
 /// Enters the overworld.
 pub fn goto_map() {
-    crate::shell::reset();
+    crate::shell::set_play();
     enter_map();
 }
 
@@ -185,6 +193,9 @@ pub fn level() -> u32 {
 
 /// A scripted walk to the right with a jump now and then.
 pub fn scripted_input(tick: u32) -> u32 {
+    if PRESS.load(Ordering::Relaxed) == 3 {
+        return 0; // a check that wants no keys pressed at all
+    }
     const RIGHT: u32 = 2;
     const UP: u32 = 4;
     const JUMP: u32 = 16;
@@ -541,6 +552,22 @@ fn shade(frame: &mut [u8], levels: &[u8; CELLS_X * CELLS_Y]) {
             for pair in row[cx * CELL..][..CELL].chunks_exact_mut(2) {
                 pair[0] = lo[usize::from(pair[0])];
                 pair[1] = hi[usize::from(pair[1])];
+            }
+        }
+    }
+}
+
+/// Draws sprite `id` for the interface (full brightness, no lighting) with its top left at (`x`, `y`).
+pub fn draw_sprite_ui(frame: &mut [u8], id: usize, x: i32, y: i32) {
+    let Some(sp) = sprite(id) else {
+        return;
+    };
+    for row in 0..sp.h as i32 {
+        for col in 0..sp.w as i32 {
+            let c = sp.pix[row as usize * sp.w + col as usize];
+            let (px, py) = (x + col, y + row);
+            if c != CLEAR_PIX && px >= 0 && py >= 0 && (px as usize) < W && (py as usize) < H {
+                frame[py as usize * W + px as usize] = crate::ui::FULL + (c & 15);
             }
         }
     }

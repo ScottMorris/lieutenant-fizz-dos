@@ -1,7 +1,8 @@
 /* Episode 1 on a VGA mode 13h screen, with sound.
    usage: FIZZ [level|map] [ticks] [shot] [nosync] [night] [nosound] [adlib] [speaker] [soundtest]
    With no ticks (or 0) it is interactive: arrows or WASD move, Ctrl or Z jump, Alt or X pogo, Space or C fire,
-   PgUp and PgDn change level, R restarts it, Backspace goes back to the map, N toggles night, M music, E effects, P pauses, Esc quits.
+   PgUp and PgDn change level, R restarts it, Backspace goes back to the map, N toggles night, M music, E effects, Esc pauses
+   (and goes back in a menu; Quit to title, then Quit, leaves).
    With ticks it runs a scripted walk for that many ticks and, with "shot", writes FRAME.RAW (64000 bytes) and PAL.RAW
    (256 x RGB, 6-bit) at the end. "soundtest" plays a song for a few seconds headless and reports what the driver did. */
 #include <conio.h>
@@ -23,6 +24,8 @@ extern unsigned fizz_level(void);
 extern unsigned fizz_boss_hp(void);
 extern unsigned fizz_mode(void);
 extern void fizz_press(int on);
+extern unsigned fizz_quit(void);
+extern void fizz_show(unsigned n);
 extern void fizz_goto_map(void);
 extern void fizz_night(int on);
 extern unsigned fizz_build(float alpha);
@@ -100,7 +103,7 @@ static int sound_using(int choice, int adlib) {
 
 static void choose_music(void) {
   static int last_level = -2, last_boss = -2;
-  int level = fizz_mode() == 2 ? -1 : (int)fizz_level(), boss = fizz_mode() == 3 && fizz_boss_hp() > 0;
+  int level = fizz_mode() == 1 ? -2 : fizz_mode() == 2 ? -1 : (int)fizz_level(), boss = fizz_mode() == 3 && fizz_boss_hp() > 0;
   if (level != last_level || boss != last_boss) {
     last_level = level;
     last_boss = boss;
@@ -109,10 +112,10 @@ static void choose_music(void) {
 }
 
 int main(int argc, char **argv) {
-  /* The first argument is a level number, or nothing or "map" for the overworld (255 to the game). */
-  unsigned level = argc > 1 && strcmp(argv[1], "map") ? (unsigned)atoi(argv[1]) : 255;
+  /* The first argument is a level number, or "map" for the overworld (254 to the game), or nothing for the title (255). */
+  unsigned level = argc < 2 ? 255 : !strcmp(argv[1], "map") ? 254 : (unsigned)atoi(argv[1]);
   unsigned ticks = argc > 2 ? (unsigned)atoi(argv[2]) : 0;
-  int shot = 0, nosync = 0, i, paused = 0, night = 0, sound_mode = SND_AUTO, soundtest = 0, with_sound = 0, quiet = 0, bench = 0, preview = 1, previewshot = 0;
+  int shot = 0, nosync = 0, i, paused = 0, night = 0, sound_mode = SND_AUTO, soundtest = 0, with_sound = 0, quiet = 0, bench = 0, preview = 1, previewshot = 0, screen = 0;
   int probe[C_COUNT];
   char cpu[16];
   unsigned t, clear = 0;
@@ -130,11 +133,15 @@ int main(int argc, char **argv) {
     if (!strcmp(argv[i], "bench")) bench = 1;
     if (!strcmp(argv[i], "press")) fizz_press(1);
     if (!strcmp(argv[i], "approach")) fizz_press(2);
+    if (!strcmp(argv[i], "noinput")) fizz_press(3);
     if (!strcmp(argv[i], "nopreview")) preview = 0;
+    if (!strcmp(argv[i], "pause")) screen = 1;
+    if (!strcmp(argv[i], "options")) screen = 2;
     if (!strcmp(argv[i], "preview")) previewshot = 1;
   }
   fizz_start(level, 1);
   fizz_night(night);
+  if (screen) fizz_show(screen);
 
   if (soundtest) {
     /* No screen: start the handler, play the first song for three seconds and report what it did. */
@@ -197,8 +204,7 @@ int main(int argc, char **argv) {
     t = 0;
     for (;;) {
       unsigned long elapsed = clock560() - base, owed = elapsed * 60 / 560;
-      if (bench ? t >= 600 : kbd_pressed(SC_ESC)) break;
-      if (kbd_pressed(SC_P)) paused = !paused;
+      if (bench ? t >= 600 : fizz_quit()) break;
       if (kbd_pressed(SC_PGUP)) fizz_goto(fizz_level() + 15);
       if (kbd_pressed(SC_PGDN)) fizz_goto(fizz_level() + 1);
       if (kbd_pressed(SC_R)) fizz_goto(fizz_level());
@@ -211,13 +217,13 @@ int main(int argc, char **argv) {
         /* The first tick of a frame also gets any quick taps; the rest of a catch-up see what is held. */
         unsigned bits = bench ? fizz_scripted(t) : kbd_tick_bits();
         while (owed > done) {
-          if (!paused) { uclock_t a = stamp(); fizz_tick(bits); t_tick += stamp() - a; t++; }
+          { uclock_t a = stamp(); fizz_tick(bits); t_tick += stamp() - a; t++; }
           bits = bench ? fizz_scripted(t) : kbd_held();
           done++;
         }
         choose_music();
       }
-      show(&clear, 1, paused ? 1.0f : (float)((elapsed * 60) % 560) / 560.0f);
+      show(&clear, 1, (float)((elapsed * 60) % 560) / 560.0f);
     }
   }
   vga_close();

@@ -3,7 +3,7 @@
 // The C side finds out about the hardware (video, input, sound, memory, the speed of a few trial frames) and hands over a
 // list of numbers; this draws them.
 
-use crate::ui::{self, BLACK, CYAN, DARK, GREEN, GREY, RED, WHITE, YELLOW};
+use crate::ui::{self, CYAN, DARK, GREEN, GREY, RED, WHITE, YELLOW};
 use crate::video::{H, W};
 
 /// Positions in the list of numbers the C side fills in.
