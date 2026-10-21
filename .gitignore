@@ -29,3 +29,4 @@ attic/**/OUT.TXT
 attic/**/CWSDPMI.EXE
 attic/**/FRAME.RAW
 attic/**/PAL.RAW
+dist/release/

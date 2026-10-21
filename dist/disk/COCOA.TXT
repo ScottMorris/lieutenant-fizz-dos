@@ -1,0 +1,11 @@
+
+            .-.
+           (   )
+           |###|        You found the hidden file.
+           |FIZ|
+           |ZZZ|        Lieutenant Fizz, Episode 1:
+           |###|        The Cocoa Caper, for DOS.
+           '---'
+                        Built with Rust, DJGPP and a
+                        lot of palette tricks.
+

@@ -1,0 +1,87 @@
+# Builds a release's files (tools/make-release.sh) and, for a pushed tag such as v0.1.0, publishes them as a GitHub release with the
+# changelog's section for that version as its notes. Run by hand (Actions, Release, Run workflow) it builds the files and keeps them
+# as a workflow artifact without publishing.
+#
+# (c) Copyright 2026 Liminal HQ, Scott Morris
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build the files for, such as v0.1.0 (nothing is published)'
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  VERSION: ${{ github.event_name == 'push' && github.ref_name || inputs.version }}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: experiments/fizz-dos
+    steps:
+      # Laid out as ci.yml does: the repository and the main game side by side.
+      - uses: actions/checkout@v7
+        with:
+          path: experiments/fizz-dos
+      - uses: actions/checkout@v7
+        with:
+          repository: liminal-hq/lieutenant-fizz
+          path: liminal-hq/lieutenant-fizz
+      - uses: oven-sh/setup-bun@v2
+      - name: 32-bit C libraries, zip, mtools, dosfstools and the flex runtime that DJGPP's tools load
+        run: sudo apt-get update && sudo apt-get install -y gcc-multilib zip libfl2 mtools dosfstools
+      - name: DOS toolchain cache
+        uses: actions/cache@v6
+        with:
+          path: experiments/fizz-dos/vendor
+          key: dos-toolchain-${{ hashFiles('experiments/fizz-dos/tools/fetch-tools.sh') }}
+      - name: Build the main game's sim.wasm
+        working-directory: liminal-hq/lieutenant-fizz
+        run: |
+          rustup target add wasm32-unknown-unknown
+          bun install --frozen-lockfile
+          bun run build:wasm
+      - name: Set up this repository
+        run: tools/setup.sh --no-clone
+      # A release is never made from a tree that fails the checks.
+      - name: Check
+        run: tools/check.sh
+      - name: Build the game
+        run: m4/build.sh --no-run
+      - name: Build the release files
+        run: tools/make-release.sh "$VERSION"
+      - name: Keep the files
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-files
+          path: experiments/fizz-dos/dist/release/*
+      - name: Publish
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          number="${VERSION#v}"
+          # The changelog's section for this version is the release's notes.
+          awk -v n="$number" '$0 ~ "^## " n " " { on = 1; next } /^## / { on = 0 } on' CHANGELOG.md > dist/release/NOTES.md
+          [ -s dist/release/NOTES.md ] || { echo "CHANGELOG.md has no section for $number" >&2; exit 1; }
+          # A 0.x release is a pre-release: the port is playable but not complete.
+          flags=()
+          case "$number" in 0.*) flags+=(--prerelease) ;; esac
+          gh release create "$VERSION" --repo "$GITHUB_REPOSITORY" --verify-tag --title "Lieutenant Fizz for DOS $VERSION" \
+            --notes-file dist/release/NOTES.md "${flags[@]}" \
+            dist/release/*.img dist/release/*.zip dist/release/*.jsdos dist/release/SHA256SUMS

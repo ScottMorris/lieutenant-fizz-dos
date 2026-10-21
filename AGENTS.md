@@ -118,6 +118,7 @@ Add labels to every PR when it is created and keep them accurate as scope change
 - **Focused commits:** when work splits naturally into implementation, validation and docs, use separate contextual commits.
 - **Stage explicitly:** use `git add <specific paths>`, never `git add -A` or `git commit -a`. Retry on an `index.lock` collision rather than deleting the lock.
 - Do not commit scratch files, build outputs (`*.exe`, `out/`, `target/`, `vendor/`) or large source archives.
+- **Releases:** add the version's section to `CHANGELOG.md` in a PR and merge it; the tag `vX.Y.Z` is then pushed on the merge commit (only when the user asks), and `.github/workflows/release.yml` checks the tree, runs `tools/make-release.sh` and publishes the files with that section as the notes. A 0.x release is a pre-release.
 - **GitHub tooling:** prefer the `gh` CLI for repository, pull request, label, review and Actions work.
 
 ## Local Tooling
@@ -133,6 +134,7 @@ m4/build.sh [--no-run] [level] [ticks]  # build the playable FIZZ.EXE (and run i
 tools/sync-sim.sh [--check]          # regenerate (or check) m2/sim and m2/game from the main game plus m2/patches
 tools/dosrun.sh <dir> "<command>"    # run a DOS program headless in DOSBox
 tools/make-dist.sh                   # pack dist/fizz-dos-demo.zip
+tools/make-release.sh <version>      # build a release's files into dist/release/: floppy image, zips, browser bundle, SHA256SUMS
 tools/make-site.sh                   # build the GitHub Pages bundle in site/
 tools/make-share.sh                  # build the link-preview picture site/img/share.png
 ```

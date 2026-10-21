@@ -9,6 +9,7 @@ Where the DOS port stands against the main game (`liminal-hq/lieutenant-fizz`, E
 - **Saves and options:** progress is written to `AUTO.SAV` on every map visit and to `SLOT1.SAV` to `SLOT4.SAV` from the pause menu. The options are written to `FIZZ.CFG`, a separate file, and read at the next start.
 - **Sound:** AdLib (OPL2) music and effects, PC-speaker effects, or the music on AdLib with the effects on the speaker. The music and effects are converted from the main game's Undertone data.
 - **Speed options:** frame rate (auto, 60 Hz, 30 Hz) and detail (auto, high, low) in Options, with command-line overrides.
+- **Releases:** each tagged release carries a 1.44 MB floppy image (label `FIZZ EP1`, serial number `FE01-0010` for 0.1.0: the game, then the version), the same files as a zip, a DOSBox demo zip, the browser bundle and `SHA256SUMS`. The image's file system is checked and the game runs from it in DOSBox; no image has been booted or written to a real floppy.
 
 ## Not ported yet
 
@@ -60,7 +61,6 @@ A 486DX2-66 has about 1.1 M cycles a frame at 60 fps and 1.9 M at 35 fps. DOSBox
 
 ## Ideas not built
 
-- A 1.44 MB floppy image. The EXE and the DOS extender already fit unpacked (about 0.93 MB); a packed image would be a convenience.
 - A bootable FreeDOS image for real hardware and 86Box.
 - Replaying the main game's playtest bot solutions through the DOS build and comparing hashes, to show every level can be cleared.
 - PC-speaker music.
