@@ -167,11 +167,12 @@ A Cargo workspace for the native checks, with the DOS crates in their own worksp
 - `m2/` — the simulation as a DOS program: `sim` and `game` (the main game's crates plus `patches/`), `dos-rt` (the DOS runtime: drawing, screens, saves, sound hooks) and `dos.json` (the custom i486 target)
 - `m3/` — sprite export, the sprite census and the screenshot converter
 - `m4/` — the playable build: the C layer (`c/`), the exporters, the sound converters (`sound/`), `build.sh`
-- `m5/` — `bench`, a native 32-bit build that counts instructions per frame by stage and checks frame checksums
+- `m5/` — `bench`, a native 32-bit build that counts instructions per frame by stage, checks frame checksums and records footage for the video
 - `tools/` — setup, check, clean, fetch, run, pack and convert scripts, and the DOSBox configuration
 - `dist/` — the demo folder (`fizz-dos-demo`) that `tools/make-dist.sh` zips
 - `site/` — the GitHub Pages page and the js-dos bundle
 - `docs/` — status, architecture and the milestone notes
+- `video/` — the explainer video: its scenes and narration (`fizzvid/scenes.py`) and the renderer (`render.py`); the output goes to `out/video/`
 - `assets/` — the README hero banner
 - `attic/` — superseded code from the first milestones, not built or tested (see its README)
 

@@ -10,7 +10,7 @@ Lieutenant Fizz for DOS (`ScottMorris/lieutenant-fizz-dos`) ports *Lieutenant Fi
 
 ## Layout
 
-- `m0` native determinism harness; `m2` the simulation as a DOS program (`sim`, `game` plus `patches/`, `dos-rt`, `dos.json`); `m3` sprite export; `m4` the playable build (C layer in `m4/c`, sound converters in `m4/sound`); `m5/bench` instruction-count bench and frame checksums; `attic` superseded code
+- `m0` native determinism harness; `m2` the simulation as a DOS program (`sim`, `game` plus `patches/`, `dos-rt`, `dos.json`); `m3` sprite export; `m4` the playable build (C layer in `m4/c`, sound converters in `m4/sound`); `m5/bench` instruction-count bench, frame checksums and the footage recorder (`FOOTAGE=`); `video` the explainer video (`video/render.py`, see `video/README.md`); `attic` superseded code
 - `tools/` fetch, run, pack and convert scripts, `dosbox.conf`; `dist/` the demo folder; `site/` the Pages page and js-dos bundle; `docs/`; `assets/`
 - `vendor/` (DJGPP, DOSBox Staging, CWSDPMI), `m2/target` and `out/` are local only and ignored
 
