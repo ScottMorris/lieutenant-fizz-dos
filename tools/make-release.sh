@@ -24,13 +24,13 @@ NAME="fizz-dos-$VERSION"
 LABEL="FIZZ EP1"
 FLOPPY_BYTES=1474560
 
-# The volume serial number holds the game and the version: FE01 (Fizz, episode 01), then the major and minor versions as one hex
-# digit each and the patch as two, so 0.1.0 is FE01-0100 and 1.12.3 is FE01-1C03. A suffix such as -test is ignored.
+# The volume serial number holds the game and the version: FE01 (Fizz, episode 01), then the major version as one hex digit, the
+# minor as two and the patch as one, so 0.1.0 is FE01-0010 and 1.112.3 is FE01-1703. A suffix such as -test is ignored.
 [[ "$PLAIN" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+) ]] || { echo "make-release.sh: the version must look like v1.2.3" >&2; exit 1; }
 MAJOR=${BASH_REMATCH[1]}; MINOR=${BASH_REMATCH[2]}; PATCH=${BASH_REMATCH[3]}
-{ [ "$MAJOR" -lt 16 ] && [ "$MINOR" -lt 16 ] && [ "$PATCH" -lt 256 ]; } \
-  || { echo "make-release.sh: the version does not fit the serial number (major and minor under 16, patch under 256)" >&2; exit 1; }
-SERIAL=$(printf 'FE01%X%X%02X' "$MAJOR" "$MINOR" "$PATCH")
+{ [ "$MAJOR" -lt 16 ] && [ "$MINOR" -lt 256 ] && [ "$PATCH" -lt 16 ]; } \
+  || { echo "make-release.sh: the version does not fit the serial number (major and patch under 16, minor under 256)" >&2; exit 1; }
+SERIAL=$(printf 'FE01%X%02X%X' "$MAJOR" "$MINOR" "$PATCH")
 
 for tool in zip mkfs.fat mcopy mattrib mdir mtype python3 sha256sum; do
   command -v "$tool" >/dev/null || { echo "make-release.sh: $tool is needed" >&2; exit 1; }
