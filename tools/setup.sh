@@ -9,6 +9,9 @@
 #   --no-clone  do not clone the main game when it is missing (set FIZZ_GAME to where it is instead)
 #   --no-fetch  skip the toolchain download (vendor/ is already there, or cached)
 #
+# A baked toolchain stands in for vendor/: when vendor/ is missing and DOS_TOOLCHAIN names a folder that holds djgpp/, dosbox/ and
+# cwsdpmi/ (the build image sets it), vendor/ becomes a link to it and nothing is downloaded.
+#
 # The main game lives at ../../liminal-hq/lieutenant-fizz from this repository unless FIZZ_GAME says otherwise. It is only needed to
 # regenerate the exported assets (sprites, sound, interface data) and for the native determinism harness in m0; the committed
 # assets build the game without it. A checkout that already exists is left alone.
@@ -57,6 +60,12 @@ if echo 'int main(void){return 0;}' | gcc -m32 -x c - -o /dev/null 2>/dev/null; 
   echo "32-bit C libraries: present"
 else
   echo "warning: gcc cannot build 32-bit programs; install the 32-bit libraries to run the native i586 checks (m5/bench, m0)" >&2
+fi
+
+if [ ! -e vendor ] && [ -n "${DOS_TOOLCHAIN:-}" ]; then
+  step "DOS toolchain (baked)"
+  ln -s "$DOS_TOOLCHAIN" vendor
+  echo "vendor -> $DOS_TOOLCHAIN"
 fi
 
 if [ "$FETCH" = 1 ]; then

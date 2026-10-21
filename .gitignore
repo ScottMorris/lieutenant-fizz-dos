@@ -3,7 +3,7 @@ target/
 out/
 target-tests/
 *.so
-/vendor/
+/vendor
 m2/target/
 m2/c/*.exe
 m2/c/OUT.TXT
