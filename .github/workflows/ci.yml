@@ -28,10 +28,10 @@ jobs:
     steps:
       # The repository and the main game sit side by side, as they do on a developer's machine: the exporters, `m0` and
       # `tools/sync-sim.sh` find the game at ../../liminal-hq/lieutenant-fizz from the repository.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           path: experiments/fizz-dos
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           repository: liminal-hq/lieutenant-fizz
           path: liminal-hq/lieutenant-fizz
@@ -39,7 +39,7 @@ jobs:
       - name: 32-bit C libraries, zip and the flex runtime that DJGPP's tools load
         run: sudo apt-get update && sudo apt-get install -y gcc-multilib zip libfl2
       - name: DOS toolchain cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: experiments/fizz-dos/vendor
           key: dos-toolchain-${{ hashFiles('experiments/fizz-dos/tools/fetch-tools.sh') }}
