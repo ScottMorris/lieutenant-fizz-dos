@@ -19,9 +19,21 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # The build image: .github/images/dos-build, published by image.yml under a tag that hashes what it is built from.
+  image:
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/image.yml
+
   check:
+    needs: image
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: read
+    container: ${{ needs.image.outputs.ref }}
     defaults:
       run:
         working-directory: experiments/fizz-dos
@@ -35,20 +47,12 @@ jobs:
         with:
           repository: liminal-hq/lieutenant-fizz
           path: liminal-hq/lieutenant-fizz
-      - uses: oven-sh/setup-bun@v2
-      - name: 32-bit C libraries, zip and the flex runtime that DJGPP's tools load
-        run: sudo apt-get update && sudo apt-get install -y gcc-multilib zip libfl2
-      - name: DOS toolchain cache
-        uses: actions/cache@v6
-        with:
-          path: experiments/fizz-dos/vendor
-          key: dos-toolchain-${{ hashFiles('experiments/fizz-dos/tools/fetch-tools.sh') }}
       - name: Build the main game's sim.wasm
         working-directory: liminal-hq/lieutenant-fizz
         run: |
-          rustup target add wasm32-unknown-unknown
           bun install --frozen-lockfile
           bun run build:wasm
+      # The image's DOS toolchain becomes vendor/ (DOS_TOOLCHAIN).
       - name: Set up this repository
         run: tools/setup.sh --no-clone
       - name: Check
