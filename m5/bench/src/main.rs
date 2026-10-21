@@ -5,6 +5,11 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 //
 //   cargo run --release --target i586-unknown-linux-gnu -- [frames]
+//
+// Environment: NOCOUNT=1 runs without the instruction counter, SCENE=<word> runs only the scenes whose name holds it, TICKONLY=1
+// steps the sim without drawing, DUMP=<dir> writes each scene's last frame, LOW=1 draws at low detail, HIST=1 lists the sprites
+// that cover the most pixels. Where the counter is not allowed (a virtual machine), `valgrind --tool=callgrind` counts the
+// instructions instead; see docs/PERFORMANCE.md.
 
 #![allow(dead_code)]
 
@@ -146,6 +151,10 @@ fn hook(stage: u8) {
 const NAMES: [&str; 10] = ["", "sim render", "", "lights", "clear", "sprites", "shade", "overlay", "sim step", "events"];
 
 fn scene(name: &str, level: u32, night: bool, script: fn(u32) -> u32, frames: u32) {
+    // SCENE=<word> runs only the scenes whose name contains it (for a profiler, which wants one scene at a time).
+    if std::env::var("SCENE").is_ok_and(|s| !name.contains(s.as_str())) {
+        return;
+    }
     video::set_night(night);
     video::set_low_detail(std::env::var("LOW").is_ok());
     video::start(level);
@@ -161,16 +170,25 @@ fn scene(name: &str, level: u32, night: bool, script: fn(u32) -> u32, frames: u3
     }
     let mut sprites = 0;
     let mut total = 0u64;
+    // TICKONLY=1 steps the sim and draws nothing, to weigh the sim on its own.
+    let tick_only = std::env::var("TICKONLY").is_ok();
     for t in 0..frames {
         let start = read_counter();
         LAST.store(start, Ordering::Relaxed);
         shell::advance(script(120 + t));
-        let count = video::build(1.0);
-        sprites += count;
-        video::paint(&mut frame, count);
+        if !tick_only {
+            let count = video::build(1.0);
+            sprites += count;
+            video::paint(&mut frame, count);
+        }
         total += read_counter() - start;
     }
     let sum = frame.iter().fold(0u32, |h, &b| h.wrapping_mul(31).wrapping_add(u32::from(b)));
+    // DUMP=<dir> writes each scene's last frame there (64000 palette indices), to compare pictures before and after a change.
+    if let Ok(dir) = std::env::var("DUMP") {
+        let file = format!("{dir}/{}.raw", name.replace(['(', ')', ','], "").replace(' ', "_"));
+        std::fs::write(file, &frame).expect("could not write the frame");
+    }
     println!("{name}: frame checksum {sum:08x}");
     if std::env::var("HIST").is_ok() {
         let count = video::build(1.0);
