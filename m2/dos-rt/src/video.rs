@@ -291,7 +291,7 @@ pub fn mark(stage: u8) {
 }
 
 /// Draws the current scene into `frame` (W*H bytes). Returns the clear colour as 0x00RRGGBB with 6-bit channels,
-/// for palette slot 17.
+/// for palette slot 255.
 pub fn draw(frame: &mut [u8], alpha: f32) -> u32 {
     let count = build(alpha);
     paint(frame, count)
