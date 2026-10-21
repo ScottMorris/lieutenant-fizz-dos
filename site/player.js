@@ -20,9 +20,9 @@
   var ci = null;
   var savesBusy = false;
   var muted = params.has('mute');
-  // ?opl=default or ?opl=fast loads the same game with another OPL emulator, to compare the sound; anything else is the usual bundle.
+  // ?opl=default or ?opl=compat loads the same game with another OPL emulator, to compare the sound; anything else is the usual bundle.
   var opl = params.get('opl');
-  var bundle = opl === 'default' || opl === 'fast' ? 'game-' + opl + '.jsdos' : 'game.jsdos';
+  var bundle = opl === 'default' || opl === 'compat' ? 'game-' + opl + '.jsdos' : 'game.jsdos';
 
   function showMuted() {
     muteButton.textContent = muted ? 'Sound off' : 'Sound on';

@@ -20,11 +20,11 @@ cp vendor/cwsdpmi/bin/cwsdpmi.doc "$STAGE/CWSDPMI.DOC"
 PATH="$PWD/vendor/djgpp/djgpp/bin:$PATH" i586-pc-msdosdjgpp-gcc -O2 -o "$STAGE/TONETEST.EXE" tools/dos/tonetest.c
 cp site/dosbox.web.conf "$STAGE/.jsdos/dosbox.conf"
 printf '{"version":"8.xx"}\n' > "$STAGE/.jsdos/jsdos.json"
-rm -f site/game.jsdos site/game-default.jsdos site/game-fast.jsdos
+rm -f site/game.jsdos site/game-default.jsdos site/game-compat.jsdos site/game-fast.jsdos
 (cd "$STAGE" && zip -q -r -X "$OLDPWD/site/game.jsdos" .jsdos FIZZ.EXE TONETEST.EXE CWSDPMI.EXE CWSDPMI.DOC)
-# The same bundle with another OPL emulator, for comparing by ear: the page loads one with ?opl=default or ?opl=fast.
-for opl in default fast; do
-  sed "s/^oplemu = compat/oplemu = $opl/" site/dosbox.web.conf > "$STAGE/.jsdos/dosbox.conf"
+# The same bundle with another OPL emulator, for comparing by ear: the page loads one with ?opl=default or ?opl=compat.
+for opl in default compat; do
+  sed "s/^oplemu = fast/oplemu = $opl/" site/dosbox.web.conf > "$STAGE/.jsdos/dosbox.conf"
   (cd "$STAGE" && zip -q -r -X "$OLDPWD/site/game-$opl.jsdos" .jsdos FIZZ.EXE TONETEST.EXE CWSDPMI.EXE CWSDPMI.DOC)
 done
 mkdir -p site/img
@@ -32,4 +32,4 @@ cp assets/hero.svg site/img/hero.svg
 for f in title-logo level0 level1 night1 map240 preview scr-pause scr-dialogue; do
   [ -f "out/$f.png" ] && cp "out/$f.png" "site/img/$f.png"
 done
-ls -l site/game.jsdos site/game-default.jsdos site/game-fast.jsdos
+ls -l site/game.jsdos site/game-default.jsdos site/game-compat.jsdos
