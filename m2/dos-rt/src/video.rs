@@ -420,17 +420,21 @@ impl Still {
         ok
     }
 
-    /// Keeps the scene just drawn when the sim has not stepped since the last frame (the next one is likely the same again).
+    /// Keeps the scene just drawn when the sim has not stepped since the last frame and its output block is the same as the last
+    /// frame's too. A frame that follows no step but moves the camera (the interpolation between ticks, on a machine quicker than
+    /// 60 Hz) is never the same again, so copying it would cost 64 KB and the draw list for nothing; the first still frame is only
+    /// noted, and a second one in a row is kept.
     fn keep(&mut self, count: usize, frame: &[u8]) {
         let steps = STEPS.load(Ordering::Relaxed);
-        let still = self.steps == steps;
+        let head = Self::head_now();
+        let armed = self.steps == steps && self.head == head;
         self.steps = steps;
+        self.head = head;
         self.valid = false;
-        if !still || count > STILL_MAX {
+        if !armed || count > STILL_MAX {
             return;
         }
         self.count = count;
-        self.head = Self::head_now();
         self.inst[..count * 20].copy_from_slice(Self::inst_now(count));
         self.frame.copy_from_slice(frame);
         self.valid = true;
