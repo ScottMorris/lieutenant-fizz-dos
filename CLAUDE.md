@@ -25,6 +25,7 @@ tools/dosrun.sh <dir> "<command>"    # run a DOS program headless in DOSBox
 tools/make-dist.sh                   # pack dist/fizz-dos-demo.zip
 tools/sync-sim.sh [--check]          # m2/sim and m2/game from the main game plus m2/patches
 tools/make-site.sh                   # build the GitHub Pages bundle
+tools/make-share.sh                  # build the link-preview picture site/img/share.png
 ```
 
 The scripts are the source of truth. Run `tools/check.sh` before a PR (the CI runs it); after any change to the simulation, the drawing code or `m2/dos-rt`, `m2/build.sh` must print `PASS`.

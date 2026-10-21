@@ -134,6 +134,7 @@ tools/sync-sim.sh [--check]          # regenerate (or check) m2/sim and m2/game 
 tools/dosrun.sh <dir> "<command>"    # run a DOS program headless in DOSBox
 tools/make-dist.sh                   # pack dist/fizz-dos-demo.zip
 tools/make-site.sh                   # build the GitHub Pages bundle in site/
+tools/make-share.sh                  # build the link-preview picture site/img/share.png
 ```
 
 Treat the scripts as the source of truth for exact commands. Use `$TMPDIR`-style scratch space (not `/tmp`) when several jobs share a machine. Mute game audio before any browser check.
