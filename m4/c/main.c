@@ -217,15 +217,23 @@ int main(int argc, char **argv) {
   if (screen) fizz_show(screen);
 
   if (soundtest) {
-    /* No screen: start the handler, play the first song for three seconds and report what it did. */
-    unsigned long start, waited = 0;
-    int m = snd_init(fizz_sound_data(), fizz_sound_len(), sound_mode);
+    /* No screen: start the handler, play a song (the first, or "song<n>") for three seconds (or "secs<n>") and report what it
+       did. "nofx" leaves out the test effect, for recording a song on its own (video/ does). */
+    unsigned long start, secs = 3;
+    unsigned long long waited = 0;
+    int m, song = 0, fx = 1;
+    for (i = 3; i < argc; i++) {
+      if (!strncmp(argv[i], "song", 4)) song = atoi(argv[i] + 4);
+      if (!strncmp(argv[i], "secs", 4)) secs = (unsigned long)atoi(argv[i] + 4);
+      if (!strcmp(argv[i], "nofx")) fx = 0;
+    }
+    m = snd_init(fizz_sound_data(), fizz_sound_len(), sound_mode);
     printf("sound mode %d (0 auto, 1 adlib, 2 speaker, 3 off)\n", m);
     if (m == SND_OFF) return 1;
-    snd_music(0);
-    snd_fx(0);
+    snd_music(song);
+    if (fx) snd_fx(0);
     start = snd_ticks();
-    while (snd_ticks() - start < 560UL * 3 && waited < 2000000000UL) waited++;
+    while (snd_ticks() - start < 560UL * secs && waited < 2000000000ULL * secs) waited++;
     printf("ticks %lu, register writes %lu\n", snd_ticks() - start, snd_register_writes());
     snd_shutdown();
     return 0;
