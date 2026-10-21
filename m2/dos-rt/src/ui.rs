@@ -54,7 +54,27 @@ fn put(frame: &mut [u8], x: i32, y: i32, colour: u8) {
 fn draw_glyphs(frame: &mut [u8], x: i32, y: i32, s: &str, colour: u8) -> i32 {
     let mut at = x;
     for c in s.chars() {
-        if let Some(g) = glyph(c) {
+        if c == ' ' {
+            at += SPACE;
+            continue;
+        }
+        let Some(g) = glyph(c) else {
+            at += SPACE;
+            continue;
+        };
+        let w = i32::from(g.w);
+        if at >= 0 && y >= 0 && at + w <= W as i32 && y + g.rows.len() as i32 <= H as i32 {
+            // Wholly on the screen, the usual case: no clipping a pixel at a time, and the set bits are walked from the right.
+            for (row, &bits) in g.rows.iter().enumerate() {
+                let line = &mut frame[(y as usize + row) * W + at as usize..][..g.w as usize];
+                let mut bits = u32::from(bits);
+                while bits != 0 {
+                    let k = bits.trailing_zeros() as usize;
+                    line[g.w as usize - 1 - k] = FULL + colour;
+                    bits &= bits - 1;
+                }
+            }
+        } else {
             for (row, bits) in g.rows.iter().enumerate() {
                 for col in 0..g.w {
                     if bits >> (g.w - 1 - col) & 1 != 0 {
@@ -63,7 +83,7 @@ fn draw_glyphs(frame: &mut [u8], x: i32, y: i32, s: &str, colour: u8) -> i32 {
                 }
             }
         }
-        at += advance(c);
+        at += w + 1;
     }
     at
 }
@@ -250,13 +270,35 @@ pub fn dim(frame: &mut [u8], x: i32, y: i32, w: i32, h: i32, steps: u8) {
     if x1 <= x0 || y1 <= y0 {
         return;
     }
-    // One lookup a pixel instead of the shifts and clamps.
+    // One lookup a pixel for the odd ends and for words that hold the clear colour; four pixels at a time for the rest.
     let mut lut = [0u8; 256];
     for (p, o) in lut.iter_mut().enumerate() {
         *o = if p == 255 { 16 } else { ((p as u8 >> 4).saturating_sub(steps)).max(1) << 4 | (p as u8 & 15) };
     }
+    // For each byte's level h, `(h | 0x80) - (steps + 1)` keeps its top bit when h > steps, and its low bits are then h - steps - 1;
+    // the new level is that plus one, or 1 when the top bit went. No byte borrows from the next.
+    let less = u32::from(steps.min(15) + 1) * 0x0101_0101;
     for row in y0..y1 {
-        for p in frame[row * W + x0..row * W + x1].iter_mut() {
+        let line = &mut frame[row * W + x0..row * W + x1];
+        let n = line.len() / 4;
+        let base = line.as_mut_ptr() as *mut u32;
+        for k in 0..n {
+            // SAFETY: word k is inside the row; x86 reads and writes unaligned words freely.
+            let w = unsafe { base.add(k).read_unaligned() };
+            let out = if w == 0xffff_ffff {
+                0x1010_1010
+            } else if (!w).wrapping_sub(0x0101_0101) & w & 0x8080_8080 != 0 {
+                // A byte is 255, the clear colour, which dims to black (slot 16).
+                u32::from_le_bytes(w.to_le_bytes().map(|p| lut[usize::from(p)]))
+            } else {
+                let t = (((w >> 4) & 0x0f0f_0f0f) | 0x8080_8080) - less;
+                let top = t & 0x8080_8080;
+                let keep = top | (top - (top >> 7));
+                (((t & keep & 0x7f7f_7f7f) + 0x0101_0101) << 4) | (w & 0x0f0f_0f0f)
+            };
+            unsafe { base.add(k).write_unaligned(out) };
+        }
+        for p in &mut line[n * 4..] {
             *p = lut[usize::from(*p)];
         }
     }

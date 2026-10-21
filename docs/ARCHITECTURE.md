@@ -4,6 +4,10 @@ The DOS port is the main game's Rust simulation with a different front end. This
 
 ## The layers
 
+![The layers of the DOS port and what flows between them: key presses, sim ticks, frames, sound and saves](architecture.svg)
+
+The diagram is animated: a key press goes from the keyboard's IRQ 1 through the shell into the sim's step, a frame goes from the sim's draw list through the paint and the copy to video memory, sound cues go through the 560 Hz timer handler to the OPL2 or the speaker, and saves go to disk. [DOS_ARCHITECTURE.md](DOS_ARCHITECTURE.md) describes the machine side in detail and [RUST_ON_DOS.md](RUST_ON_DOS.md) the toolchain.
+
 ```
 liminal-hq/lieutenant-fizz            the main game: crates/sim and episodes/episode-1/game (std Rust)
         │  patched copy: no_std, fmath traits over libm
@@ -55,7 +59,7 @@ The web build runs the simulation in `f64` on WebAssembly. A DOS build uses the 
 A 320 × 200 byte buffer, shown in VGA mode 13h. The palette is 16 EGA colours at 14 brightness levels: `byte = level * 16 + colour`, level 1 black to level 14 full, level 0 the colour at full brightness for the markers, and slot 255 the level's clear colour.
 
 1. `fizz_build` asks the simulation for the draw list (an instance buffer, painter's order).
-2. `fizz_paint` works out the light on each 8 × 8 cell from the sim's ambient light, sun and point lights (a single brightness per cell, in quarter-levels), clears the frame, and blits each sprite with fixed-point steps (copy, flip, scale; a rotated sprite maps each pixel back through its matrix). A sprite's high nibble is a marker: lit, actor (never below level 9) or glowing (full brightness).
+2. `fizz_paint` works out the light on each 8 × 8 cell from the sim's ambient light, sun and point lights (a single brightness per cell, in quarter-levels, in integers with the falloff from a table), clears the frame, and blits each sprite with fixed-point steps (copy, flip, scale; a rotated sprite maps each pixel back through its matrix). A sprite at its own size is placed from the bits of its position with integers, and an opaque tile whose colours change (a tint, a light marker) is baked once and then copied a row at a time. A sprite's high nibble is a marker: lit, actor (never below level 9) or glowing (full brightness). While the sim stands still (a menu, a card, a dialogue) and nothing it hands over has changed, the last shaded scene is copied back instead of drawn again.
 3. Where the light is the same everywhere (the map and the day levels) the markers are the final levels and nothing more is needed. Otherwise a shade pass turns each marker into its cell's level, four pixels at a time, with a 2 × 2 ordered dither between neighbouring quarter-levels so 14 levels show no bands.
 4. The shell draws its screens, HUD and text over the finished frame; menus dim what is behind them by lowering the level nibble.
 5. The C layer waits for the vertical retrace and copies the frame to video memory.
@@ -78,4 +82,4 @@ The simulation steps at 60 Hz from a clock kept by the sound handler (the BIOS c
 
 ## Measuring
 
-`m5/bench` builds the drawing and shell code natively as a 32-bit x87 program and counts user-space instructions per stage with `perf_event_open`, then prints a frame checksum for five scenes. Speed work starts there, then moves to DOSBox with `cycles=fixed 26800` (a 486DX2-66) for milliseconds per frame. The bench's stub of the C functions lets the shell run without a DOS machine, which also makes menu behaviour testable (`PAUSETEST=1`).
+`m5/bench` builds the drawing and shell code natively as a 32-bit x87 program and counts user-space instructions per stage with `perf_event_open`, then prints a frame checksum for five scenes. Speed work starts there, then moves to DOSBox with `cycles=fixed 26800` (a 486DX2-66) for milliseconds per frame. Where the instruction counter cannot be opened (a virtual machine), `m5/bench/profile.sh` counts with callgrind, and with `--cycles` estimates 486 cycles from the instruction mix (`m5/bench/cyc486.py`), which shows the x87 work that DOSBox's even cycle count hides. `docs/PERFORMANCE.md` has the figures. The bench's stub of the C functions lets the shell run without a DOS machine, which also makes menu behaviour testable (`PAUSETEST=1`).

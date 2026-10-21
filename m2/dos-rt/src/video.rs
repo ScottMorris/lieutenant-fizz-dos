@@ -106,22 +106,42 @@ struct Sprite {
     /// Every pixel is this colour, when the sprite is one flat colour (a fill): a row is one `fill`.
     flat: Option<u8>,
     pix: &'static [u8],
+    /// The bits of `w / 16` and `h / 16` as `f32`: an instance drawn at the sprite's own size has these as its scales.
+    unit: (u32, u32),
+}
+
+/// The sheet's sprites, read once.
+const MAX_SPRITES: usize = 256;
+
+fn sheet() -> &'static [Sprite] {
+    static mut TABLE: [Sprite; MAX_SPRITES] = [Sprite { w: 0, h: 0, opaque: false, flat: None, pix: &[], unit: (0, 0) }; MAX_SPRITES];
+    static mut LEN: usize = usize::MAX;
+    // SAFETY: the DOS build has one thread; the table is filled on the first call and only read after.
+    unsafe {
+        if LEN == usize::MAX {
+            let n = u16_at(0).min(MAX_SPRITES);
+            let t = &mut *core::ptr::addr_of_mut!(TABLE);
+            for (i, s) in t.iter_mut().enumerate().take(n) {
+                let o = u32_at(2 + i * 4);
+                let (w, h) = (u16_at(o), u16_at(o + 2));
+                let flags = SPRITES[o + 4];
+                *s = Sprite {
+                    w,
+                    h,
+                    opaque: flags & 1 != 0,
+                    flat: (flags & 2 != 0).then(|| SPRITES[o + 5]),
+                    pix: &SPRITES[o + 6..o + 6 + w * h],
+                    unit: ((w as f32 / TILE).to_bits(), (h as f32 / TILE).to_bits()),
+                };
+            }
+            LEN = n;
+        }
+        (&*core::ptr::addr_of!(TABLE)).get_unchecked(..LEN)
+    }
 }
 
 fn sprite(i: usize) -> Option<Sprite> {
-    if i >= u16_at(0) {
-        return None;
-    }
-    let o = u32_at(2 + i * 4);
-    let (w, h) = (u16_at(o), u16_at(o + 2));
-    let flags = SPRITES[o + 4];
-    Some(Sprite {
-        w,
-        h,
-        opaque: flags & 1 != 0,
-        flat: (flags & 2 != 0).then(|| SPRITES[o + 5]),
-        pix: &SPRITES[o + 6..o + 6 + w * h],
-    })
+    sheet().get(i).copied()
 }
 
 /// Starts a level: a new game, the level, the 20x12.5 tile view of a 320x200 screen, and the sprite sizes the
@@ -271,7 +291,7 @@ pub fn mark(stage: u8) {
 }
 
 /// Draws the current scene into `frame` (W*H bytes). Returns the clear colour as 0x00RRGGBB with 6-bit channels,
-/// for palette slot 17.
+/// for palette slot 255.
 pub fn draw(frame: &mut [u8], alpha: f32) -> u32 {
     let count = build(alpha);
     paint(frame, count)
@@ -293,6 +313,14 @@ pub fn paint(frame: &mut [u8], count: usize) -> u32 {
     let cam_px = (round(out[1] * TILE), round(out[2] * TILE));
     let six = |v: f32| (v.clamp(0.0, 1.0) * 63.0 + 0.5) as u32;
     let clear = six(out[5]) << 16 | six(out[6]) << 8 | six(out[7]);
+    // SAFETY: the DOS build has one thread, and only `paint` touches the still scene.
+    let still = unsafe { &mut *core::ptr::addr_of_mut!(STILL) };
+    if still.reuse(count, frame) {
+        mark(6);
+        crate::shell::overlay(frame, cam_px);
+        mark(7);
+        return clear;
+    }
     let levels = light_levels(out, cam_px);
     mark(3);
     // The list is in painter's order and little of the screen is covered twice, so it is drawn back to front.
@@ -300,6 +328,8 @@ pub fn paint(frame: &mut [u8], count: usize) -> u32 {
     mark(4);
     let inst = unsafe { core::slice::from_raw_parts(instance_ptr(), count * 20) };
     let mut tints = TintCache::new();
+    // SAFETY: the DOS build has one thread, and only `paint` touches the cache.
+    let bakes = unsafe { &mut *core::ptr::addr_of_mut!(BAKES) };
     // Where the light is the same all over (the map, the day levels) the markers are the final bytes' high nibble
     // already, and no pass is needed after the sprites.
     let uniform = levels.iter().all(|&q| q == levels[0] && q & 3 == 0);
@@ -311,19 +341,100 @@ pub fn paint(frame: &mut [u8], count: usize) -> u32 {
     };
     let low = LOW_DETAIL.load(Ordering::Relaxed) != 0;
     for b in inst.chunks_exact(20) {
-        if low && is_backdrop(b[16] as usize) {
+        if low && is_backdrop(f32_whole(b[16]) as usize) {
             continue;
         }
-        blit(frame, b, cam_px, &mut tints, &marks);
+        blit(frame, b, cam_px, &mut tints, bakes, &marks);
     }
     mark(5);
     if !uniform {
         shade(frame, &levels);
     }
+    still.keep(count, frame);
     mark(6);
     crate::shell::overlay(frame, cam_px);
     mark(7);
     clear
+}
+
+/// Sim steps so far, counted by the shell; a scene is only kept while this stands still (a pause, a menu, a card, a dialogue).
+static STEPS: AtomicU32 = AtomicU32::new(0);
+
+/// The shell calls this after each step of the sim.
+pub fn stepped() {
+    STEPS.fetch_add(1, Ordering::Relaxed);
+}
+
+/// The most sprites a kept scene can have.
+const STILL_MAX: usize = 2048;
+
+/// The last scene drawn while the sim stood still, before the interface went over it, and everything it was drawn from. While
+/// the sim is paused (a menu, a result card, a dialogue) the same scene is drawn every frame; when the sim's output, its lights,
+/// the draw list and the options are all bit for bit what they were, the kept frame is copied back instead of drawn again.
+struct Still {
+    valid: bool,
+    steps: u32,
+    count: usize,
+    /// The sim's output block, its lights' places and colours, night and detail.
+    head: [u32; 32 + 64 + 48 + 2],
+    inst: [u32; STILL_MAX * 20],
+    frame: [u8; W * H],
+}
+
+static mut STILL: Still = Still { valid: false, steps: 0, count: 0, head: [0; 32 + 64 + 48 + 2], inst: [0; STILL_MAX * 20], frame: [0; W * H] };
+
+impl Still {
+    fn head_now() -> [u32; 32 + 64 + 48 + 2] {
+        let mut h = [0u32; 32 + 64 + 48 + 2];
+        // SAFETY: the sim's output, light places and light colours are 32, 64 and 48 floats.
+        let src = unsafe {
+            [
+                core::slice::from_raw_parts(out_ptr() as *const u32, 32),
+                core::slice::from_raw_parts(lights_pos_ptr() as *const u32, 64),
+                core::slice::from_raw_parts(lights_col_ptr() as *const u32, 48),
+            ]
+        };
+        for (o, v) in h.iter_mut().zip(src.iter().flat_map(|s| s.iter())) {
+            *o = *v;
+        }
+        h[144] = NIGHT.load(Ordering::Relaxed);
+        h[145] = LOW_DETAIL.load(Ordering::Relaxed);
+        h
+    }
+
+    fn inst_now(count: usize) -> &'static [u32] {
+        // SAFETY: the sim's instance buffer holds `count` instances of 20 floats.
+        unsafe { core::slice::from_raw_parts(instance_ptr() as *const u32, count * 20) }
+    }
+
+    /// Copies the kept scene into `frame` if it is still the scene to draw.
+    fn reuse(&mut self, count: usize, frame: &mut [u8]) -> bool {
+        let ok = self.valid
+            && self.steps == STEPS.load(Ordering::Relaxed)
+            && self.count == count
+            && self.head == Self::head_now()
+            && self.inst[..count * 20] == *Self::inst_now(count);
+        if ok {
+            frame.copy_from_slice(&self.frame);
+        }
+        ok
+    }
+
+    /// Keeps the scene just drawn when the sim has not stepped since the last frame (the next one is likely the same again).
+    fn keep(&mut self, count: usize, frame: &[u8]) {
+        let steps = STEPS.load(Ordering::Relaxed);
+        let still = self.steps == steps;
+        self.steps = steps;
+        self.valid = false;
+        if !still || count > STILL_MAX {
+            return;
+        }
+        self.count = count;
+        self.head = Self::head_now();
+        self.inst[..count * 20].copy_from_slice(Self::inst_now(count));
+        self.frame.copy_from_slice(frame);
+        self.valid = true;
+    }
 }
 
 /// The last few tints seen and their colour tables, so a tint shared by many sprites is worked out once a frame.
@@ -352,6 +463,47 @@ impl TintCache {
     }
 }
 
+/// The largest sprite `BakeCache` keeps: a tile.
+const BAKED_PIX: usize = 16 * 16;
+/// Sprites `BakeCache` has a slot for (the sheet has 253).
+const BAKED: usize = 256;
+
+/// Opaque tiles with their final colours worked out (the tint's colour table and the light marker applied to every pixel), so a
+/// tile drawn many times a frame is copied rather than changed a pixel at a time. One slot per sprite, kept from frame to frame: a
+/// tile's tint and marker rarely change, so a slot is worked out again only when they do.
+struct BakeCache {
+    /// The tint and marker each slot was baked with, and bit 40 set; 0 is an empty slot (so the cache starts all zero and takes
+    /// no room in the EXE).
+    keys: [u64; BAKED],
+    pix: [[u8; BAKED_PIX]; BAKED],
+}
+
+static mut BAKES: BakeCache = BakeCache { keys: [0; BAKED], pix: [[0; BAKED_PIX]; BAKED] };
+
+impl BakeCache {
+    fn get(&mut self, id: usize, tint: u32, mark: u8, sp: &Sprite, lut: &[u8; 16]) -> &[u8; BAKED_PIX] {
+        let key = u64::from(tint) | u64::from(mark) << 32 | 1 << 40;
+        let i = id % BAKED;
+        if self.keys[i] != key {
+            self.keys[i] = key;
+            for (o, &c) in self.pix[i].iter_mut().zip(sp.pix) {
+                *o = lut[usize::from(c & 15)];
+            }
+        }
+        &self.pix[i]
+    }
+}
+
+/// Copies a row of a sprite, with the common whole tile row (16 bytes) as four word moves rather than a call to `memcpy`.
+#[inline(always)]
+fn copy_row(dst: &mut [u8], src: &[u8]) {
+    if let (Ok(d), Ok(s)) = (<&mut [u8; 16]>::try_from(&mut *dst), <&[u8; 16]>::try_from(src)) {
+        *d = *s;
+    } else {
+        dst.copy_from_slice(src);
+    }
+}
+
 /// `v` rounded to the nearest integer (positions here are above -1000, so no floor call is needed).
 fn round(v: f32) -> i32 {
     (v + 1000.5) as i32 - 1000
@@ -359,48 +511,115 @@ fn round(v: f32) -> i32 {
 
 const IDENTITY: [u8; 16] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
 
-fn blit(frame: &mut [u8], b: &[f32], cam_px: (i32, i32), tints: &mut TintCache, marks: &[u8; 3]) {
-    // Alpha, emissive and actor share one float: alpha + 2 * emissive + 4 * actor.
-    let flags = b[19];
-    let w2 = if flags >= 3.5 { flags - 4.0 } else { flags };
-    let alpha = if w2 >= 1.5 { w2 - 2.0 } else { w2 };
-    if alpha < 0.5 {
+/// `floor(v * 2^k)`, worked out exactly from the bits of `v` with integers (an x87 conversion costs a control-word swap and a
+/// `fistp`, some 40 cycles on a 486). Values too big for the screen come back as +-2^30.
+fn floor_scaled(v: f32, k: i32) -> i32 {
+    let b = v.to_bits();
+    let neg = b >> 31 != 0;
+    let e = ((b >> 23) & 255) as i32;
+    let m = if e == 0 { (b & 0x7f_ffff) as i32 } else { ((b & 0x7f_ffff) | 0x80_0000) as i32 };
+    if m == 0 {
+        return 0;
+    }
+    // v = m * 2^sh, after the scaling by 2^k.
+    let sh = e.max(1) - 150 + k;
+    if sh > 6 {
+        return if neg { -(1 << 30) } else { 1 << 30 };
+    }
+    if sh >= 0 {
+        return if neg { -(m << sh) } else { m << sh };
+    }
+    if sh <= -31 {
+        return if neg { -1 } else { 0 };
+    }
+    if neg {
+        -((m + (1 << -sh) - 1) >> -sh)
+    } else {
+        m >> -sh
+    }
+}
+
+/// A whole number the sim stored as an `f32` (a sprite index, a tint), read from its bits; as `v as u32` for 0 <= v < 2^24.
+fn f32_whole(v: f32) -> u32 {
+    let b = v.to_bits();
+    let e = (b >> 23) as i32 - 127; // the sign bit makes a negative value's `e` large, and it is read as 0
+    if !(0..=23).contains(&e) {
+        return 0;
+    }
+    ((b & 0x7f_ffff) | 0x80_0000) >> (23 - e)
+}
+
+/// `f32` bits of the flag thresholds (for positive floats the order of the bits is the order of the values).
+const F0_5: u32 = 0.5f32.to_bits();
+const F1_5: u32 = 1.5f32.to_bits();
+const F2_5: u32 = 2.5f32.to_bits();
+const F3_5: u32 = 3.5f32.to_bits();
+const F4_5: u32 = 4.5f32.to_bits();
+const F5_5: u32 = 5.5f32.to_bits();
+const F6_5: u32 = 6.5f32.to_bits();
+
+fn blit(frame: &mut [u8], b: &[f32], cam_px: (i32, i32), tints: &mut TintCache, bakes: &mut BakeCache, marks: &[u8; 3]) {
+    // Alpha, emissive and actor share one float: alpha + 2 * emissive + 4 * actor. A sprite under half alpha is not drawn. They
+    // are read from the bits, which compare as the values do: with w2 the float less the actor's 4, the sprite is drawn when w2
+    // is in [0.5, 1.5) or at least 2.5, and glows when w2 is 1.5 or more.
+    let fb = b[19].to_bits();
+    if fb >> 31 != 0 {
         return;
     }
-    let mark = if w2 >= 1.5 {
+    let actor = fb >= F3_5;
+    let (shown, glow) = if actor {
+        ((F4_5..F5_5).contains(&fb) || fb >= F6_5, fb >= F5_5)
+    } else {
+        ((F0_5..F1_5).contains(&fb) || (F2_5..F3_5).contains(&fb), fb >= F1_5)
+    };
+    if !shown {
+        return;
+    }
+    let mark = if glow {
         marks[2]
-    } else if flags >= 3.5 {
+    } else if actor {
         marks[1]
     } else {
         marks[0]
     };
-    let cx = W as f32 / 2.0 + b[12] * TILE - cam_px.0 as f32;
-    let cy = H as f32 / 2.0 - b[13] * TILE + cam_px.1 as f32;
     let (m00, m01, m10, m11) = (b[0], b[1], b[4], b[5]);
     // Most sprites are not turned: they are copied, flipped or scaled by whole steps of fixed-point, with no
     // floating-point work per pixel (the x87 is slow, and DOSBox's emulation of it slower).
-    if m01 == 0.0 && m10 == 0.0 {
-        let (dw, dh) = (round(m00.abs() * TILE), round(m11.abs() * TILE));
-        if dw <= 0 || dh <= 0 {
-            return;
-        }
-        // Rounded in the world first, then moved by the whole-pixel camera.
-        let x0 = round(b[12] * TILE - m00.abs() * TILE * 0.5) + W as i32 / 2 - cam_px.0;
-        let y0 = H as i32 / 2 + cam_px.1 - round(b[13] * TILE + m11.abs() * TILE * 0.5);
-        if x0 >= W as i32 || y0 >= H as i32 || x0 + dw <= 0 || y0 + dh <= 0 {
-            return;
-        }
-        let Some(sp) = sprite(b[16] as usize) else {
+    if (m01.to_bits() | m10.to_bits()) << 1 == 0 {
+        let Some(sp) = sprite(f32_whole(b[16]) as usize) else {
             return;
         };
         let (sw, sh) = (sp.w, sp.h);
-        let tint = b[18] as u32;
+        let (x0, y0, dw, dh);
+        if (m00.to_bits() & 0x7fff_ffff, m11.to_bits() & 0x7fff_ffff) == sp.unit {
+            // At its own size, the usual case, the place comes from the bits with no x87 work: the left edge is
+            // `round(x * 16 - w / 2)`, and from f = floor(x * 32) that is `(f + 1) >> 1` less w / 2 for an even width, or
+            // `f >> 1` less (w - 1) / 2 for an odd one; the top likewise.
+            let (fx, fy) = (floor_scaled(b[12], 5), floor_scaled(b[13], 5));
+            let (w, h) = (sw as i32, sh as i32);
+            x0 = (if w & 1 == 0 { ((fx + 1) >> 1) - w / 2 } else { (fx >> 1) - (w - 1) / 2 }) + W as i32 / 2 - cam_px.0;
+            y0 = H as i32 / 2 + cam_px.1 - if h & 1 == 0 { ((fy + 1) >> 1) + h / 2 } else { (fy >> 1) + (h + 1) / 2 };
+            (dw, dh) = (w, h);
+        } else {
+            (dw, dh) = (round(m00.abs() * TILE), round(m11.abs() * TILE));
+            if dw <= 0 || dh <= 0 {
+                return;
+            }
+            // Rounded in the world first, then moved by the whole-pixel camera.
+            x0 = round(b[12] * TILE - m00.abs() * TILE * 0.5) + W as i32 / 2 - cam_px.0;
+            y0 = H as i32 / 2 + cam_px.1 - round(b[13] * TILE + m11.abs() * TILE * 0.5);
+        }
+        if x0 >= W as i32 || y0 >= H as i32 || x0 + dw <= 0 || y0 + dh <= 0 {
+            return;
+        }
+        let tint = f32_whole(b[18]);
         let identity = tint == 0xff_ffff;
         let mut lut = if tint == 0xff_ffff { IDENTITY } else { tints.get(tint) };
         for l in lut.iter_mut() {
             *l |= mark;
         }
-        let (flip_x, flip_y) = (m00 < 0.0, m11 < 0.0);
+        // From the sign bits (neither scale is zero here), so no x87 compare is left inside the row loops.
+        let (flip_x, flip_y) = (m00.to_bits() >> 31 != 0, m11.to_bits() >> 31 != 0);
         let (cx0, cx1) = (x0.max(0), (x0 + dw).min(W as i32));
         let (cy0, cy1) = (y0.max(0), (y0 + dh).min(H as i32));
         let span = (cx1 - cx0) as usize;
@@ -415,6 +634,16 @@ fn blit(frame: &mut [u8], b: &[f32], cam_px: (i32, i32), tints: &mut TintCache, 
         if dw as usize == sw && dh as usize == sh {
             // Drawn at its own size, the common case: rows are copied, whole when the sprite is opaque.
             let skip = (cx0 - x0) as usize;
+            // An opaque tile is copied a row at a time: as it is when it needs no change, else from its baked copy (the backdrop
+            // layers repeat one tinted tile a few hundred times, and a level with even light marks every tile).
+            if sp.opaque && !flip_x && sw * sh <= BAKED_PIX {
+                let pix: &[u8] = if identity && mark == 0 { sp.pix } else { bakes.get(f32_whole(b[16]) as usize, tint, mark, &sp, &lut) };
+                for y in cy0..cy1 {
+                    let r = if flip_y { sh - 1 - (y - y0) as usize } else { (y - y0) as usize };
+                    copy_row(&mut frame[y as usize * W + cx0 as usize..][..span], &pix[r * sw + skip..][..span]);
+                }
+                return;
+            }
             for y in cy0..cy1 {
                 let mut r = (y - y0) as usize;
                 if flip_y {
@@ -485,6 +714,8 @@ fn blit(frame: &mut [u8], b: &[f32], cam_px: (i32, i32), tints: &mut TintCache, 
         }
         return;
     }
+    let cx = W as f32 / 2.0 + b[12] * TILE - cam_px.0 as f32;
+    let cy = H as f32 / 2.0 - b[13] * TILE + cam_px.1 as f32;
     blit_turned(frame, b, cx, cy, mark, tints);
 }
 
@@ -529,7 +760,7 @@ fn blit_turned(frame: &mut [u8], b: &[f32], cx: f32, cy: f32, mark: u8, tints: &
     }
 }
 
-/// A square root on the x87's own instruction (the `libm` one is software, and slow when done a thousand times a frame).
+/// A square root on the x87's own instruction (the `libm` one is software); only the falloff table's set-up uses it.
 fn fsqrt(x: f32) -> f32 {
     let mut r = 0.0f32;
     unsafe {
@@ -544,12 +775,41 @@ fn lum(r: f32, g: f32, b: f32) -> f32 {
 }
 
 /// Quarter-steps of brightness: 0 is black and `QMAX` full, so a cell's light is `QMAX / 4` levels and a fraction.
-const QMAX: f32 = ((LEVELS - 1) * 4) as f32;
+const QMAX: i32 = ((LEVELS - 1) * 4) as i32;
+
+/// Light in the grid is fixed point: `LIGHT_ONE` is full brightness.
+const LIGHT_SHIFT: u32 = 10;
+const LIGHT_ONE: i32 = 1 << LIGHT_SHIFT;
+/// Steps of the falloff table, over the squared distance from 0 to the light's radius.
+const FALL_STEPS: u32 = 1024;
+/// Falloff table entries are this many times the value they stand for.
+const FALL_ONE: f32 = 256.0;
+
+/// The falloff of a point light against its squared distance: for `u` the distance over the radius, `(1 - u)^2 / u` (the web
+/// shader's `(1 - u)^2` times the `z / distance` of a sprite facing the screen, with `z / radius` taken out), at the middle of
+/// each of `FALL_STEPS` steps of `u^2`, times `FALL_ONE`. A light is never nearer than its own height, so the capped first steps
+/// are rarely used.
+fn falloff() -> &'static [u16; FALL_STEPS as usize] {
+    static mut TABLE: [u16; FALL_STEPS as usize] = [0; FALL_STEPS as usize];
+    static mut BUILT: bool = false;
+    unsafe {
+        let t = &mut *core::ptr::addr_of_mut!(TABLE);
+        if !BUILT {
+            for (i, o) in t.iter_mut().enumerate() {
+                let u = fsqrt((i as f32 + 0.5) / FALL_STEPS as f32);
+                *o = ((1.0 - u) * (1.0 - u) / u * FALL_ONE + 0.5).min(65535.0) as u16;
+            }
+            BUILT = true;
+        }
+        &*core::ptr::addr_of!(TABLE)
+    }
+}
 
 /// The light on each 8x8 cell of the screen, in quarter-levels (0..=52): the sim's ambient light, its sun and its
 /// point lights, worked out as the web shader does for a sprite facing the screen, with the three colour channels folded
 /// into one brightness (the palette can only dim a colour, not tint it). Each point light only visits the cells it can
-/// reach.
+/// reach, in integers: distances are in quarter pixels and the falloff comes from a table, so a cell costs a few integer
+/// steps where a square root and two divisions on the x87 would cost several hundred cycles on a 486.
 fn light_levels(out: &[f32], cam_px: (i32, i32)) -> [u8; CELLS_X * CELLS_Y] {
     // The shader lights only when `LIGHTING` is on.
     if out[12] < 0.5 {
@@ -558,44 +818,62 @@ fn light_levels(out: &[f32], cam_px: (i32, i32)) -> [u8; CELLS_X * CELLS_Y] {
     let count = (out[3] as usize).min(16);
     let pos = unsafe { core::slice::from_raw_parts(lights_pos_ptr(), 64) };
     let col = unsafe { core::slice::from_raw_parts(lights_col_ptr(), 48) };
-    let (cam_x, cam_y) = (cam_px.0 as f32 / TILE, cam_px.1 as f32 / TILE);
+    let fall = falloff();
     // A sprite faces the screen, so a sun at (x, y, z) lights it by its z.
     let base = lum(out[9], out[10], out[11]) + lum(out[17], out[18], out[19]) * out[16].max(0.0);
-    let mut grid = [base; CELLS_X * CELLS_Y];
-    let (half_w, half_h) = (W as f32 / 2.0, H as f32 / 2.0);
+    let mut grid = [(base.clamp(0.0, 4.0) * LIGHT_ONE as f32 + 0.5) as i32; CELLS_X * CELLS_Y];
+    /// Quarter pixels to a tile, and to a cell.
+    const SUB: f32 = TILE * 4.0;
+    const CELL_SUB: i32 = CELL as i32 * 4;
     for i in 0..count {
-        let (lx, ly, lz, radius) = (pos[i * 4], pos[i * 4 + 1], pos[i * 4 + 2], pos[i * 4 + 3]);
+        let (lx, ly, lz, radius) = (pos[i * 4], pos[i * 4 + 1], pos[i * 4 + 2], pos[i * 4 + 3].min(63.0));
         let strength = lum(col[i * 3], col[i * 3 + 1], col[i * 3 + 2]);
-        if radius <= 0.0 || strength <= 0.0 {
+        // A light at or behind the sprites' plane adds nothing (the shader's `z / distance` is clamped at 0).
+        if radius <= 0.0 || strength <= 0.0 || lz <= 0.0 {
+            continue;
+        }
+        // The light's place on the screen, in quarter pixels from the top left.
+        let sx = ((W as i32 / 2 - cam_px.0) * 4) as f32 + lx * SUB;
+        let sy = ((H as i32 / 2 + cam_px.1) * 4) as f32 - ly * SUB;
+        if !(-1.0e6..1.0e6).contains(&sx) || !(-1.0e6..1.0e6).contains(&sy) {
+            continue;
+        }
+        let (sx, sy) = (sx as i32, sy as i32);
+        let r = (radius * SUB) as i32;
+        let z = (lz * SUB) as i32;
+        let (r2, z2) = (r * r, z * z);
+        if z2 >= r2 {
             continue;
         }
         // The cells the light reaches, as a box on the screen.
-        let sx = half_w + (lx - cam_x) * TILE;
-        let sy = half_h - (ly - cam_y) * TILE;
-        let reach = radius * TILE;
-        let cx0 = (((sx - reach) / CELL as f32) as i32 - 1).max(0) as usize;
-        let cx1 = (((sx + reach) / CELL as f32) as i32 + 1).clamp(0, CELLS_X as i32 - 1) as usize;
-        let cy0 = (((sy - reach) / CELL as f32) as i32 - 1).max(0) as usize;
-        let cy1 = (((sy + reach) / CELL as f32) as i32 + 1).clamp(0, CELLS_Y as i32 - 1) as usize;
-        if sx + reach < 0.0 || sy + reach < 0.0 {
-            continue;
-        }
+        let cx0 = ((sx - r).div_euclid(CELL_SUB)).max(0);
+        let cx1 = ((sx + r).div_euclid(CELL_SUB)).min(CELLS_X as i32 - 1);
+        let cy0 = ((sy - r).div_euclid(CELL_SUB)).max(0);
+        let cy1 = ((sy + r).div_euclid(CELL_SUB)).min(CELLS_Y as i32 - 1);
+        // What a cell gets is `k * falloff >> 8`, with k the strength times z / radius in grid units; the table index is the
+        // squared distance in steps of r2 / FALL_STEPS, and as d2 < r2 the product `d2 * step` stays under 2^26.
+        let k = (strength * lz / radius * LIGHT_ONE as f32 + 0.5) as i32;
+        let step = (FALL_STEPS << 16) / r2 as u32;
         for cy in cy0..=cy1 {
-            let dy = ly - (cam_y - ((cy * CELL + CELL / 2) as f32 - half_h) / TILE);
+            let dy = cy * CELL_SUB + CELL_SUB / 2 - sy;
+            let dyz = dy * dy + z2;
+            if dyz >= r2 {
+                continue;
+            }
+            let row = &mut grid[cy as usize * CELLS_X..][..CELLS_X];
             for cx in cx0..=cx1 {
-                let dx = lx - (cam_x + ((cx * CELL + CELL / 2) as f32 - half_w) / TILE);
-                let d2 = dx * dx + dy * dy + lz * lz;
-                if d2 < radius * radius && d2 > 0.0 {
-                    let len = fsqrt(d2);
-                    let att = 1.0 - len / radius;
-                    grid[cy * CELLS_X + cx] += strength * (lz / len).max(0.0) * att * att;
+                let dx = cx * CELL_SUB + CELL_SUB / 2 - sx;
+                let d2 = dx * dx + dyz;
+                if d2 < r2 {
+                    let f = i32::from(fall[((d2 as u32 * step) >> 16) as usize]);
+                    row[cx as usize] += (k * f + 128) >> 8;
                 }
             }
         }
     }
     let mut levels = [0u8; CELLS_X * CELLS_Y];
-    for (q, l) in levels.iter_mut().zip(grid.iter()) {
-        *q = (l.clamp(0.0, 1.0) * QMAX + 0.5) as u8;
+    for (q, &l) in levels.iter_mut().zip(grid.iter()) {
+        *q = ((l.clamp(0, LIGHT_ONE) * QMAX + LIGHT_ONE / 2) >> LIGHT_SHIFT) as u8;
     }
     levels
 }

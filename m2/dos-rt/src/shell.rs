@@ -462,6 +462,7 @@ fn title_items(s: &Shell) -> ([TitleItem; 5], usize) {
 fn title_tick(s: &mut Shell, edges: u32) {
     // The attract loop: the sim steps by itself, and each level is shown for one pan across and back.
     step(0);
+    crate::video::stepped();
     events_clear();
     if state_get(ATTRACT_T) >= state_get(ATTRACT_PERIOD) {
         s.attract = (s.attract + 1) % ATTRACT_LEVELS;
@@ -689,6 +690,7 @@ fn play_tick(s: &mut Shell, edges: u32, sim_held: u32) {
     }
 
     step(sim_held);
+    crate::video::stepped();
     crate::video::mark(8);
     events(s);
     crate::video::mark(9);

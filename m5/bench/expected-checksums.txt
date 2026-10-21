@@ -1,5 +1,5 @@
 map: frame checksum 6e9b458f
 level 0 (day): frame checksum 13022bc1
-level 1 (cave): frame checksum 100aa737
-level 1 (cave, night): frame checksum 1b30529c
-level 9 (theatre): frame checksum b5160b3a
+level 1 (cave): frame checksum a5ea8a47
+level 1 (cave, night): frame checksum 32cbe66c
+level 9 (theatre): frame checksum 1040cb3a

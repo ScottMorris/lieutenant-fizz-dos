@@ -44,18 +44,19 @@ Where the DOS port stands against the main game (`liminal-hq/lieutenant-fizz`, E
 
 ## Speed
 
-Instructions per frame for the build, drawing and sim step, counted natively on a 32-bit x87 build (`m5/bench`), and milliseconds per frame in DOSBox at `cycles=fixed 26800` (the usual stand-in for a 486DX2-66):
+Instructions per frame for a sim step, the build and the drawing, counted natively on a 32-bit x87 build (`m5/bench`), and milliseconds per frame in DOSBox at `core = normal`, `cycles = fixed 26800` (the usual stand-in for a 486DX2-66). The rate counts the build, the paint, the copy to the screen and one sim step. `docs/PERFORMANCE.md` has the measurements behind these, the figures before the speed work, and what is left to do.
 
 | Scene | Instructions a frame | Build | Paint | Approximate rate |
 |---|---|---|---|---|
-| Day level | 0.96 M | 4.4 ms | 31 ms | 23 fps |
-| Overworld map | 1.50 M | 12 ms | 43 ms | 15–18 fps |
-| Crystal Caves, detail high | 1.98 M | 7.1 ms | 78 ms | 11 fps |
-| Crystal Caves, detail low | 1.20 M | 7.1 ms | 49 ms | 17 fps |
-| Level 9, detail high | 2.45 M | 7.9 ms | 85 ms | 10 fps |
-| Level 9, detail low | 1.68 M | 7.9 ms | 56 ms | 15 fps |
+| Day level | 0.72 M | 4.4 ms | 23 ms | 35 fps |
+| Overworld map | 1.16 M | 12 ms | 31 ms | 23 fps |
+| Crystal Caves, detail high | 1.15 M | 7.0 ms | 36 ms | 23 fps |
+| Crystal Caves, detail low | — | 7.0 ms | 26 ms | 29 fps |
+| Crystal Caves at night | 1.24 M | 7.0 ms | 39 ms | 21 fps |
+| Level 9, detail high | — | 7.8 ms | 39 ms | 21 fps |
+| Level 9, detail low | — | 7.8 ms | 31 ms | 25 fps |
 
-A 486DX2-66 has about 1.1 M cycles a frame at 60 fps and 1.9 M at 35 fps, so the heavy levels need a faster machine to hold 35 fps. The cost is overdraw: the cave draws about 98,000 pixels of backdrop a frame on a 64,000-pixel screen. A 30 Hz cap gives a steady pace on machines that can do about 30 to 55 fps; it does not speed up slower ones.
+A 486DX2-66 has about 1.1 M cycles a frame at 60 fps and 1.9 M at 35 fps. DOSBox counts about one cycle an instruction, which flatters x87 work: weighted by the 486's own clock counts, a cave frame is about 2.4 M cycles, so a real DX2-66 is likely slower than the table. The sim's step is about 5% of such a machine at 60 ticks a second. A 30 Hz cap gives a steady pace on machines that can do about 30 to 55 fps; it does not speed up slower ones.
 
 ## Ideas not built
 
@@ -63,4 +64,4 @@ A 486DX2-66 has about 1.1 M cycles a frame at 60 fps and 1.9 M at 35 fps, so the
 - A bootable FreeDOS image for real hardware and 86Box.
 - Replaying the main game's playtest bot solutions through the DOS build and comparing hashes, to show every level can be cleared.
 - PC-speaker music.
-- Lighting that is cheaper in dark levels without dropping the backdrop.
+- The speed work listed under "Next opportunities" in `docs/PERFORMANCE.md`: an integer draw list from the sim, shading while copying to the screen, skipping the backdrop under opaque tiles, fades through the palette.

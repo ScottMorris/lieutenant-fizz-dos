@@ -160,7 +160,7 @@ pub extern "C" fn fizz_level() -> u32 {
 }
 
 /// Draws into `frame` (320 * 200 bytes), `alpha` of the way from the last tick to the next; returns the clear colour for
-/// palette slot 17 as 0x00RRGGBB, 6 bits a channel.
+/// palette slot 255 as 0x00RRGGBB, 6 bits a channel.
 #[no_mangle]
 pub extern "C" fn fizz_draw(frame: *mut u8, alpha: f32) -> u32 {
     let frame = unsafe { core::slice::from_raw_parts_mut(frame, video::W * video::H) };
