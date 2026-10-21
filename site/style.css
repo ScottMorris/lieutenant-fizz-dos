@@ -32,6 +32,8 @@ a { color: var(--cyan); }
 .hint { color: var(--muted); }
 .actions button { font: inherit; padding: 0.35rem 0.9rem; color: var(--ink); background: var(--panel); border: 1px solid #3a3550; border-radius: 6px; cursor: pointer; }
 .actions button:hover, .actions button:focus-visible { border-color: var(--orange); outline: none; }
+.actions button:disabled { opacity: 0.5; cursor: default; border-color: #3a3550; }
+.actions + .actions { margin-top: 0.4rem; }
 table { width: 100%; border-collapse: collapse; }
 th, td { text-align: left; padding: 0.45rem 0.6rem; border-bottom: 1px solid #25213a; vertical-align: top; }
 th { white-space: nowrap; font-weight: 600; width: 1%; }
