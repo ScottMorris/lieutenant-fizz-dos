@@ -1,0 +1,72 @@
+# Builds the build image (.github/images/dos-build) and publishes it to GitHub's container registry when its tag does not exist yet.
+# ci.yml and release.yml call it and run their jobs in the image it names; it also runs by hand, and monthly to republish a tag that
+# was lost from the registry.
+#
+# (c) Copyright 2026 Liminal HQ, Scott Morris
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+
+name: Image
+
+on:
+  workflow_call:
+    outputs:
+      ref:
+        description: The image to run jobs in, with its tag
+        value: ${{ jobs.image.outputs.ref }}
+  workflow_dispatch:
+  schedule:
+    - cron: '17 4 1 * *'
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE: ghcr.io/liminal-hq/dos-rust-build
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    outputs:
+      ref: ${{ steps.tag.outputs.ref }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            .github/images
+            rust-toolchain.toml
+            tools/fetch-tools.sh
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Work out the tag
+        id: tag
+        run: |
+          tag=$(.github/images/dos-build/tag.sh)
+          echo "ref=$IMAGE:$tag" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "rust=$(sed -n 's/^channel *= *"\(.*\)"/\1/p' rust-toolchain.toml)" >> "$GITHUB_OUTPUT"
+          if docker manifest inspect "$IMAGE:$tag" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "$IMAGE:$tag is already published"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: docker/setup-buildx-action@v4
+        if: steps.tag.outputs.exists == 'false'
+      # A pull request from a fork has a read-only token: it builds the image to check it, and does not publish.
+      - uses: docker/build-push-action@v7
+        if: steps.tag.outputs.exists == 'false'
+        with:
+          context: .
+          file: .github/images/dos-build/Dockerfile
+          build-args: RUST_VERSION=${{ steps.tag.outputs.rust }}
+          push: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+          tags: |
+            ${{ steps.tag.outputs.ref }}
+            ${{ env.IMAGE }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

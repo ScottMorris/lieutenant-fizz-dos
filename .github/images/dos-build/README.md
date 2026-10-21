@@ -17,7 +17,7 @@ Not in it: the repositories, `node_modules`, cargo's registry and `target/` fold
 
 `tag.sh` hashes the Dockerfile, `rust-toolchain.toml` and `tools/fetch-tools.sh`, so a change to any of them gives a new tag and the image is never stale. `.github/workflows/image.yml` builds and publishes a tag only when it does not exist yet, and `ci.yml` and `release.yml` run their jobs in the tag for the tree they are checking. A pull request that changes the image therefore builds it and runs its checks in it before it merges. A pull request from a fork cannot publish, so its checks fail until a maintainer re-runs them from a branch in this repository.
 
-The workflow also runs monthly, to catch the base image's security fixes: the tag does not change unless an input did, so a rebuild with unchanged inputs does not replace a published image.
+The workflow also runs monthly and by hand. It publishes a tag only when it is missing, so a published image is never replaced; the monthly run is there to restore one that the registry lost. Fixes to the base image or to Ubuntu's packages come in only when someone updates the digest in the `Dockerfile` (a new tag), not on their own.
 
 ## Changing it
 
