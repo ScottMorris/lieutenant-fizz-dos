@@ -119,7 +119,7 @@ Add labels to every PR when it is created and keep them accurate as scope change
 - **Stage explicitly:** use `git add <specific paths>`, never `git add -A` or `git commit -a`. Retry on an `index.lock` collision rather than deleting the lock.
 - Do not commit scratch files, build outputs (`*.exe`, `out/`, `target/`, `vendor/`) or large source archives.
 - **Releases:** add the version's section to `CHANGELOG.md` in a PR and merge it; the tag `vX.Y.Z` is then pushed on the merge commit (only when the user asks), and `.github/workflows/release.yml` checks the tree, runs `tools/make-release.sh` and publishes the files with that section as the notes. A 0.x release is a pre-release.
-- **The build image:** the CI and the release run in `ghcr.io/liminal-hq/dos-rust-build`, defined in `.github/images/dos-build/`. Its tag hashes the Dockerfile, `rust-toolchain.toml` and `tools/fetch-tools.sh`, so a change to a tool version or the Rust version is a pull request that builds its own image and tests in it. `tools/setup.sh` links the image's toolchain as `vendor/` when `DOS_TOOLCHAIN` is set; developers' machines are unchanged.
+- **The build image:** the CI and the release run in `ghcr.io/scottmorris/dos-rust-build`, defined in `.github/images/dos-build/`. Its tag hashes the Dockerfile, `rust-toolchain.toml` and `tools/fetch-tools.sh`, so a change to a tool version or the Rust version is a pull request that builds its own image and tests in it. `tools/setup.sh` links the image's toolchain as `vendor/` when `DOS_TOOLCHAIN` is set; developers' machines are unchanged.
 - **GitHub tooling:** prefer the `gh` CLI for repository, pull request, label, review and Actions work.
 
 ## Local Tooling

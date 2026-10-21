@@ -33,7 +33,11 @@ jobs:
     permissions:
       contents: read
       packages: read
-    container: ${{ needs.image.outputs.ref }}
+    container:
+      image: ${{ needs.image.outputs.ref }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ github.token }}
     defaults:
       run:
         working-directory: experiments/fizz-dos

@@ -13,6 +13,10 @@ FROM ubuntu:24.04@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f57
 
 ENV DEBIAN_FRONTEND=noninteractive
 
+# Links the package to the repository that publishes it, so that repository's workflows can pull it.
+LABEL org.opencontainers.image.source="https://github.com/ScottMorris/lieutenant-fizz-dos" \
+      org.opencontainers.image.description="DJGPP, DOSBox Staging, CWSDPMI, Rust and Bun for building MS-DOS programs"
+
 # gcc-multilib builds the native 32-bit checks; libfl2 is loaded by DJGPP's tools; git is for the scripts that list tracked files; patch is
 # for tools/sync-sim.sh.
 RUN apt-get update \

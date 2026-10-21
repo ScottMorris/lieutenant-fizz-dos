@@ -2,7 +2,7 @@
 
 The build image for MS-DOS programs written in Rust and C. The workflows run their jobs in it, so every build starts from the same tools instead of installing them each time.
 
-Published as `ghcr.io/liminal-hq/dos-rust-build:<tag>`, where the tag is `sha-` and twelve hex digits from `tag.sh`.
+Published as `ghcr.io/scottmorris/dos-rust-build:<tag>`, where the tag is `sha-` and twelve hex digits from `tag.sh`. A workflow in a personal repository cannot create a package in the `liminal-hq` organization, so the image lives under the repository's owner; moving it to the organization means creating the package there and giving this repository write access to it, then changing `IMAGE` in `.github/workflows/image.yml`.
 
 ## What is in it
 
