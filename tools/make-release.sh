@@ -24,6 +24,14 @@ NAME="fizz-dos-$VERSION"
 LABEL="FIZZ EP1"
 FLOPPY_BYTES=1474560
 
+# The volume serial number holds the game and the version: FE01 (Fizz, episode 01), then the major and minor versions as one hex
+# digit each and the patch as two, so 0.1.0 is FE01-0100 and 1.12.3 is FE01-1C03. A suffix such as -test is ignored.
+[[ "$PLAIN" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+) ]] || { echo "make-release.sh: the version must look like v1.2.3" >&2; exit 1; }
+MAJOR=${BASH_REMATCH[1]}; MINOR=${BASH_REMATCH[2]}; PATCH=${BASH_REMATCH[3]}
+{ [ "$MAJOR" -lt 16 ] && [ "$MINOR" -lt 16 ] && [ "$PATCH" -lt 256 ]; } \
+  || { echo "make-release.sh: the version does not fit the serial number (major and minor under 16, patch under 256)" >&2; exit 1; }
+SERIAL=$(printf 'FE01%X%X%02X' "$MAJOR" "$MINOR" "$PATCH")
+
 for tool in zip mkfs.fat mcopy mattrib mdir mtype python3 sha256sum; do
   command -v "$tool" >/dev/null || { echo "make-release.sh: $tool is needed" >&2; exit 1; }
 done
@@ -100,8 +108,8 @@ FILES=(FIZZ.EXE CWSDPMI.EXE CWSDPMI.DOC TONETEST.EXE README.TXT README.RTF CHANG
 (cd "$DISK" && zip -q -X -D "../$NAME-disk.zip" "${FILES[@]}")
 
 IMG="$OUT/$NAME-floppy.img"
-# --invariant fixes the volume ID and the times that mkfs.fat would take from the clock (it reads SOURCE_DATE_EPOCH).
-SOURCE_DATE_EPOCH="$EPOCH" mkfs.fat -C -F 12 -n "$LABEL" --invariant "$IMG" 1440 >/dev/null
+# --invariant fixes the times that mkfs.fat would take from the clock (it reads SOURCE_DATE_EPOCH); -i sets the serial number.
+SOURCE_DATE_EPOCH="$EPOCH" mkfs.fat -C -F 12 -n "$LABEL" --invariant -i "$SERIAL" "$IMG" 1440 >/dev/null
 (cd "$DISK" && mcopy -m -i "../$NAME-floppy.img" "${FILES[@]}" ::)
 # The hidden file is for whoever lists the disk with `dir /a`.
 mattrib -i "$IMG" +h +r ::COCOA.TXT
