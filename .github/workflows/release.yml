@@ -1,6 +1,7 @@
-# Builds a release's files (tools/make-release.sh) and, for a pushed tag such as v0.1.0, publishes them as a GitHub release with the
-# changelog's section for that version as its notes. Run by hand (Actions, Release, Run workflow) it builds the files and keeps them
-# as a workflow artifact without publishing.
+# Builds a release's files (tools/make-release.sh) and, for a pushed tag such as v0.1.0, publishes them as a GitHub release. The notes
+# are the changelog's section for that version, followed by the pull requests merged since the last release, grouped by label as
+# .github/release.yml says. Run by hand (Actions, Release, Run workflow) it builds the files and keeps them as a workflow artifact
+# without publishing.
 #
 # (c) Copyright 2026 Liminal HQ, Scott Morris
 # SPDX-License-Identifier: Apache-2.0 OR MIT
@@ -92,12 +93,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           number="${VERSION#v}"
-          # The changelog's section for this version is the release's notes.
+          # The changelog's section for this version leads the release's notes; GitHub adds the pull requests after it.
           awk -v n="$number" '$0 ~ "^## " n " " { on = 1; next } /^## / { on = 0 } on' CHANGELOG.md > release/NOTES.md
           [ -s release/NOTES.md ] || { echo "CHANGELOG.md has no section for $number" >&2; exit 1; }
           # A 0.x release is a pre-release: the port is playable but not complete.
           flags=()
           case "$number" in 0.*) flags+=(--prerelease) ;; esac
           gh release create "$VERSION" --repo "$GITHUB_REPOSITORY" --verify-tag --title "Lieutenant Fizz for DOS $VERSION" \
-            --notes-file release/NOTES.md "${flags[@]}" \
+            --notes-file release/NOTES.md --generate-notes "${flags[@]}" \
             release/*.img release/*.zip release/*.jsdos release/SHA256SUMS
