@@ -60,10 +60,11 @@ The simulation never learns it is on DOS. A patched `no_std` copy of it (`m2/sim
 | `m2` | The simulation for DOS (`sim` and `game`: the main game's crates plus `patches/`), the DOS runtime (`dos-rt`) and the custom i486 target |
 | `m3` | Sprite export, the sprite census and the screenshot converter |
 | `m4` | The playable build: the C layer, the exporters and the sound converters |
-| `m5` | `bench`, the instruction counter and frame checksums |
+| `m5` | `bench`, the instruction counter, frame checksums, the callgrind and 486-cycle tools, and the footage recorder |
 | `tools` | Setup, check, clean, fetch, run, pack and convert scripts, the DOSBox configuration |
 | `dist`, `site` | The demo folder, and the GitHub Pages page |
-| `docs` | Status, architecture and the milestone notes |
+| `docs` | Status, architecture (with an animated diagram), the DOS runtime in detail, Rust on DOS, performance and the milestone notes |
+| `video` | The explainer video's script and renderer: footage from the real renderer, the game's AdLib music, narration and captions |
 | `attic` | Superseded code from the first milestones, not built or tested |
 
 ## Licence
