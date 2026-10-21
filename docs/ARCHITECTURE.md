@@ -45,6 +45,10 @@ DJGPP's linker reads only `coff-go32`, and Rust emits PE-style COFF. `tools/coff
 
 `m3/export-sprites.ts`, `m4/export-sound.ts` and `m4/export-ui.ts` read the main game and write `m3/assets/sprites.bin` (253 sprites as 8-bit indexed images), `m4/assets/sound.bin` (the converted music and effects) and `m2/dos-rt/src/ui_data.rs` (the pixel font and the strings). They are committed, so a build needs neither Bun nor the main game. To regenerate them, the exporters find the main game at `../../../liminal-hq/lieutenant-fizz` from the repository (override with `FIZZ_GAME`; `tools/setup.sh` clones it there). The sound exporter converts with the code in `m4/sound`: the Undertone-to-OPL2 and PC-speaker converters in `fizz-dos/`, the song planner, and the game's voice data in `fizz-game/`, which need the `@liminal-hq/undertone` package from the root `package.json`.
 
+### The build image
+
+The CI and the release run their jobs in `ghcr.io/liminal-hq/dos-rust-build`, built from `.github/images/dos-build/Dockerfile`: Ubuntu 24.04, DJGPP, DOSBox Staging and CWSDPMI (from `tools/fetch-tools.sh`, checksums verified), Rust at the version in `rust-toolchain.toml` with the i586 and wasm32 targets, Bun, and the 32-bit and disk-image tools. The toolchain sits in `/opt/dos-toolchain`; `DOS_TOOLCHAIN` names it and `tools/setup.sh` links it as `vendor/`, so every script finds `vendor/djgpp`, `vendor/dosbox` and `vendor/cwsdpmi` where it does on a developer's machine. The image's tag hashes the Dockerfile, `rust-toolchain.toml` and `tools/fetch-tools.sh`; `.github/workflows/image.yml` publishes a tag when it does not exist, so a change to any of them is a pull request that builds its own image and runs its checks in it. `.github/images/dos-build/README.md` lists what is in the image and how to change or roll it back. The same build runs locally in Docker with the repository and the main game mounted side by side.
+
 ## Keeping the simulation identical
 
 The web build runs the simulation in `f64` on WebAssembly. A DOS build uses the x87, whose default 64-bit mantissa gives different results. Two rules keep them equal:
