@@ -63,6 +63,10 @@ jobs:
         run: tools/check.sh
       - name: Build the game
         run: m4/build.sh --no-run
+      # The browser bundle is rebuilt from this build's FIZZ.EXE: a build on another machine is not byte for byte the one committed in
+      # site/game.jsdos.
+      - name: Build the browser bundle
+        run: tools/make-site.sh
       - name: Build the release files
         run: tools/make-release.sh "$VERSION"
       - name: Keep the files
