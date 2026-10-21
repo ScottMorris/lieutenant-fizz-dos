@@ -28,6 +28,8 @@ Lieutenant Fizz for DOS (`ScottMorris/lieutenant-fizz-dos`) is a port of *Lieute
 
 - `docs/STATUS.md` is the port's status against the main game: not ported, different on purpose, not verified, ideas not built.
 - `docs/ARCHITECTURE.md` describes the layers, the build pipeline and the rules that keep the simulation identical to the web build.
+- `docs/DOS_ARCHITECTURE.md` is the machine side in detail: memory, start-up, the interrupt handlers, timing, VGA, sound, files and the C/Rust boundary; `docs/architecture.svg` is the animated diagram of the layers.
+- `docs/RUST_ON_DOS.md` is the toolchain as a guide: the target spec, `-Zbuild-std`, `coff2go32.py`, linking with DJGPP, the runtime glue and the x87.
 - `docs/PERFORMANCE.md` is where a frame's time goes on a 486, how it is measured (bench, callgrind, DOSBox, the 486 cycle estimate) and the speed work still open.
 - The main repository, `liminal-hq/lieutenant-fizz`, holds the game's design (`docs/ENGINE_SPEC.md`, the episode's `GAME_DESIGN.md` and `STORY.md`). This repository changes the main game's rules only through the small patch that makes the simulation `no_std`; gameplay changes belong upstream.
 - If code and docs disagree, resolve it deliberately: change the code to match, or update the doc in the same branch with the reasoning.

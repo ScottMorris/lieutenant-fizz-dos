@@ -1,0 +1,195 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 680" width="1000" height="680" role="img" aria-labelledby="title desc" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif">
+  <title id="title">Lieutenant Fizz for DOS: the layers and how data moves between them</title>
+  <desc id="desc">Four bands from top to bottom: the simulation (m2/sim and m2/game), the DOS runtime in Rust (m2/dos-rt), the C layer built with DJGPP (m4/c) and the hardware. Animated dots show key presses going from the keyboard through IRQ 1 and the shell into the sim's step, the frame going from the sim's draw list through the paint to the VGA, sound going from the shell through the 560 Hz timer handler to the OPL2 and PC speaker, the timer interrupt, and saves going to disk.</desc>
+  <style>
+    svg { --bg: #ffffff; --band: #f3f5f8; --box: #ffffff; --edge: #c9d1dc; --ink: #1d2733; --soft: #5b6878; --line: #a9b4c2;
+          --input: #d98a00; --frame: #0a8fb3; --sound: #8a4fd1; --timer: #2e9e55; --file: #7a8696; }
+    @media (prefers-color-scheme: dark) {
+      svg { --bg: #0f141a; --band: #171e26; --box: #1e2731; --edge: #33404e; --ink: #e6edf3; --soft: #9aa7b6; --line: #4a5868;
+            --input: #f2a93b; --frame: #3cc3e6; --sound: #b085f0; --timer: #4cc777; --file: #9aa5b3; }
+    }
+    .bg { fill: var(--bg); }
+    .band { fill: var(--band); }
+    .box { fill: var(--box); stroke: var(--edge); stroke-width: 1.2; }
+    .src { fill: var(--box); stroke: var(--line); stroke-width: 1.2; stroke-dasharray: 5 4; }
+    .t { fill: var(--ink); font-size: 14.5px; font-weight: 650; }
+    .s { fill: var(--soft); font-size: 11.5px; }
+    .bl { fill: var(--ink); font-size: 12px; font-weight: 700; letter-spacing: 0.08em; }
+    .bs { fill: var(--soft); font-size: 11px; }
+    .h1 { fill: var(--ink); font-size: 19px; font-weight: 700; }
+    .h2 { fill: var(--soft); font-size: 12.5px; }
+    .lab { font-size: 11px; font-weight: 600; paint-order: stroke; stroke: var(--bg); stroke-width: 4px; stroke-linejoin: round; }
+    .wire { fill: none; stroke: var(--line); stroke-width: 1.6; }
+    .call { fill: none; stroke: var(--line); stroke-width: 1.4; stroke-dasharray: 4 4; }
+    .input { fill: var(--input); } .frame { fill: var(--frame); } .sound { fill: var(--sound); } .timer { fill: var(--timer); } .file { fill: var(--file); }
+    .lin { stroke: var(--input); } .lfr { stroke: var(--frame); } .lso { stroke: var(--sound); } .lti { stroke: var(--timer); } .lfi { stroke: var(--file); }
+    .tin { fill: var(--input); } .tfr { fill: var(--frame); } .tso { fill: var(--sound); } .tti { fill: var(--timer); } .tfi { fill: var(--file); }
+    .arrow { fill: var(--line); }
+    @media (prefers-reduced-motion: reduce) { .dot, .pulse { display: none; } }
+  </style>
+
+  <defs>
+    <marker id="head" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="arrow" d="M0,0 L10,5 L0,10 z"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1000" height="680" rx="14"/>
+
+  <text class="h1" x="24" y="34">Lieutenant Fizz for DOS — the layers and what flows between them</text>
+  <text class="h2" x="24" y="54">The Rust simulation never knows it is on DOS: the runtime draws and runs the screens, the C layer owns the machine.</text>
+
+  <!-- The main game, the source of the simulation -->
+  <rect class="src" x="160" y="68" width="810" height="40" rx="8"/>
+  <text class="t" x="176" y="93">liminal-hq/lieutenant-fizz</text>
+  <text class="s" x="384" y="93">the main game: crates/sim and episodes/episode-1/game, std Rust, built for the web as wasm</text>
+  <path class="wire" d="M565,108 V146" marker-end="url(#head)"/>
+  <text class="lab s" x="575" y="132">tools/sync-sim.sh + m2/patches: no_std, maths from the libm crate</text>
+
+  <!-- Bands -->
+  <rect class="band" x="12" y="148" width="976" height="66" rx="10"/>
+  <rect class="band" x="12" y="268" width="976" height="66" rx="10"/>
+  <rect class="band" x="12" y="388" width="976" height="66" rx="10"/>
+  <rect class="band" x="12" y="508" width="976" height="66" rx="10"/>
+  <text class="bl" x="24" y="176">SIMULATION</text><text class="bs" x="24" y="193">m2/sim, m2/game</text>
+  <text class="bl" x="24" y="296">DOS RUNTIME</text><text class="bs" x="24" y="313">m2/dos-rt · Rust</text>
+  <text class="bl" x="24" y="416">C LAYER</text><text class="bs" x="24" y="433">m4/c · DJGPP</text>
+  <text class="bl" x="24" y="536">HARDWARE</text><text class="bs" x="24" y="553">or DOSBox, js-dos</text>
+
+  <!-- Simulation -->
+  <rect class="box" x="160" y="152" width="315" height="58" rx="7"/>
+  <text class="t" x="172" y="172">World::step — the game's rules</text>
+  <text class="s" x="172" y="188">f64 on the x87 at 53-bit precision, 60 ticks a second</text>
+  <text class="s" x="172" y="203">bit for bit the web build's (800 checked hashes)</text>
+  <circle class="pulse timer" cx="458" cy="168" r="5">
+    <animate attributeName="opacity" values="1;0.15;1" dur="1s" repeatCount="indefinite"/>
+  </circle>
+  <rect class="box" x="490" y="152" width="315" height="58" rx="7"/>
+  <text class="t" x="502" y="172">World::render — the draw list</text>
+  <text class="s" x="502" y="188">an instance buffer in painter's order</text>
+  <text class="s" x="502" y="203">sprite, place, scale, tint, flags as f32</text>
+  <rect class="box" x="820" y="152" width="150" height="58" rx="7"/>
+  <text class="t" x="832" y="172">Lights + out</text>
+  <text class="s" x="832" y="188">up to 16 point lights</text>
+  <text class="s" x="832" y="203">camera, ambient, sun</text>
+
+  <!-- DOS runtime -->
+  <rect class="box" x="160" y="272" width="315" height="58" rx="7"/>
+  <text class="t" x="172" y="292">shell.rs · ui.rs — the screens</text>
+  <text class="s" x="172" y="308">title, pause, options, HUD, cards, dialogue</text>
+  <text class="s" x="172" y="323">routes the keys, dims behind menus, fades</text>
+  <rect class="box" x="490" y="272" width="315" height="58" rx="7"/>
+  <text class="t" x="502" y="292">video.rs — the paint</text>
+  <text class="s" x="502" y="308">light grid in integers · baked tiles · blit</text>
+  <text class="s" x="502" y="323">shade pass · the kept scene while paused</text>
+  <rect class="box" x="820" y="272" width="150" height="58" rx="7"/>
+  <text class="t" x="832" y="292">save.rs</text>
+  <text class="s" x="832" y="308">48-byte FZSV saves</text>
+  <text class="s" x="832" y="323">preview.rs: start-up</text>
+
+  <!-- C layer -->
+  <rect class="box" x="160" y="392" width="150" height="58" rx="7"/>
+  <text class="t" x="172" y="412">sound.c</text>
+  <text class="s" x="172" y="428">IRQ 0 at 560 Hz</text>
+  <text class="s" x="172" y="443">OPL2 music, effects</text>
+  <rect class="box" x="325" y="392" width="150" height="58" rx="7"/>
+  <text class="t" x="337" y="412">kbd.c</text>
+  <text class="s" x="337" y="428">IRQ 1 handler</text>
+  <text class="s" x="337" y="443">held keys, press latches</text>
+  <rect class="box" x="490" y="392" width="150" height="58" rx="7"/>
+  <text class="t" x="502" y="412">main.c</text>
+  <text class="s" x="502" y="428">60 Hz from IRQ 0's clock</text>
+  <text class="s" x="502" y="443">frame rate, detail, options</text>
+  <rect class="box" x="655" y="392" width="150" height="58" rx="7"/>
+  <text class="t" x="667" y="412">vga.c</text>
+  <text class="s" x="667" y="428">mode 13h, the palette</text>
+  <text class="s" x="667" y="443">retrace wait, present</text>
+  <rect class="box" x="820" y="392" width="150" height="58" rx="7"/>
+  <text class="t" x="832" y="412">save.c</text>
+  <text class="s" x="832" y="428">*.SAV and FIZZ.CFG</text>
+  <text class="s" x="832" y="443">beside FIZZ.EXE</text>
+
+  <!-- Hardware -->
+  <rect class="box" x="160" y="512" width="150" height="58" rx="7"/>
+  <text class="t" x="172" y="532">Timer and sound</text>
+  <text class="s" x="172" y="548">ports 0x40, 0x388, 0x61</text>
+  <text class="s" x="172" y="563">PIT, OPL2, PC speaker</text>
+  <rect class="box" x="325" y="512" width="150" height="58" rx="7"/>
+  <text class="t" x="337" y="532">Keyboard</text>
+  <text class="s" x="337" y="548">scancodes on port 0x60</text>
+  <text class="s" x="337" y="563">arrows, WASD, Ctrl, Alt</text>
+  <rect class="box" x="490" y="512" width="150" height="58" rx="7"/>
+  <text class="t" x="502" y="532">486 + x87 FPU</text>
+  <text class="s" x="502" y="548">32-bit flat, CWSDPMI</text>
+  <text class="s" x="502" y="563">precision set to 53 bits</text>
+  <rect class="box" x="655" y="512" width="150" height="58" rx="7"/>
+  <text class="t" x="667" y="532">VGA 320 × 200</text>
+  <text class="s" x="667" y="548">256 colours at 0xA0000</text>
+  <text class="s" x="667" y="563">16 colours × 14 levels</text>
+  <rect class="box" x="820" y="512" width="150" height="58" rx="7"/>
+  <text class="t" x="832" y="532">Disk</text>
+  <text class="s" x="832" y="548">AUTO.SAV, SLOT1–4.SAV</text>
+  <text class="s" x="832" y="563">8.3 file names</text>
+
+  <!-- Wires in the gaps between the bands -->
+  <path class="wire lin" d="M318,272 V212" marker-end="url(#head)"/>
+  <text class="lab tin" x="326" y="246">fizz_tick → step(held)</text>
+  <path class="wire lfr" d="M650,212 V270" marker-end="url(#head)"/>
+  <text class="lab tfr" x="658" y="246">instance buffer + lights</text>
+  <path class="call" d="M560,392 V332" marker-end="url(#head)"/>
+  <text class="lab s" x="568" y="366">fizz_build · fizz_paint</text>
+  <path class="wire lso" d="M200,332 V390" marker-end="url(#head)"/>
+  <text class="lab tso" x="208" y="366">snd_fx · snd_music</text>
+  <path class="wire lin" d="M400,392 V332" marker-end="url(#head)"/>
+  <text class="lab tin" x="408" y="366">bits</text>
+  <path class="wire lfr" d="M730,332 V390" marker-end="url(#head)"/>
+  <text class="lab tfr" x="738" y="366">frame + UI</text>
+  <path class="wire lfi" d="M895,332 V390" marker-end="url(#head)"/>
+  <text class="lab tfi" x="903" y="366">save_*</text>
+  <path class="wire lti" d="M235,512 V452" marker-end="url(#head)"/>
+  <text class="lab tti" x="227" y="486" text-anchor="end">IRQ 0</text>
+  <path class="wire lso" d="M285,452 V510" marker-end="url(#head)"/>
+  <text class="lab tso" x="293" y="486">writes</text>
+  <path class="wire lin" d="M400,512 V452" marker-end="url(#head)"/>
+  <text class="lab tin" x="408" y="486">IRQ 1</text>
+  <path class="wire lfr" d="M730,452 V510" marker-end="url(#head)"/>
+  <text class="lab tfr" x="738" y="486">memcpy at the retrace</text>
+  <path class="wire lfi" d="M895,452 V510" marker-end="url(#head)"/>
+  <text class="lab tfi" x="903" y="486">files</text>
+
+  <!-- Moving data -->
+  <!-- A key press: keyboard, IRQ 1, the shell, the sim's step -->
+  <g class="dot">
+    <circle class="input" r="5"><animateMotion dur="3s" repeatCount="indefinite" path="M400,512 V301 H318 V210"/><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.08;0.9;1" dur="3s" repeatCount="indefinite"/></circle>
+    <circle class="input" r="5"><animateMotion dur="3s" begin="1.5s" repeatCount="indefinite" path="M400,512 V301 H318 V210"/><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.08;0.9;1" dur="3s" begin="1.5s" repeatCount="indefinite"/></circle>
+  </g>
+  <!-- A frame: the draw list, the paint, the screen -->
+  <g class="dot">
+    <circle class="frame" r="5.5"><animateMotion dur="2.4s" repeatCount="indefinite" path="M650,210 V301 H730 V512"/><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.08;0.9;1" dur="2.4s" repeatCount="indefinite"/></circle>
+    <circle class="frame" r="5.5"><animateMotion dur="2.4s" begin="0.8s" repeatCount="indefinite" path="M650,210 V301 H730 V512"/><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.08;0.9;1" dur="2.4s" begin="0.8s" repeatCount="indefinite"/></circle>
+    <circle class="frame" r="5.5"><animateMotion dur="2.4s" begin="1.6s" repeatCount="indefinite" path="M650,210 V301 H730 V512"/><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.08;0.9;1" dur="2.4s" begin="1.6s" repeatCount="indefinite"/></circle>
+  </g>
+  <!-- A sound cue: the shell, the timer handler, the chip -->
+  <g class="dot">
+    <circle class="sound" r="5"><animateMotion dur="2.8s" begin="0.4s" repeatCount="indefinite" path="M200,330 V421 H285 V512"/><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.08;0.9;1" dur="2.8s" begin="0.4s" repeatCount="indefinite"/></circle>
+  </g>
+  <!-- The 560 Hz timer interrupt -->
+  <g class="dot">
+    <circle class="timer" r="4"><animateMotion dur="0.7s" repeatCount="indefinite" path="M235,512 V450"/><animate attributeName="opacity" values="0;1;0" dur="0.7s" repeatCount="indefinite"/></circle>
+    <circle class="timer" r="4"><animateMotion dur="0.7s" begin="0.35s" repeatCount="indefinite" path="M235,512 V450"/><animate attributeName="opacity" values="0;1;0" dur="0.7s" begin="0.35s" repeatCount="indefinite"/></circle>
+  </g>
+  <!-- A save -->
+  <g class="dot">
+    <circle class="file" r="5"><animateMotion dur="4s" begin="1s" repeatCount="indefinite" path="M895,330 V512"/><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.08;0.9;1" dur="4s" begin="1s" repeatCount="indefinite"/></circle>
+  </g>
+
+  <!-- Legend -->
+  <g transform="translate(24,606)">
+    <circle class="input" cx="6" cy="0" r="5"/><text class="s" x="18" y="4">input: a key press becomes the sim's held bits</text>
+    <circle class="frame" cx="330" cy="0" r="5"/><text class="s" x="342" y="4">a frame: draw list, paint, copy to the screen</text>
+    <circle class="sound" cx="640" cy="0" r="5"/><text class="s" x="652" y="4">sound: cues to the OPL2 or speaker</text>
+    <circle class="timer" cx="6" cy="26" r="5"/><text class="s" x="18" y="30">the timer interrupt, 560 a second</text>
+    <circle class="file" cx="330" cy="26" r="5"/><text class="s" x="342" y="30">saves and options to disk</text>
+    <path class="call" d="M630,26 H660"/><text class="s" x="668" y="30">a call from C into Rust (fizz_*)</text>
+  </g>
+</svg>

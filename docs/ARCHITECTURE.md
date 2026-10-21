@@ -4,6 +4,10 @@ The DOS port is the main game's Rust simulation with a different front end. This
 
 ## The layers
 
+![The layers of the DOS port and what flows between them: key presses, sim ticks, frames, sound and saves](architecture.svg)
+
+The diagram is animated: a key press goes from the keyboard's IRQ 1 through the shell into the sim's step, a frame goes from the sim's draw list through the paint and the copy to video memory, sound cues go through the 560 Hz timer handler to the OPL2 or the speaker, and saves go to disk. [DOS_ARCHITECTURE.md](DOS_ARCHITECTURE.md) describes the machine side in detail and [RUST_ON_DOS.md](RUST_ON_DOS.md) the toolchain.
+
 ```
 liminal-hq/lieutenant-fizz            the main game: crates/sim and episodes/episode-1/game (std Rust)
         │  patched copy: no_std, fmath traits over libm
