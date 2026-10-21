@@ -81,8 +81,14 @@ Roughly in order of what they would save on a real 486.
 6. **Only copy what changed while paused.** With the kept scene, a paused frame differs from the last only where the menu animates; copying only the changed rows to video memory would make paused screens nearly free on slow VGA cards.
 7. **Not worth it:** `opt-level = 3` for the whole build gains 1 to 6% for a larger binary. Mode X hardware scrolling, the classic answer, does not fit the half-speed parallax backdrop and the palette lighting, which change every pixel when the camera moves.
 
+## In the browser
+
+The page's sound was distorted because of `prebuffer = 40` in `site/dosbox.web.conf`. js-dos 8's DOSBox mixer (`native/jsdos/dosbox/jsdos-mixer.cpp`) hands audio to the page in 512-sample pushes, so it always finds its buffer nearly empty and speeds up by three times the prebuffer to fill it: at 40 ms a stream labelled 44,100 Hz carried about 49,300 samples a second (+11.8%). The page's time-stretching worklet can only take 5% up, so its ring overflowed and dropped samples continuously. The OPL music kept its pitch but every note was too long and spliced; the PC speaker, which follows the emulated clock, played 440 Hz as 393.5 Hz. js-dos's own default of `prebuffer = 20` gives +5%, which is at the stretcher's limit and fits other games sounding less bad. At `prebuffer = 0` the rate is right (the test tone measures 440.1 Hz) and the worklet's queue stays near 1,900 samples instead of pinned at 8,192.
+
+That was measured in headless Chromium by tapping the worklet's input; it has not been listened to. With the rate right, headless Chromium still showed two to six short gaps in 20 seconds, which a larger worklet target (`targetFrames` from 2,048 to 8,192 in `site/vendor/js-dos/emulators/emulators.js`, applied as a patch in `tools/vendor-jsdos.sh`) removed in testing; that patch is not applied. `oplemu` makes no difference to this: `compat` and `fast` measured the same.
+
 ## What was run
 
 - `tools/check.sh`: licence headers, the simulation copies, the determinism run against the web build (`PASS: 800 checkpoints`), the DOS build, the key map, the frame checksums and the pause-menu test.
 - The bench and callgrind figures above, and DOSBox Staging 0.83 at `cycles = fixed 26800` on the scripted runs; a headless screenshot of the cave at night.
-- Not run: real hardware, and any listening test.
+- Not run: real hardware, any listening test, and the browser page outside headless Chromium.
