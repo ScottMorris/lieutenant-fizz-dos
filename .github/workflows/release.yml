@@ -17,7 +17,7 @@ on:
         required: true
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: release-${{ github.ref }}
@@ -30,6 +30,11 @@ jobs:
   release:
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    permissions:
+      contents: read
+    # The shared DOS build image from liminal-hq/.github (docker/ci/Dockerfile, target ci-dos), pinned by digest. Updating the pin is
+    # a pull request, and its checks run in the new image.
+    container: ghcr.io/liminal-hq/ci-dos@sha256:93d129b5c910b2a2d5de38ae7235e9dc8b311d302c1c57992f060b036a74dc4e
     defaults:
       run:
         working-directory: experiments/fizz-dos
@@ -42,20 +47,12 @@ jobs:
         with:
           repository: liminal-hq/lieutenant-fizz
           path: liminal-hq/lieutenant-fizz
-      - uses: oven-sh/setup-bun@v2
-      - name: 32-bit C libraries, zip, mtools, dosfstools and the flex runtime that DJGPP's tools load
-        run: sudo apt-get update && sudo apt-get install -y gcc-multilib zip libfl2 mtools dosfstools
-      - name: DOS toolchain cache
-        uses: actions/cache@v6
-        with:
-          path: experiments/fizz-dos/vendor
-          key: dos-toolchain-${{ hashFiles('experiments/fizz-dos/tools/fetch-tools.sh') }}
       - name: Build the main game's sim.wasm
         working-directory: liminal-hq/lieutenant-fizz
         run: |
-          rustup target add wasm32-unknown-unknown
           bun install --frozen-lockfile
           bun run build:wasm
+      # The image's DOS toolchain becomes vendor/ (DOS_TOOLCHAIN).
       - name: Set up this repository
         run: tools/setup.sh --no-clone
       # A release is never made from a tree that fails the checks.
@@ -74,18 +71,33 @@ jobs:
         with:
           name: release-files
           path: experiments/fizz-dos/dist/release/*
+
+  # Publishing needs only the files and the changelog, so it runs apart from the build, with the only write permission.
+  publish:
+    needs: release
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: CHANGELOG.md
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-files
+          path: release
       - name: Publish
-        if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           number="${VERSION#v}"
           # The changelog's section for this version is the release's notes.
-          awk -v n="$number" '$0 ~ "^## " n " " { on = 1; next } /^## / { on = 0 } on' CHANGELOG.md > dist/release/NOTES.md
-          [ -s dist/release/NOTES.md ] || { echo "CHANGELOG.md has no section for $number" >&2; exit 1; }
+          awk -v n="$number" '$0 ~ "^## " n " " { on = 1; next } /^## / { on = 0 } on' CHANGELOG.md > release/NOTES.md
+          [ -s release/NOTES.md ] || { echo "CHANGELOG.md has no section for $number" >&2; exit 1; }
           # A 0.x release is a pre-release: the port is playable but not complete.
           flags=()
           case "$number" in 0.*) flags+=(--prerelease) ;; esac
           gh release create "$VERSION" --repo "$GITHUB_REPOSITORY" --verify-tag --title "Lieutenant Fizz for DOS $VERSION" \
-            --notes-file dist/release/NOTES.md "${flags[@]}" \
-            dist/release/*.img dist/release/*.zip dist/release/*.jsdos dist/release/SHA256SUMS
+            --notes-file release/NOTES.md "${flags[@]}" \
+            release/*.img release/*.zip release/*.jsdos release/SHA256SUMS

@@ -22,6 +22,11 @@ jobs:
   check:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
+    # The shared DOS build image from liminal-hq/.github (docker/ci/Dockerfile, target ci-dos), pinned by digest. Updating the pin is
+    # a pull request, and its checks run in the new image.
+    container: ghcr.io/liminal-hq/ci-dos@sha256:93d129b5c910b2a2d5de38ae7235e9dc8b311d302c1c57992f060b036a74dc4e
     defaults:
       run:
         working-directory: experiments/fizz-dos
@@ -35,20 +40,12 @@ jobs:
         with:
           repository: liminal-hq/lieutenant-fizz
           path: liminal-hq/lieutenant-fizz
-      - uses: oven-sh/setup-bun@v2
-      - name: 32-bit C libraries, zip and the flex runtime that DJGPP's tools load
-        run: sudo apt-get update && sudo apt-get install -y gcc-multilib zip libfl2
-      - name: DOS toolchain cache
-        uses: actions/cache@v6
-        with:
-          path: experiments/fizz-dos/vendor
-          key: dos-toolchain-${{ hashFiles('experiments/fizz-dos/tools/fetch-tools.sh') }}
       - name: Build the main game's sim.wasm
         working-directory: liminal-hq/lieutenant-fizz
         run: |
-          rustup target add wasm32-unknown-unknown
           bun install --frozen-lockfile
           bun run build:wasm
+      # The image's DOS toolchain becomes vendor/ (DOS_TOOLCHAIN).
       - name: Set up this repository
         run: tools/setup.sh --no-clone
       - name: Check
