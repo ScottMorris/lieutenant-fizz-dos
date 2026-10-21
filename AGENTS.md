@@ -119,7 +119,7 @@ Add labels to every PR when it is created and keep them accurate as scope change
 - **Stage explicitly:** use `git add <specific paths>`, never `git add -A` or `git commit -a`. Retry on an `index.lock` collision rather than deleting the lock.
 - Do not commit scratch files, build outputs (`*.exe`, `out/`, `target/`, `vendor/`) or large source archives.
 - **Releases:** add the version's section to `CHANGELOG.md` in a PR and merge it; the tag `vX.Y.Z` is then pushed on the merge commit (only when the user asks), and `.github/workflows/release.yml` checks the tree, runs `tools/make-release.sh` and publishes the files with that section as the notes. A 0.x release is a pre-release.
-- **The build image:** the CI and the release run in `ghcr.io/scottmorris/dos-rust-build`, defined in `.github/images/dos-build/`. Its tag hashes the Dockerfile, `rust-toolchain.toml` and `tools/fetch-tools.sh`, so a change to a tool version or the Rust version is a pull request that builds its own image and tests in it. `tools/setup.sh` links the image's toolchain as `vendor/` when `DOS_TOOLCHAIN` is set; developers' machines are unchanged.
+- **The build image:** the CI and the release run in `ghcr.io/liminal-hq/ci-dos`, the DOS tier of the shared images defined in `liminal-hq/.github` (`docker/ci/Dockerfile`), named by digest in `ci.yml` and `release.yml`. A tool or Rust version change is made there; moving to a newer image is a pull request here that changes the digest, so its checks run in the new image. `tools/setup.sh` links the image's toolchain as `vendor/` when `DOS_TOOLCHAIN` is set; developers' machines are unchanged.
 - **GitHub tooling:** prefer the `gh` CLI for repository, pull request, label, review and Actions work.
 
 ## Local Tooling
@@ -175,7 +175,7 @@ A Cargo workspace for the native checks, with the DOS crates in their own worksp
 - `m3/` — sprite export, the sprite census and the screenshot converter
 - `m4/` — the playable build: the C layer (`c/`), the exporters, the sound converters (`sound/`), `build.sh`
 - `m5/` — `bench`, a native 32-bit build that counts instructions per frame by stage and checks frame checksums
-- `.github/` — the workflows (`ci.yml`, `pages.yml`, `release.yml`, `image.yml`) and `images/dos-build`, the build image that the CI and the release run in (DJGPP, DOSBox Staging, CWSDPMI, Rust, Bun; its `README.md` says how to change it)
+- `.github/` — the workflows (`ci.yml`, `pages.yml`, `release.yml`)
 - `tools/` — setup, check, clean, fetch, run, pack and convert scripts, and the DOSBox configuration
 - `dist/` — the demo folder (`fizz-dos-demo`) that `tools/make-dist.sh` zips
 - `site/` — the GitHub Pages page and the js-dos bundle

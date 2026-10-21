@@ -19,25 +19,14 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # The build image: .github/images/dos-build, published by image.yml under a tag that hashes what it is built from.
-  image:
-    permissions:
-      contents: read
-      packages: write
-    uses: ./.github/workflows/image.yml
-
   check:
-    needs: image
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
       contents: read
-      packages: read
-    container:
-      image: ${{ needs.image.outputs.ref }}
-      credentials:
-        username: ${{ github.actor }}
-        password: ${{ github.token }}
+    # The shared DOS build image from liminal-hq/.github (docker/ci/Dockerfile, target ci-dos), pinned by digest. Updating the pin is
+    # a pull request, and its checks run in the new image.
+    container: ghcr.io/liminal-hq/ci-dos@sha256:93d129b5c910b2a2d5de38ae7235e9dc8b311d302c1c57992f060b036a74dc4e
     defaults:
       run:
         working-directory: experiments/fizz-dos

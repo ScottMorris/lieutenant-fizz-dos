@@ -1,3 +1,0 @@
-# The build context is the repository's root; the image needs only these two files from it.
-*
-!tools/fetch-tools.sh

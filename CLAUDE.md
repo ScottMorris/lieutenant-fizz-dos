@@ -11,7 +11,7 @@ Lieutenant Fizz for DOS (`ScottMorris/lieutenant-fizz-dos`) ports *Lieutenant Fi
 ## Layout
 
 - `m0` native determinism harness; `m2` the simulation as a DOS program (`sim`, `game` plus `patches/`, `dos-rt`, `dos.json`); `m3` sprite export; `m4` the playable build (C layer in `m4/c`, sound converters in `m4/sound`); `m5/bench` instruction-count bench, frame checksums and the callgrind and 486-cycle tools (`profile.sh`, `cyc486.py`); `attic` superseded code
-- `.github/` workflows and `images/dos-build`, the build image (DJGPP, DOSBox Staging, CWSDPMI, Rust, Bun) that the CI and the release run in
+- `.github/` workflows
 - `tools/` fetch, run, pack and convert scripts, `dosbox.conf`; `dist/` the demo folder; `site/` the Pages page and js-dos bundle; `docs/`; `assets/`
 - `vendor/` (DJGPP, DOSBox Staging, CWSDPMI), `m2/target` and `out/` are local only and ignored
 
@@ -49,7 +49,7 @@ The scripts are the source of truth. Run `tools/check.sh` before a PR (the CI ru
 - **No hard wrapping** in markdown prose; use a real em dash (`—`), never `--`.
 - **Authoring voice**: comments and docs state facts directly; no "this PR", "we tried" or reviewer references.
 - **Git**: never push (especially force-push) unless explicitly asked; prefer the `gh` CLI for GitHub work.
-- **Build image**: `.github/images/dos-build/` defines the image the CI runs in; its tag hashes the Dockerfile, `rust-toolchain.toml` and `tools/fetch-tools.sh`, so a tool or Rust version change is a PR that tests in its own image; `tools/setup.sh` links it as `vendor/` when `DOS_TOOLCHAIN` is set.
+- **Build image**: the CI and the release run in `ghcr.io/liminal-hq/ci-dos` (the shared DOS tier, defined in `liminal-hq/.github`), named by digest in `ci.yml` and `release.yml`; a tool or Rust version change is made there, and moving to a newer image is a PR here that changes the digest; `tools/setup.sh` links it as `vendor/` when `DOS_TOOLCHAIN` is set.
 - **Releases**: the version's section goes in `CHANGELOG.md` in a PR; the user's tag `vX.Y.Z` on main then makes `release.yml` build and publish the files (`tools/make-release.sh`); a 0.x release is a pre-release.
 - **Verification**: say what was and was not run. Nothing here has run on real hardware, and audio cannot be checked headless.
 
