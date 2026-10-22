@@ -4,6 +4,12 @@ What changed in each release of Lieutenant Fizz for DOS. A release is a tag `vX.
 
 ## Unreleased
 
+### Changed
+
+- The start-up system check is read-only and shows what the game needs. Video lists the VGA adapter, the 320 × 200 × 256 mode (or, without a VGA, the best mode the machine has: EGA, CGA or monochrome text) and the 14 lighting shades; Input the keyboard, mouse and joystick; Sound the PC speaker, AdLib and Sound Blaster; Machine the processor, the x87 and free memory. Without a VGA, an x87 or 10 MB of free memory the speed test is not run, the footer names what is missing and only Esc leaves. The A, M, P and O sound keys are gone; the sound is set on the Options screen, and the sound choice kept in `FIZZ.CFG` is no longer read.
+- The game no longer sets VGA mode 13h on a machine without a VGA: the system check is written on the text screen instead.
+- The title plate no longer carries the "work in progress" legend.
+
 ## 0.2.1 — 2026-10-22
 
 The game is the same as 0.2.0, 24% smaller. Nothing has run on real hardware yet; see `docs/STATUS.md`.

@@ -21,7 +21,7 @@
 
 **From a release:** [the releases page](https://github.com/ScottMorris/lieutenant-fizz-dos/releases) has a 1.44 MB floppy image (`-floppy.img`, volume label `FIZZ EP1`), the same files as a zip for copying to a real disk or folder (`-disk.zip`), the DOSBox demo (`-dosbox.zip`), the browser bundle (`-browser.jsdos`, for any js-dos 8 player), a debug zip (`-debug.zip`, the same game with its symbols, for reading a crash's traceback) and `SHA256SUMS`. The game in a release is stripped of its symbols and debugging sections, a quarter smaller. `CHANGELOG.md` lists what changed. `tools/make-release.sh <version>` builds them.
 
-**In DOSBox:** unpack `dist/fizz-dos-demo.zip` (or build it, below) and run `dosbox --conf DOSBOX.CONF` in the folder. `FIZZ.EXE` starts at a system check in the manner of Keen's — the hardware it found, a speed test of the real renderer and the sound it will use (A AdLib for everything, M music on AdLib with effects on the speaker, P speaker only, O off) — and Enter continues to the opening titles (any key skips them) and then the title.
+**In DOSBox:** unpack `dist/fizz-dos-demo.zip` (or build it, below) and run `dosbox --conf DOSBOX.CONF` in the folder. `FIZZ.EXE` starts at a system check in the manner of Keen's — the video, input, sound and machine hardware it found and a speed test of the real renderer — and Enter continues to the opening titles (any key skips them) and then the title. The game needs a VGA, an x87 and 10 MB of free memory; without one of them the check says what is missing and only Esc leaves. The sound is set on the Options screen.
 
 | Key | Action |
 |---|---|
