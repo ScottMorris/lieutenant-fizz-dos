@@ -13,6 +13,7 @@ What changed in each release of Lieutenant Fizz for DOS. A release is a tag `vX.
 
 ### Fixed
 
+- The N key toggles night from what it is now: after Night was changed on the Options screen, the next N press could leave it as it was. N still changes night for the run only; the Options row keeps it.
 - Saving the options on a run without an AdLib, or with the sound off, no longer overwrites the music and effects-device choices made on a run with one.
 
 ## 0.2.1 — 2026-10-22

@@ -190,6 +190,12 @@ pub extern "C" fn fizz_night(on: c_int) {
     video::set_night(on != 0);
 }
 
+/// Turns night the other way round from what it is now (the N key); the Options screen's Night row sets the same flag.
+#[no_mangle]
+pub extern "C" fn fizz_toggle_night() {
+    video::toggle_night();
+}
+
 /// Turns low detail (no backdrop layers) on or off.
 #[no_mangle]
 pub extern "C" fn fizz_detail(low: c_int) {

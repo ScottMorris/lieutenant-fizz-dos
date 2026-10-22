@@ -76,7 +76,7 @@ Reading the state (main program side):
 
 - `kbd_held()` — the game's input bits from what is held now, through `keymap_bits` (`m4/c/keymap.c`): arrows or WASD move, Ctrl or Z jump, Alt or X pogo, Space or C fire, Enter confirm, Esc menu. The bits are the sim's (`IN_*` in `keymap.h`).
 - `kbd_tick_bits()` — what is held **or** latched, for the 16 game keys, and clears those latches. A key pressed and released between two ticks has `keys` clear but `latch` set, so the tick still sees it: a tap shorter than a tick (1/60 s) is never lost. It also carries `IN_ANY` (bit 2048) for a key of any kind pressed since the last call: the ISR sets a flag on each new press (never on a repeat, so a key already down does not count), and this clears it. Only the opening titles read it.
-- `kbd_pressed(sc)` — one latched press of a key, cleared on read; used by the main loop for its own keys (PgUp/PgDn change level, R restarts, Backspace goes to the map, N night, M music, E effects; M and E are kept in `FIZZ.CFG`, N is not) and by the system check.
+- `kbd_pressed(sc)` — one latched press of a key, cleared on read; used by the main loop for its own keys (PgUp/PgDn change level, R restarts, Backspace goes to the map, N night, M music, E effects; M and E are kept in `FIZZ.CFG`; N turns the game's own night flag, the one the Options screen's Night row sets, with `fizz_toggle_night`, for the run only) and by the system check.
 - `kbd_down(sc)` — the held state of one key.
 
 The shell (`m2/dos-rt/src/shell.rs`, `advance`) turns held bits into edges for its menus and holds a key a menu consumed back from the simulation until it is released (`swallow`).

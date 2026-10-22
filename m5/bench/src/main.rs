@@ -361,6 +361,25 @@ fn flow_test() {
     run(1000);
     check("and the titles come 7394 ticks after it", shell::on_titles());
 
+    // Night: the Options row and the N key share one flag, so N after Options turned night on turns it off.
+    const RIGHT: u32 = 2;
+    const DOWN: u32 = 8;
+    video::start(video::TITLE);
+    video::set_night(false);
+    shell::show(2);
+    for _ in 0..5 {
+        shell::advance(DOWN); // Music, Effects, Effects play on, Frame rate, Detail, then Night
+        shell::advance(0);
+    }
+    shell::advance(RIGHT);
+    shell::advance(0);
+    check("the Options row turns night on", video::night());
+    video::toggle_night();
+    check("N then turns it off", !video::night());
+    video::toggle_night();
+    check("and N again back on", video::night());
+    video::set_night(false);
+
     if bad == 0 {
         println!("flow ok");
     } else {

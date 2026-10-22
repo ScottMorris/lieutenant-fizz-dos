@@ -37,6 +37,7 @@ extern void fizz_show(unsigned n);
 extern unsigned fizz_music_key(void);
 extern void fizz_goto_map(void);
 extern void fizz_night(int on);
+extern void fizz_toggle_night(void);
 extern unsigned fizz_build(float alpha);
 extern unsigned fizz_paint(unsigned char *frame, unsigned count);
 extern void fizz_preview(unsigned char *frame, const int *values, const char *cpu);
@@ -353,7 +354,7 @@ int main(int argc, char **argv) {
       if (kbd_pressed(SC_PGDN)) fizz_goto(fizz_level() + 1);
       if (kbd_pressed(SC_R)) fizz_goto(fizz_level());
       if (kbd_pressed(SC_BACKSPACE)) fizz_goto_map();
-      if (kbd_pressed(SC_N)) { night = !night; fizz_night(night); }
+      if (kbd_pressed(SC_N)) fizz_toggle_night(); /* the game's own flag, which the Options row also sets; for this run only */
       /* M and E are the Options screen's Music and Effects rows, and like them only act when they can apply, and are kept (with the
          night that was last kept: N is not). */
       if (kbd_pressed(SC_M) && snd_mode() != SND_OFF && snd_have_opl()) { snd_set_music(!snd_music_enabled()); settings_save(night_pref); }
