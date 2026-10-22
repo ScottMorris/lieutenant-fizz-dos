@@ -5,12 +5,12 @@
  */
 
 /* Episode 1 on a VGA mode 13h screen, with sound.
-   usage: FIZZ [level|map] [ticks] [shot] [nosync] [night] [nosound] [adlib] [mixed] [speaker] [soundtest]
+   usage: FIZZ [level|map] [ticks] [shot] [nosync] [night] [nosound] [adlib] [mixed] [speaker] [soundtest[N]]
    With no ticks (or 0) it is interactive: arrows or WASD move, Ctrl or Z jump, Alt or X pogo, Space or C fire,
    PgUp and PgDn change level, R restarts it, Backspace goes back to the map, N toggles night, M music, E effects, Esc pauses
    (and goes back in a menu; Quit to title, then Quit, leaves).
    With ticks it runs a scripted walk for that many ticks and, with "shot", writes FRAME.RAW (64000 bytes) and PAL.RAW
-   (256 x RGB, 6-bit) at the end. "soundtest" plays a song for a few seconds headless and reports what the driver did. */
+   (256 x RGB, 6-bit) at the end; "titles" puts the opening titles up first, so FRAME.RAW after N ticks is their tick N. "soundtest" plays the title song for a few seconds headless and reports what the driver did; "soundtestN" plays extra song N (0 is the ending, 5 the opening titles). */
 #include <conio.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -24,6 +24,7 @@
 #include "vga.h"
 
 extern void fizz_start(unsigned level, int use53);
+extern void fizz_titles(void);
 extern unsigned fizz_scripted(unsigned tick);
 extern void fizz_tick(unsigned held);
 extern void fizz_goto(unsigned level);
@@ -185,7 +186,7 @@ int main(int argc, char **argv) {
   /* The first argument is a level number, or "map" for the overworld (254 to the game), or nothing for the title (255). */
   unsigned level = argc < 2 ? 255 : !strcmp(argv[1], "map") ? 254 : (unsigned)atoi(argv[1]);
   unsigned ticks = argc > 2 ? (unsigned)atoi(argv[2]) : 0;
-  int shot = 0, nosync = 0, i, paused = 0, night = 0, sound_mode = SND_AUTO, soundtest = 0, with_sound = 0, quiet = 0, bench = 0, preview = 1, previewshot = 0, screen = 0, savecfg = 0;
+  int shot = 0, nosync = 0, i, paused = 0, night = 0, sound_mode = SND_AUTO, soundtest = 0, extra = -1, with_sound = 0, quiet = 0, bench = 0, preview = 1, previewshot = 0, screen = 0, savecfg = 0;
   int probe[C_COUNT];
   char cpu[16];
   unsigned t, clear = 0;
@@ -201,7 +202,7 @@ int main(int argc, char **argv) {
     if (!strcmp(argv[i], "adlib")) sound_mode = SND_ADLIB;
     if (!strcmp(argv[i], "speaker")) sound_mode = SND_SPEAKER;
     if (!strcmp(argv[i], "mixed")) sound_mode = SND_MIXED;
-    if (!strcmp(argv[i], "soundtest")) soundtest = 1;
+    if (!strncmp(argv[i], "soundtest", 9)) { soundtest = 1; if (argv[i][9]) extra = atoi(argv[i] + 9); } /* soundtestN plays extra song N */
     if (!strcmp(argv[i], "sound")) with_sound = 1;
     if (!strcmp(argv[i], "quiet")) quiet = 1;
     if (!strcmp(argv[i], "bench")) bench = 1;
@@ -219,6 +220,7 @@ int main(int argc, char **argv) {
     if (!strcmp(argv[i], "endcard")) screen = 9;
     if (!strncmp(argv[i], "cine", 4)) screen = 100 + atoi(argv[i] + 4);
     if (!strcmp(argv[i], "dialogue")) screen = 5;
+    if (!strcmp(argv[i], "titles")) screen = 200; /* the opening titles from their first tick; with "noinput" for a check */
     if (!strncmp(argv[i], "loadslot", 8)) screen = 10 + atoi(argv[i] + 8);
     if (!strcmp(argv[i], "preview")) previewshot = 1;
     if (!strcmp(argv[i], "fps60")) rate_set(1);
@@ -240,11 +242,11 @@ int main(int argc, char **argv) {
     int m = snd_init(fizz_sound_data(), fizz_sound_len(), sound_mode);
     printf("sound mode %d (0 auto, 1 adlib, 2 speaker, 3 off)\n", m);
     if (m == SND_OFF) return 1;
-    snd_music(0);
+    if (extra >= 0) snd_music_extra(extra); else snd_music(0);
     snd_fx(0);
     start = snd_ticks();
     while (snd_ticks() - start < 560UL * 3 && waited < 2000000000UL) waited++;
-    printf("ticks %lu, register writes %lu\n", snd_ticks() - start, snd_register_writes());
+    printf("ticks %lu, register writes %lu, music clock %ld\n", snd_ticks() - start, snd_register_writes(), snd_music_clock());
     snd_shutdown();
     return 0;
   }
@@ -292,6 +294,8 @@ int main(int argc, char **argv) {
     }
     if ((ticks || bench) && !quiet) snd_music(0);
   }
+
+  if (!previewshot && ticks == 0 && !bench && level == 255 && !screen) fizz_titles(); /* the game opens with the titles, then the menu */
 
   if (previewshot) {
     /* Nothing more to run: the frame is the screenshot. */

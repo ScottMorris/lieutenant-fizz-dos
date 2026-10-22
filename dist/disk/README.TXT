@@ -15,8 +15,9 @@ RUN IT
                       FIZZ.EXE there.
 
   FIZZ.EXE starts with a system check (what it found, a speed test and the
-  sound it will use), then Enter goes on to the title. CWSDPMI.EXE, the DOS
-  extender, must stay beside FIZZ.EXE.
+  sound it will use), then Enter goes on to the opening titles (any key
+  skips them) and the title menu. CWSDPMI.EXE, the DOS extender, must stay
+  beside FIZZ.EXE.
 
   FIZZ.EXE [level|map] [nopreview] [adlib|speaker|nosound]
                       [fps30|fps60] [lowdetail|highdetail]
@@ -35,15 +36,19 @@ KEYS
 
 SAVES AND OPTIONS
   Saves are AUTO.SAV (written each time you reach the map), QUICK.SAV (F5
-  saves, F9 loads) and SLOT1.SAV to SLOT4.SAV (Pause, Save game). Options are in FIZZ.CFG. All of them are
-  written beside FIZZ.EXE, so the disk must not be write-protected.
+  saves, F9 loads) and SLOT1.SAV to SLOT4.SAV (Pause, Save game). Options
+  are in FIZZ.CFG. All of them are written beside FIZZ.EXE, so the disk
+  must not be write-protected.
 
 SOUND TEST
   TONETEST plays an A (440 Hz) on the AdLib and then on the PC speaker.
 
-WHAT IS MISSING
-  The opening cinematic, the ending and credits, and the controls screen.
-  See STATUS.md in the source for the full list.
+WHAT IS IN IT
+  Episode 1 from start to finish: the opening titles, New game with its
+  opening story (Esc skips it), the overworld, every level and boss, and
+  the ending and credits. The titles play again if the title menu sits
+  untouched for a few minutes. See STATUS.md in the source for what has
+  and has not been checked.
 
 OTHER FILES
   README.RTF   this text with formatting

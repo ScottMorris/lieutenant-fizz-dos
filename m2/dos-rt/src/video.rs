@@ -299,6 +299,10 @@ pub fn draw(frame: &mut [u8], alpha: f32) -> u32 {
 
 /// The sim writes the scene into its instance buffer; returns how many sprites.
 pub fn build(alpha: f32) -> usize {
+    if crate::shell::draws_whole_frame() {
+        mark(1);
+        return 0;
+    }
     let night = if NIGHT.load(Ordering::Relaxed) != 0 { lf_episode_1::render::flags::NIGHT } else { 0 };
     let n = render(f64::from(alpha), lf_episode_1::render::flags::CULLING | night) as usize;
     mark(1);
@@ -307,6 +311,13 @@ pub fn build(alpha: f32) -> usize {
 
 /// Draws what `build` wrote into `frame`.
 pub fn paint(frame: &mut [u8], count: usize) -> u32 {
+    if crate::shell::draws_whole_frame() {
+        // Nothing of the sim shows, and slot 255 is not used.
+        mark(6);
+        crate::shell::overlay(frame, (0, 0));
+        mark(7);
+        return 0;
+    }
     let out = unsafe { core::slice::from_raw_parts(out_ptr(), 32) };
     // The camera is snapped to whole pixels first: a sprite's place is its own world position rounded, less the camera, so
     // things that are still stay still relative to each other as the camera glides.
@@ -994,6 +1005,30 @@ pub fn draw_sprite_ui_flip(frame: &mut [u8], id: usize, x: i32, y: i32, flip: bo
             if c != CLEAR_PIX && px >= 0 && py >= 0 && (px as usize) < W && (py as usize) < H {
                 frame[py as usize * W + px as usize] = crate::ui::FULL + (c & 15);
             }
+        }
+    }
+}
+
+/// Sprite `id` at full brightness with every pixel `k` pixels square, its top left at (`x`, `y`), mirrored left to right when `flip` is
+/// set. With `white` every pixel but the black ones is drawn white, as a hit flashes.
+pub fn draw_sprite_scaled(frame: &mut [u8], id: usize, x: i32, y: i32, k: i32, flip: bool, white: bool) {
+    let Some(sp) = sprite(id) else {
+        return;
+    };
+    let w = sp.w as i32;
+    for row in 0..sp.h as i32 {
+        let py = y + row * k;
+        if py + k <= 0 || py >= H as i32 {
+            continue;
+        }
+        for col in 0..w {
+            let c = sp.pix[row as usize * sp.w + col as usize];
+            if c == CLEAR_PIX {
+                continue;
+            }
+            let c = if white && c & 15 != 0 { 15 } else { c & 15 };
+            let px = if flip { x + (w - 1 - col) * k } else { x + col * k };
+            crate::ui::fill(frame, px, py, k, k, c);
         }
     }
 }

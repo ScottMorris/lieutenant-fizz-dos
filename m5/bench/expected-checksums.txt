@@ -3,3 +3,4 @@ level 0 (day): frame checksum 13022bc1
 level 1 (cave): frame checksum a5ea8a47
 level 1 (cave, night): frame checksum 32cbe66c
 level 9 (theatre): frame checksum 1040cb3a
+titles: frame checksum f692519d

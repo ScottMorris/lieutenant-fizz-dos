@@ -256,6 +256,44 @@ pub fn fill(frame: &mut [u8], x: i32, y: i32, w: i32, h: i32, colour: u8) {
     }
 }
 
+/// `fill` at a brightness level (1..14) rather than at full brightness: `level * 16 + colour`.
+pub fn fill_level(frame: &mut [u8], x: i32, y: i32, w: i32, h: i32, colour: u8, level: u8) {
+    let (x0, x1) = (x.max(0), (x + w).min(W as i32));
+    if x1 <= x0 {
+        return;
+    }
+    let byte = level * 16 + colour;
+    for yy in y.max(0)..(y + h).min(H as i32) {
+        frame[yy as usize * W + x0 as usize..yy as usize * W + x1 as usize].fill(byte);
+    }
+}
+
+/// Draws `s` with no shadow, every glyph pixel `k` pixels square, in `colour` at brightness `level`; returns where the text ended.
+/// Glyphs wholly left or right of the screen are skipped, so a long line that is mostly off the screen costs little.
+pub fn glyphs_at(frame: &mut [u8], x: i32, y: i32, s: &str, colour: u8, k: i32, level: u8) -> i32 {
+    let mut at = x;
+    for ch in s.chars() {
+        let step = advance(ch) * k;
+        if at >= W as i32 {
+            at += step;
+            continue;
+        }
+        if let Some(g) = glyph(ch) {
+            if at + i32::from(g.w) * k > 0 {
+                for (row, bits) in g.rows.iter().enumerate() {
+                    for col in 0..g.w {
+                        if bits >> (g.w - 1 - col) & 1 != 0 {
+                            fill_level(frame, at + i32::from(col) * k, y + row as i32 * k, k, k, colour, level);
+                        }
+                    }
+                }
+            }
+        }
+        at += step;
+    }
+    at
+}
+
 pub fn outline(frame: &mut [u8], x: i32, y: i32, w: i32, h: i32, colour: u8) {
     fill(frame, x, y, w, 1, colour);
     fill(frame, x, y + h - 1, w, 1, colour);

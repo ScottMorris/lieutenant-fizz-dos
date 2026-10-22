@@ -2,7 +2,7 @@ LIEUTENANT FIZZ - EPISODE 1 - DOS demo (work in progress)
 =========================================================
 
 This is the real Episode 1 simulation, written in Rust, running as a 32-bit DOS program in VGA mode 13h
-(320x200, 256 colours), with AdLib (OPL2) music and effects, or PC speaker effects if there is no AdLib, the game's own pixel font, a score/lives/Fizz HUD, map prompts, floating caption words, toasts and result cards. Everything is drawn from the game's own sprites. After the system check you reach the title (New game, Options, Quit; Continue and Load game once you have a save), then the overworld map; walk to a level marker and press Jump, Fire or Enter to go in.
+(320x200, 256 colours), with AdLib (OPL2) music and effects, or PC speaker effects if there is no AdLib, the game's own pixel font, a score/lives/Fizz HUD, map prompts, floating caption words, toasts and result cards. Everything is drawn from the game's own sprites. After the system check the opening titles play (any key skips them), then you reach the title (New game, Options, Quit; Continue and Load game once you have a save), then the overworld map; walk to a level marker and press Jump, Fire or Enter to go in.
 
 The first thing you see is a system check in the manner of Keen's: what video, input, sound and maths hardware it found, a
 speed test of the real renderer, and the sound it will use (A picks AdLib for everything, M the music on AdLib with the effects on the PC speaker, P the PC speaker alone, O off). Enter starts the

@@ -12,7 +12,7 @@
 //   captions  × u8 effect number (255 for none), in the sim's caption order
 //   levels    × u8 song number, in the sim's level order
 //   u8 title song, u8 map song, u8 boss song
-//   u8 count of extra songs, then that many u8 song numbers: the ending, the yard, the lab, the launch and the deep-space song of the opening
+//   u8 count of extra songs, then that many u8 song numbers: the ending, the yard, the lab, the launch and the deep-space song of the opening, then the opening titles' song
 //   the data
 
 import { readFileSync, writeSync } from 'node:fs';
@@ -20,6 +20,7 @@ import { readFileSync, writeSync } from 'node:fs';
 const GAME = process.env.FIZZ_GAME ?? new URL('../../../liminal-hq/lieutenant-fizz', import.meta.url).pathname; // the main game's checkout; FIZZ_GAME overrides
 const { PATTERNS } = await import('./sound/fizz-game/patterns.ts');
 const { SONGS, planSong } = await import('./sound/fizz-songs.ts');
+const { OPENING_TITLES_SONG } = await import('./sound/fizz-opening-titles.ts');
 const { convertSong } = await import('./sound/fizz-dos/song.ts');
 const { convertSfx } = await import('./sound/fizz-dos/sfx.ts');
 const { LEVELS } = await import(`${GAME}/episodes/episode-1/src/story.ts`);
@@ -37,8 +38,10 @@ const captionNames: string[] = [];
 for (let i = 0; i < x.table_len(1); i++)
   captionNames.push(new TextDecoder().decode(new Uint8Array(x.memory.buffer, x.name_ptr(1, i), x.name_len(1, i))));
 
-const songIds: string[] = SONGS.map((d: { id: string }) => d.id);
-const songs = SONGS.map((d: unknown) => convertSong(planSong(d)).imf as Uint8Array);
+// The opening titles' song goes last, so every other song keeps its number.
+const ALL = [...SONGS, OPENING_TITLES_SONG];
+const songIds: string[] = ALL.map((d: { id: string }) => d.id);
+const songs = ALL.map((d: unknown) => convertSong(planSong(d)).imf as Uint8Array);
 const effectNames = Object.keys(PATTERNS.sfx);
 const effects = effectNames.map((n) => convertSfx(PATTERNS.sfx[n]));
 const songOf = (track: string) => {
@@ -52,10 +55,17 @@ const captionFx = captionNames.map((c) => {
 });
 const levelSong: number[] = LEVELS.map((l: { track: string }) => songOf(l.track));
 
+// The opening titles' picture is cut to the song's bars, so its length is checked here: eight bars of four beats at 150 bpm, in 560 Hz ticks.
+const titlesImf = songs[songIds.indexOf('opening-titles')];
+let titlesTicks = 0;
+for (let i = 2; i + 4 <= titlesImf.length; i += 4) titlesTicks += titlesImf[i + 2] | (titlesImf[i + 3] << 8);
+if (titlesTicks !== 7168) throw new Error(`The opening titles' song is ${titlesTicks} ticks, not 7168 (8 bars at 150 bpm)`);
+if (titlesImf.length > 65535) throw new Error('The opening titles\' song does not fit an IMF chunk');
+
 const head = 4 + 1 + 4;
 const songTable = songs.length * 8;
 const fxTable = effects.length * 12;
-const extras = ['ending', 'yard', 'lab', 'launch', 'cine'];
+const extras = ['ending', 'yard', 'lab', 'launch', 'cine', 'opening-titles'];
 const tail = captionFx.length + levelSong.length + 3 + 1 + extras.length;
 let at = head + songTable + fxTable + tail;
 const out: number[] = [];

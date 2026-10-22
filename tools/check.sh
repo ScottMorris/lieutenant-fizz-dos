@@ -46,5 +46,7 @@ echo "frame checksums match"
 PAUSETEST=1 "$BENCH" | tee "${TMPDIR:-/tmp}/fizz-pause.txt"
 grep -q '^control, a fresh Enter on the marker: mode 3' "${TMPDIR:-/tmp}/fizz-pause.txt"
 grep -q '^pause, Resume with Enter held: mode 2' "${TMPDIR:-/tmp}/fizz-pause.txt"
+FLOWTEST=1 "$BENCH" | tee "${TMPDIR:-/tmp}/fizz-flow.txt"
+grep -q '^flow ok$' "${TMPDIR:-/tmp}/fizz-flow.txt"
 
 printf '\nAll checks passed.\n'

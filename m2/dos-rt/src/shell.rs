@@ -18,8 +18,10 @@ use lf_episode_1::{
 };
 
 use crate::cine::Cine;
+use crate::fx;
 use crate::save::{self, SLOTS};
 use crate::story::{self, Press};
+use crate::titles::Titles;
 use crate::ui::{self, Buf};
 use crate::ui_data::{
     BOSS_DEFEATED, BOSS_INTRO, CAPTIONS, CINE, END, LIFTOFF_BEAT, LEVEL_BLURBS, LEVEL_CLEARED, LEVEL_NAMES, SIGNS, TITLE_KICKER, TITLE_LINE,
@@ -38,6 +40,9 @@ extern "C" {
     fn snd_have_opl() -> i32;
     fn snd_fx_device() -> i32;
     fn snd_set_fx_device(device: i32);
+    /// The song playing (-1 for none) and its clock in 560 Hz ticks since it began, through its loops (-1 when nothing plays on the OPL2).
+    fn snd_current_song() -> i32;
+    fn snd_music_clock() -> i32;
     /// The frame rate setting (C): 0 auto, 1 60 Hz, 2 30 Hz; and the rate in use (60 or 30).
     fn rate_mode() -> i32;
     fn rate_set(mode: i32);
@@ -71,6 +76,8 @@ const FIRE: u32 = 64;
 
 /// Input bit for Enter.
 const CONFIRM: u32 = 128;
+/// Input bit the C side sets for a key of any kind pressed since the last tick (a tap, never a held key).
+const ANY: u32 = 2048;
 /// The saucer is the last level; it has no goal, so leaving it goes straight back to the map.
 const SAUCER: f32 = 15.0;
 /// Ticks to wait after a level is cleared, a fall or the end of the game before the card comes up.
@@ -130,6 +137,8 @@ enum Screen {
     Credits,
     /// The opening cinematic: the pictures, with the letterboxed text over them.
     Opening,
+    /// The opening titles: Liminal HQ presents, the wordmark and the chase, drawn whole by `titles`.
+    Titles,
 }
 
 /// Where Options and the slot lists go back to.
@@ -149,6 +158,8 @@ enum SlotKind {
 #[derive(Clone, Copy, PartialEq)]
 enum Next {
     Title,
+    /// The opening titles again, after a long wait on the title menu.
+    Titles,
     NewGame,
     /// A new game from the title: the opening cinematic, then the map.
     Opening,
@@ -161,8 +172,7 @@ enum Next {
 
 #[derive(Clone, Copy)]
 struct Fade {
-    out: bool,
-    t: u32,
+    ramp: fx::Ramp,
     then: Next,
 }
 
@@ -207,6 +217,10 @@ enum OptionItem {
 
 /// Ticks a fade out or in takes.
 const FADE_TICKS: u32 = 12;
+/// How long the title menu can sit untouched before the opening titles play again, in loops of the title's song, and how many loops of the
+/// titles then play.
+const IDLE_LOOPS: i64 = 2;
+const REWATCH_LOOPS: u8 = 2;
 /// The attract loop shows each of the title's three levels in turn.
 const ATTRACT_LEVELS: u32 = 3;
 /// Characters of dialogue typed a tick.
@@ -245,6 +259,10 @@ struct Shell {
     reel: story::Reel,
     roll: story::Roll,
     cine: Option<Cine>,
+    titles: Option<Titles>,
+    /// Ticks since the title menu last saw a key, and the music's clock then (for the idle wait).
+    idle_ticks: u32,
+    idle_mark: i32,
     /// A message over the game with its ticks left (the first words of a new game).
     hint: Option<(&'static str, u32)>,
     tick: u32,
@@ -277,6 +295,9 @@ static mut SHELL: Shell = Shell {
     reel: story::Reel::empty(),
     roll: story::Roll::new(),
     cine: None,
+    titles: None,
+    idle_ticks: 0,
+    idle_mark: 0,
     hint: None,
     tick: 0,
 };
@@ -315,7 +336,7 @@ pub fn start_title() {
     s.cursor = 0;
     s.attract = 0;
     s.ben_ids = ["ben_stand", "ben_jump", "ben_shoot", "ben_pogo", "ben_pogo2"].map(|n| crate::video::sprite_by_name(n).unwrap_or(usize::MAX));
-    s.fade = Some(Fade { out: false, t: 0, then: Next::Title });
+    s.fade = Some(Fade { ramp: fx::Ramp::new(FADE_TICKS, false), then: Next::Title });
     load_attract(0, 0);
 }
 
@@ -324,7 +345,8 @@ pub fn quit_requested() -> bool {
     sh().quit
 }
 
-/// A check: puts a screen up (1 pause, 2 options, 3 load list, 4 save list, 6 controls, 7 the ending, 8 the credits, 9 the end card, 100 to 107 an opening scene).
+/// A check: puts a screen up (1 pause, 2 options, 3 load list, 4 save list, 6 controls, 7 the ending, 8 the credits, 9 the end card, 100 to 107 an opening scene,
+/// 200 the opening titles from their first tick).
 pub fn show(n: u32) {
     let s = sh();
     s.cursor = 0;
@@ -364,6 +386,11 @@ pub fn show(n: u32) {
             }
             return;
         }
+        200 => {
+            // A new game first, so that nothing of the title's attract loop is left under the titles.
+            boot_titles();
+            return;
+        }
         n if (10..100).contains(&n) => {
             // A check: load a slot straight away.
             perform(s, Next::Load((n - 10) as u8));
@@ -376,6 +403,11 @@ pub fn show(n: u32) {
         }
         _ => Screen::Play,
     };
+}
+
+/// Whether the screen draws every pixel of the frame itself (the opening titles), so the sim's scene need not be built or painted.
+pub fn draws_whole_frame() -> bool {
+    sh().screen == Screen::Titles
 }
 
 /// Whether a card is up, so the sim is waiting.
@@ -451,7 +483,7 @@ fn menu_keys(s: &mut Shell, edges: u32, len: usize) -> Pick {
 }
 
 fn fade_to(s: &mut Shell, then: Next) {
-    s.fade = Some(Fade { out: true, t: 0, then });
+    s.fade = Some(Fade { ramp: fx::Ramp::new(FADE_TICKS, true), then });
 }
 
 /// Does what a finished fade out led to.
@@ -459,7 +491,12 @@ fn perform(s: &mut Shell, then: Next) {
     match then {
         Next::Title => {
             game_new();
+            s.titles = None;
             start_title();
+        }
+        Next::Titles => {
+            game_new();
+            start_titles(s, REWATCH_LOOPS);
         }
         Next::NewGame => {
             game_new();
@@ -507,13 +544,14 @@ pub fn advance(held: u32) {
 
     // A fade out holds everything still until it is black; a fade in lets the screen run.
     if let Some(mut f) = s.fade {
-        f.t += 1;
-        if f.t >= FADE_TICKS {
-            if f.out {
+        f.ramp.t += 1;
+        if f.ramp.done() {
+            if f.ramp.out {
                 s.fade = None;
                 perform(s, f.then);
-                if !s.quit {
-                    s.fade = Some(Fade { out: false, t: 0, then: f.then });
+                // The titles fade themselves in from black as part of the picture.
+                if !s.quit && s.screen != Screen::Titles {
+                    s.fade = Some(Fade { ramp: fx::Ramp::new(FADE_TICKS, false), then: f.then });
                 }
             } else {
                 s.fade = None;
@@ -521,11 +559,14 @@ pub fn advance(held: u32) {
             return;
         }
         s.fade = Some(f);
-        if f.out {
+        if f.ramp.out {
             return;
         }
     }
 
+    if s.screen != Screen::Title {
+        s.idle_ticks = 0;
+    }
     match s.screen {
         Screen::Title => title_tick(s, edges),
         Screen::Pause => pause_tick(s, edges),
@@ -536,6 +577,7 @@ pub fn advance(held: u32) {
         Screen::Ending => ending_tick(s, edges),
         Screen::Credits => credits_tick(s, edges),
         Screen::Opening => opening_tick(s, edges),
+        Screen::Titles => titles_tick(s, edges),
     }
     // Going back into the game from a menu: the key that chose it is still down, and must not be read as a press in the game.
     if !was_play && s.screen == Screen::Play {
@@ -584,7 +626,38 @@ fn title_items(s: &Shell) -> ([TitleItem; 6], usize) {
     (v, n)
 }
 
+/// The music's clock while the song named by `song` plays, or -1.
+fn music_clock_of(song: Option<u8>) -> i32 {
+    match song {
+        Some(song) if unsafe { snd_current_song() } == i32::from(song) => unsafe { snd_music_clock() },
+        _ => -1,
+    }
+}
+
+/// The title menu left alone for `IDLE_LOOPS` loops of its song brings the opening titles back. The wait is counted by the song's own clock
+/// when it plays (so the cut falls on a loop of the music) and by game ticks when there is no music; a fade out leads into the titles, so the
+/// wait is that much shorter.
+fn idle_check(s: &mut Shell, edges: u32) {
+    let song = Some(crate::sound_data::title_song());
+    let clock = music_clock_of(song);
+    if s.idle_ticks == 0 || edges != 0 {
+        s.idle_ticks = 0;
+        s.idle_mark = clock.max(0);
+    }
+    s.idle_ticks += 1;
+    if clock >= 0 && clock < s.idle_mark {
+        // The song began again (the music was switched off and on): count from here.
+        s.idle_mark = clock;
+    }
+    let need = IDLE_LOOPS * i64::from(crate::sound_data::song_ticks(crate::sound_data::title_song())) - i64::from(FADE_TICKS) * 28 / 3;
+    let waited = if clock >= 0 { i64::from(clock - s.idle_mark) } else { i64::from(s.idle_ticks) * 28 / 3 };
+    if waited >= need && s.fade.is_none() {
+        fade_to(s, Next::Titles);
+    }
+}
+
 fn title_tick(s: &mut Shell, edges: u32) {
+    idle_check(s, edges);
     // The attract loop: the sim steps by itself, and each level is shown for one pan across and back.
     step(0);
     crate::video::stepped();
@@ -848,7 +921,7 @@ fn play_tick(s: &mut Shell, edges: u32, sim_held: u32) {
     // A level entered or left from inside the sim fades in from black.
     let now = mode();
     if mode_before != 0 && now != mode_before && s.fade.is_none() {
-        s.fade = Some(Fade { out: false, t: 0, then: Next::Map });
+        s.fade = Some(Fade { ramp: fx::Ramp::new(FADE_TICKS, false), then: Next::Map });
     }
     s.last_mode = now;
 
@@ -975,6 +1048,43 @@ fn start_opening(s: &mut Shell) {
     s.screen = Screen::Opening;
 }
 
+/// The opening titles, `loops` times over.
+fn start_titles(s: &mut Shell, loops: u8) {
+    reset();
+    s.fade = None;
+    s.titles = Some(Titles::new(loops));
+    s.screen = Screen::Titles;
+}
+
+/// The titles follow the music's clock; any key fades them out to the title menu, and when they run their course they have faded themselves
+/// out, so the menu follows straight on.
+fn titles_tick(s: &mut Shell, edges: u32) {
+    if edges != 0 {
+        fade_to(s, Next::Title);
+        return;
+    }
+    let clock = music_clock_of(crate::sound_data::extra_song(crate::sound_data::EXTRA_TITLES));
+    let more = s.titles.as_mut().is_some_and(|t| t.tick(clock));
+    if !more {
+        perform(s, Next::Title);
+    }
+}
+
+/// The game's start: the opening titles once, then the title menu.
+pub fn boot_titles() {
+    game_new();
+    start_titles(sh(), 1);
+}
+
+/// Whether the opening titles are on the screen, and whether the title menu is (for checks).
+pub fn on_titles() -> bool {
+    sh().screen == Screen::Titles
+}
+
+pub fn on_title() -> bool {
+    sh().screen == Screen::Title
+}
+
 /// The cinematic is over, or was skipped: the map, with a word about where to go.
 fn leave_opening(s: &mut Shell) {
     s.cine = None;
@@ -1017,7 +1127,8 @@ fn opening_tick(s: &mut Shell, edges: u32) {
     }
 }
 
-/// The song a story screen wants, so the C side can play it: 1 is the ending's, 2 to 5 the opening's, 0 leaves the choice to the game.
+/// The song a story screen wants, so the C side can play it: 1 is the ending's, 2 to 5 the opening's, 6 the titles', 0 leaves the choice to
+/// the game.
 pub fn music_key() -> u32 {
     let s = sh();
     match (s.screen, s.card) {
@@ -1025,6 +1136,7 @@ pub fn music_key() -> u32 {
         // The yard, the lab, the liftoff and the flight: the main game's `CINE_TRACK`, as positions in the extra songs that
         // `m4/export-sound.ts` writes after the ending (1: ending, 2 yard, 3 lab, 4 launch, 5 cine).
         (Screen::Opening, _) => [2, 3, 4, 4, 5, 5, 5, 5][s.reel.scene().min(7)],
+        (Screen::Titles, _) => crate::sound_data::EXTRA_TITLES as u32 + 1,
         _ => 0,
     }
 }
@@ -1059,6 +1171,11 @@ pub fn overlay(frame: &mut [u8], cam_px: (i32, i32)) {
                 cine.draw(frame);
             }
             s.reel.draw(frame, s.tick, true);
+        }
+        Screen::Titles => {
+            if let Some(t) = s.titles.as_ref() {
+                t.draw(frame);
+            }
         }
         _ => {
             if m == 2 || m == 3 {
@@ -1103,8 +1220,7 @@ pub fn overlay(frame: &mut [u8], cam_px: (i32, i32)) {
         }
     }
     if let Some(f) = s.fade {
-        let steps = (f.t * 13 / FADE_TICKS).min(13) as u8;
-        ui::dim(frame, 0, 0, W as i32, H as i32, if f.out { steps } else { 13 - steps });
+        fx::fade(frame, f.ramp.steps());
     }
 }
 

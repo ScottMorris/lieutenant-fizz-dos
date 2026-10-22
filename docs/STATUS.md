@@ -6,6 +6,7 @@ Where the DOS port stands against the main game (`liminal-hq/lieutenant-fizz`, E
 
 - **The game:** the title with its attract loop, the overworld, every level in the simulation (0 to 15), the boss fights with their dialogue, lives, score, Fizz ammo and extra lives.
 - **The shell:** a start-up system check (video, input, sound and maths hardware, and a speed test of the real renderer), title, pause, options, load and save lists, a boxed HUD, map prompts, floating caption words, toasts and result cards, a controls screen (from the title and the pause menu) and a key hint under each menu, and Ben on the title wordmark (he bobs, leans, hops up and pogoes across it, turns to the menu and waves on a pick), with fades between screens.
+- **The opening titles:** the game opens with Liminal HQ presents, the *Lieutenant Fizz* wordmark and a chase (Ben stunning the Zargs with fizz bubbles) over a score of its own, 12.8 s in mode 13h, then the title menu. Any key skips them. They play again, for two loops, when the title menu has sat untouched for two loops of its song (about two minutes); any key, or leaving the menu and coming back, starts that wait again. The picture is checked against the design's own drawing routine, ported as an oracle, frame for frame.
 - **The opening:** New Game from the title plays the eight-scene cinematic (the backyard, the lab, the liftoff, the flight and the landing) as letterboxed pictures with the typed text and the scene's music, then goes to the map with a word about where to start. Esc skips it. Out of lives still starts a new game without it.
 - **The ending:** after the last boss, four letterboxed panels typed out at the main game's speed, the credits roll (Enter speeds it up, Esc skips) with the ending's music, and an end card that returns to the title.
 - **Saves and options:** progress is written to `AUTO.SAV` on every map visit and to `SLOT1.SAV` to `SLOT4.SAV` from the pause menu. F5 and F9 quick-save and quick-load in `QUICK.SAV`, a slot of its own (the main game writes the newest manual slot instead). Saves are progress-only, which is also the main game's behaviour. The options are written to `FIZZ.CFG`, a separate file, and read at the next start.
@@ -22,6 +23,8 @@ Nothing of Episode 1's play or presentation is left. The web and app builds' pla
 - **No stinger.** Episode 1 does not ship the main game's post-credits stinger (it belongs after Episode 3), so the port has none.
 - **No play samples or replays.** Those are the web and app builds' telemetry and viewer, built on browser storage.
 - **The opening's pictures are the main game's sprites at half the tile size**, so the 320 × 200 screen shows 40 × 25 tiles. A tint picks the nearest EGA colour and its brightness a palette level (the night's dark blues are dim blues); alpha is a threshold, so a faint glow or a fade is either drawn or left out.
+- **The titles' skip cuts the music at the black frame** rather than fading its volume: the notes key off when the menu comes up and the title song begins. A volume fade would need the sound handler to scale the chip's operator levels.
+- **The titles' picture is not scanlined.** The design's preview has an optional CRT overlay; the game draws plain pixels.
 - **The ending's panels sit over the dimmed last frame of the game**, and the credits roll is stacked (a role above its name) so the long roles fit 320 pixels.
 - **Lighting is brightness only.** The palette holds 16 EGA colours at 14 brightness levels, so a coloured light dims or brightens a pixel but cannot tint it. Sprite tints snap to the nearest EGA colour.
 - **The hints are the menu hint lines and the controls screen.** The main game has no separate in-level tutorial, so there is nothing more to port.
@@ -35,6 +38,7 @@ Nothing of Episode 1's play or presentation is left. The web and app builds' pla
 
 - **Determinism.** `m2/build.sh` runs 16 levels for 3000 ticks each on one scripted input stream, hashes the simulation's 26 state slots every 60 ticks and compares the 800 hashes with the web build's wasm. They are identical, with the x87 precision control set to 53 bits. At the default 64-bit precision they diverge at level 0, tick 120.
 - **Frames.** `m5/bench` prints a checksum of the last frame of five scenes (the map, the day level, the cave, the cave at night and level 9). Speed changes keep them identical.
+- **The titles.** All 768 frames of one loop from the native bench, and 17 frames of the DOS build in DOSBox, are byte-identical to the oracle's. The flow (a loop and then the menu, a key's fade, the idle wait ending, two loops and then the menu, a key moving the wait back) is run by the bench's `FLOWTEST` with the music clock unavailable, so by game ticks.
 - **Menus.** A pause-menu Resume with Enter held does not enter the level on the map; the start-up screen's Enter does not reach the title.
 - **Options.** A `FIZZ.CFG` is read and shown on the Options screen, and options saved from the command line load again.
 
@@ -42,6 +46,7 @@ Nothing of Episode 1's play or presentation is left. The web and app builds' pla
 
 - **A full playthrough.** The parity run walks each level on a script; it does not clear them. No one has played Episode 1 from the title to the credits on the DOS build.
 - **Real hardware.** Everything has run in DOSBox. The 486 figures below are DOSBox at a fixed cycle count, which counts instructions evenly; a real 486 is likely slower.
+- **The titles with sound and a keyboard.** The picture's lock to the music clock, the any-key skip and the idle wait counted by the song's clock were not run in DOSBox with keys, and the titles' score has not been listened to. Headless, only the stream's register writes and the clock reading (1679 after 1680 ticks) were checked.
 - **Audio.** The sound has been listened to only by the owner on a laptop, in DOSBox. Nothing here can check it headless.
 - **Keyboard feel in other emulators and DOS versions.** The keyboard is read through an IRQ 1 handler that has been tried in DOSBox Staging only.
 
