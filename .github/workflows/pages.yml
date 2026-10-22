@@ -1,4 +1,7 @@
-# Publishes site/ (the page, js-dos and the game bundle) to GitHub Pages.
+# Publishes the page (site/) to GitHub Pages, with the game from a release: its browser bundle is the game the page runs, and its version is
+# in the footer (tools/stage-site.sh). The release workflow calls this after it publishes a release, so a release updates the page. A push to
+# main that changes site/ (or this file) publishes the page again with the newest release's game, and Run workflow (Actions, Pages) does
+# the same for the tag it is given. The bundles are not committed: nothing but a release changes the game on the page.
 #
 # (c) Copyright 2026 Liminal HQ, Scott Morris
 # SPDX-License-Identifier: Apache-2.0 OR MIT
@@ -8,8 +11,19 @@ name: Pages
 on:
   push:
     branches: [main]
-    paths: ['site/**', '.github/workflows/pages.yml']
+    paths: ['site/**', 'tools/stage-site.sh', '.github/workflows/pages.yml']
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release whose game the page serves, such as v0.2.0 (empty: the newest release)'
+        required: false
+        type: string
+  workflow_call:
+    inputs:
+      tag:
+        description: 'Release whose game the page serves, such as v0.2.0'
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -28,6 +42,28 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v7
+      - name: Find the release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          REQUESTED: ${{ inputs.tag }}
+        run: |
+          tag="$REQUESTED"
+          [ -n "$tag" ] || tag="$(gh release list --limit 1 --json tagName --jq '.[0].tagName // empty')"
+          [ -n "$tag" ] || { echo "There is no release for the page to serve" >&2; exit 1; }
+          echo "The page serves $tag"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+      - name: Download its browser bundle
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ steps.release.outputs.tag }}
+        run: gh release download "$TAG" --pattern '*-browser.jsdos' --dir "$RUNNER_TEMP/release"
+      - name: Stage the page
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+        run: tools/stage-site.sh "$TAG" "$RUNNER_TEMP"/release/*-browser.jsdos
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5
         with:

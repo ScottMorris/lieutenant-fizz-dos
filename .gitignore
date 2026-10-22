@@ -30,3 +30,6 @@ attic/**/CWSDPMI.EXE
 attic/**/FRAME.RAW
 attic/**/PAL.RAW
 dist/release/
+
+# The page's game bundles are staged from a release (tools/stage-site.sh) or built by tools/make-site.sh; they are not committed.
+/site/game*.jsdos

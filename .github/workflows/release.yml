@@ -1,7 +1,7 @@
 # Builds a release's files (tools/make-release.sh) and, for a pushed tag such as v0.1.0, publishes them as a GitHub release. The notes
 # are the changelog's section for that version, followed by the pull requests merged since the last release, grouped by label as
-# .github/release.yml says. Run by hand (Actions, Release, Run workflow) it builds the files and keeps them as a workflow artifact
-# without publishing.
+# .github/release.yml says, and then updates the page (pages.yml) with the release's browser bundle and version. Run by hand (Actions,
+# Release, Run workflow) it builds the files and keeps them as a workflow artifact without publishing or touching the page.
 #
 # (c) Copyright 2026 Liminal HQ, Scott Morris
 # SPDX-License-Identifier: Apache-2.0 OR MIT
@@ -61,8 +61,8 @@ jobs:
         run: tools/check.sh
       - name: Build the game
         run: m4/build.sh --no-run
-      # The browser bundle is rebuilt from this build's FIZZ.EXE: a build on another machine is not byte for byte the one committed in
-      # site/game.jsdos.
+      # The browser bundle is rebuilt from this build's FIZZ.EXE, which tools/make-release.sh checks the release's files against, and
+      # the page serves this bundle once the release is published.
       - name: Build the browser bundle
         run: tools/make-site.sh
       - name: Build the release files
@@ -102,3 +102,15 @@ jobs:
           gh release create "$VERSION" --repo "$GITHUB_REPOSITORY" --verify-tag --title "Lieutenant Fizz for DOS $VERSION" \
             --notes-file release/NOTES.md --generate-notes "${flags[@]}" \
             release/*.img release/*.zip release/*.jsdos release/SHA256SUMS
+
+  # The page serves the release's game: its browser bundle is downloaded from the release just published.
+  pages:
+    needs: publish
+    if: github.event_name == 'push'
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/pages.yml
+    with:
+      tag: ${{ github.ref_name }}
