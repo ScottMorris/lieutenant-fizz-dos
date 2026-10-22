@@ -75,6 +75,13 @@ const SAUCER: f32 = 15.0;
 const CLEARED_WAIT: u32 = 90;
 const DIED_WAIT: u32 = 70;
 const GAME_OVER_WAIT: u32 = 100;
+/// Ticks Ben on the title keeps facing the menu after the cursor moves, and waves after a pick; and the loop's length in ticks.
+const BEN_LOOK: u32 = 96;
+const BEN_WAVE: u32 = 54;
+const BEN_CYCLE: u32 = 14 * 60;
+/// Where the title's wordmark is, so Ben can stand on it (it is drawn three pixels to a glyph pixel from `TITLE_LOGO_Y`).
+const TITLE_LOGO_Y: i32 = 24;
+const TITLE_LOGO_H: i32 = 24;
 /// How long the quick-save message stays, in ticks.
 const QUICK_TICKS: u32 = 120;
 /// How long a toast stays, and how long a caption word floats, in ticks.
@@ -212,6 +219,9 @@ struct Shell {
     swallow: u32,
     last_mode: u32,
     attract: u32,
+    /// The tick up to which Ben on the title faces the menu (after the cursor moves) and waves (after a pick).
+    ben_look: u32,
+    ben_wave: u32,
     tick: u32,
 }
 
@@ -236,6 +246,8 @@ static mut SHELL: Shell = Shell {
     swallow: 0,
     last_mode: 0,
     attract: 0,
+    ben_look: 0,
+    ben_wave: 0,
     tick: 0,
 };
 
@@ -510,8 +522,12 @@ fn title_tick(s: &mut Shell, edges: u32) {
         load_attract(s.attract, 0);
     }
     let (items, n) = title_items(s);
+    if edges & (UP | DOWN) != 0 {
+        s.ben_look = s.tick + BEN_LOOK;
+    }
     if let Pick::Chosen = menu_keys(s, edges, n) {
         cue(FX_SELECT);
+        s.ben_wave = s.tick + BEN_WAVE;
         match items[s.cursor] {
             TitleItem::Continue => {
                 if let Some(slot) = save::newest(&s.saves) {
@@ -930,12 +946,58 @@ fn heading(frame: &mut [u8], s: &str, y: i32) {
     ui::text_big(frame, (W as i32 - w) / 2, y, s, ui::WHITE, 2);
 }
 
+/// Ben on the wordmark, as the main game's `benFrame` has him on a 14 second loop: he stands at the end of the logo with a bob, leans
+/// aside now and then, hops up and pogoes across the top and back, turns to face the menu when the cursor moves and waves when an
+/// item is picked. The lean is left out (there is no rotated blit here) and the sizes are those of a 16-pixel sprite at 1×. `left` and
+/// `logo_w` place the wordmark.
+fn title_ben(frame: &mut [u8], s: &Shell, left: i32, logo_w: i32) {
+    // The curve sin(k·π) over 0..1, as a parabola.
+    fn arc(k: f32) -> f32 {
+        4.0 * k * (1.0 - k)
+    }
+    let names = lf_episode_1::sprites::SPRITE_NAMES;
+    let id = |name: &str| names.iter().position(|n| *n == name).unwrap_or(0);
+    let bw = 16.0f32;
+    let home = (logo_w + 6) as f32;
+    let top = TITLE_LOGO_H as f32 * 0.5;
+    let p = (s.tick % BEN_CYCLE) as f32 / 60.0;
+    let looking = s.ben_look > s.tick;
+    // (pose, x from the wordmark's left, feet above its bottom, faces left)
+    let (pose, x, y, flip) = if s.ben_wave > s.tick {
+        let k = 1.0 - (s.ben_wave - s.tick) as f32 / BEN_WAVE as f32;
+        ("ben_shoot", home, arc(k) * bw * 0.4, true)
+    } else if (4.5..6.5).contains(&p) {
+        ("ben_stand", home - bw / 6.0, 0.0, looking)
+    } else if (9.0..13.0).contains(&p) {
+        let start = home - bw;
+        if p < 9.4 {
+            let k = (p - 9.0) / 0.4;
+            ("ben_jump", home + (start - home) * k, top * k + arc(k) * bw * 0.5, true)
+        } else if p < 12.6 {
+            let q = if p < 11.0 { (p - 9.4) / 1.6 } else { 1.0 - (p - 11.0) / 1.6 };
+            let u = (p - 9.4) * 1.25;
+            let hop = arc(u - (u as i32) as f32);
+            (if hop < 0.25 { "ben_pogo2" } else { "ben_pogo" }, start * (1.0 - q), top + hop * bw * 0.3, p < 11.0)
+        } else {
+            let k = (p - 12.6) / 0.4;
+            ("ben_jump", start + (home - start) * k, top * (1.0 - k) + arc(k) * bw * 0.4, false)
+        }
+    } else {
+        ("ben_stand", home, if ((p * 1.5) as i32) % 2 == 1 { 1.0 } else { 0.0 }, looking)
+    };
+    let id = id(pose);
+    let feet = TITLE_LOGO_Y + TITLE_LOGO_H - y.max(0.0) as i32;
+    crate::video::draw_sprite_ui_flip(frame, id, left + x as i32, feet - crate::video::sprite_height(id), flip);
+}
+
 /// The title: the attract loop behind, dimmed, with the name and the menu.
 fn title_screen(frame: &mut [u8], s: &Shell) {
     ui::dim(frame, 0, 0, W as i32, H as i32, 5);
-    ui::text_centred(frame, W as i32 / 2, 12, TITLE_KICKER, ui::YELLOW);
     let w = ui::text_width(TITLE_WORDS) * 3;
     ui::text_logo(frame, (W as i32 - w) / 2, 24, TITLE_WORDS, ui::WHITE, ui::RED, 3);
+    // Ben is drawn under the kicker, so his pogo stick goes behind the words as he crosses them.
+    title_ben(frame, s, (W as i32 - w) / 2, w);
+    ui::text_centred(frame, W as i32 / 2, 12, TITLE_KICKER, ui::YELLOW);
     ui::text_centred(frame, W as i32 / 2, 56, TITLE_LINE, ui::CYAN);
     let (items, n) = title_items(s);
     let mut rows: [(&str, &str); 6] = [("", ""); 6];
