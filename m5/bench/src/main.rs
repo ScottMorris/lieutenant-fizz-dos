@@ -13,6 +13,8 @@
 
 #![allow(dead_code)]
 
+#[path = "../../../m2/dos-rt/src/cine.rs"]
+mod cine;
 #[path = "../../../m2/dos-rt/src/preview.rs"]
 mod preview;
 #[path = "../../../m2/dos-rt/src/save.rs"]

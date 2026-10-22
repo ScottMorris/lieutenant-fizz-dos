@@ -9,7 +9,7 @@ import { readFileSync, writeSync } from 'node:fs';
 
 const GAME = process.env.FIZZ_GAME ?? new URL('../../../liminal-hq/lieutenant-fizz', import.meta.url).pathname; // the main game's checkout; FIZZ_GAME overrides
 const { RAW, EXTRA } = await import(`${GAME}/packages/engine/src/font/fizz-glyphs.ts`);
-const { LEVELS, SIGNS, DIALOGUE, END } = await import(`${GAME}/episodes/episode-1/src/story.ts`);
+const { LEVELS, SIGNS, DIALOGUE, END, CINE, LIFTOFF_BEAT } = await import(`${GAME}/episodes/episode-1/src/story.ts`);
 const { CREDITS } = await import(`${GAME}/episodes/episode-1/src/credits.ts`);
 const { EGA } = await import(`${GAME}/packages/engine/src/palette.ts`);
 const { TITLE_CARD } = await import(`${GAME}/episodes/episode-1/src/title-card.ts`);
@@ -97,10 +97,13 @@ out.push(`pub static TITLE_KICKER: &str = ${rs(TITLE_CARD.kicker)};`);
 out.push(`pub static TITLE_WORDS: &str = ${rs(TITLE_CARD.words.join(' '))};`);
 out.push(`pub static TITLE_LINE: &str = ${rs(TITLE_CARD.line)};`);
 out.push(`pub static BOSS_INTRO: &[(&str, &str)] = ${dialogue(DIALOGUE.bossIntro)};`);
-const scenes = (list: { place: string; beats: string[] }[]) =>
-  `&[${list.map((s) => `(${rs(s.place)}, &[${s.beats.map(rs).join(', ')}])`).join(', ')}]`;
-out.push('/// The ending\'s panels: the place and the beats of each scene.');
-out.push(`pub static END: &[(&str, &[&str])] = ${scenes(END)};`);
+const scenes = (list: { place: string; beats: string[]; breaks?: number[] }[]) =>
+  `&[${list.map((s) => `(${rs(s.place)}, &[${s.beats.map(rs).join(', ')}], &[${(s.breaks ?? []).join(', ')}])`).join(', ')}]`;
+out.push('/// The ending\'s panels and the opening cinematic\'s: the place, the beats and the beats that start a page, for each scene.');
+out.push(`pub static END: &[(&str, &[&str], &[u8])] = ${scenes(END)};`);
+out.push(`pub static CINE: &[(&str, &[&str], &[u8])] = ${scenes(CINE)};`);
+out.push(`/// The beat of the liftoff scene that opens the hatch.`);
+out.push(`pub const LIFTOFF_BEAT: usize = ${LIFTOFF_BEAT};`);
 out.push(`pub static CREDITS_TITLE: &str = ${rs(CREDITS.title)};`);
 out.push(`pub static CREDITS_SUBTITLE: &str = ${rs(CREDITS.subtitle)};`);
 out.push('/// The credits roll\'s sections: a heading and its lines of role and name.');

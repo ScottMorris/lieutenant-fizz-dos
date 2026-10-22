@@ -12,7 +12,7 @@
 //   captions  × u8 effect number (255 for none), in the sim's caption order
 //   levels    × u8 song number, in the sim's level order
 //   u8 title song, u8 map song, u8 boss song
-//   u8 count of extra songs, then that many u8 song numbers: the ending (1), in the order the game's screens ask for them
+//   u8 count of extra songs, then that many u8 song numbers: the ending, the yard, the lab, the launch and the deep-space song of the opening
 //   the data
 
 import { readFileSync, writeSync } from 'node:fs';
@@ -55,7 +55,7 @@ const levelSong: number[] = LEVELS.map((l: { track: string }) => songOf(l.track)
 const head = 4 + 1 + 4;
 const songTable = songs.length * 8;
 const fxTable = effects.length * 12;
-const extras = ['ending'];
+const extras = ['ending', 'yard', 'lab', 'launch', 'cine'];
 const tail = captionFx.length + levelSong.length + 3 + 1 + extras.length;
 let at = head + songTable + fxTable + tail;
 const out: number[] = [];

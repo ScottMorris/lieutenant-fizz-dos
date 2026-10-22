@@ -14,8 +14,8 @@ use crate::ui::{self, Buf};
 use crate::ui_data::{CREDITS, CREDITS_RETURN, CREDITS_SUBTITLE, CREDITS_THANKS, CREDITS_THANKS_LINE, CREDITS_TITLE};
 use crate::video::{H, W};
 
-/// A scene is the place it happens and its beats of text.
-pub type Scenes = &'static [(&'static str, &'static [&'static str])];
+/// A scene is the place it happens, its beats of text and the beats that always start a page (the one a cue in the art waits for).
+pub type Scenes = &'static [(&'static str, &'static [&'static str], &'static [u8])];
 
 /// The text box's width in pixels and the most lines a page may take.
 const TEXT_W: i32 = 288;
@@ -68,6 +68,11 @@ impl Reel {
         self.scene
     }
 
+    /// The first beat of the page showing.
+    pub fn first_beat(&self) -> usize {
+        self.first
+    }
+
     fn beats(&self) -> &'static [&'static str] {
         self.scenes.get(self.scene).map_or(&[], |s| s.1)
     }
@@ -86,7 +91,11 @@ impl Reel {
     fn fit(&self, first: usize) -> usize {
         let left = self.beats().len().saturating_sub(first);
         let mut count = 1.min(left);
+        let breaks = self.scenes.get(self.scene).map_or(&[][..], |s| s.2);
         while count < left {
+            if breaks.contains(&((first + count) as u8)) {
+                break;
+            }
             let mut text = Buf::new();
             self.join(first, count + 1, &mut text);
             let mut lines = [(0, 0); PAGE_LINES + 1];

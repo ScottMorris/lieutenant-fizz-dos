@@ -17,11 +17,12 @@ use lf_episode_1::{
     enter_map, events_clear, events_len, events_ptr, game_new, load_attract, mode, state_get, step,
 };
 
+use crate::cine::Cine;
 use crate::save::{self, SLOTS};
 use crate::story::{self, Press};
 use crate::ui::{self, Buf};
 use crate::ui_data::{
-    BOSS_DEFEATED, BOSS_INTRO, CAPTIONS, END, LEVEL_BLURBS, LEVEL_CLEARED, LEVEL_NAMES, SIGNS, TITLE_KICKER, TITLE_LINE,
+    BOSS_DEFEATED, BOSS_INTRO, CAPTIONS, CINE, END, LIFTOFF_BEAT, LEVEL_BLURBS, LEVEL_CLEARED, LEVEL_NAMES, SIGNS, TITLE_KICKER, TITLE_LINE,
     TITLE_WORDS, TOASTS,
 };
 use crate::video::{H, W};
@@ -127,6 +128,8 @@ enum Screen {
     /// The ending's panels, then the credits roll.
     Ending,
     Credits,
+    /// The opening cinematic: the pictures, with the letterboxed text over them.
+    Opening,
 }
 
 /// Where Options and the slot lists go back to.
@@ -147,6 +150,8 @@ enum SlotKind {
 enum Next {
     Title,
     NewGame,
+    /// A new game from the title: the opening cinematic, then the map.
+    Opening,
     Map,
     Quit,
     Load(u8),
@@ -237,6 +242,9 @@ struct Shell {
     ben_ids: [usize; 5],
     reel: story::Reel,
     roll: story::Roll,
+    cine: Option<Cine>,
+    /// A message over the game with its ticks left (the first words of a new game).
+    hint: Option<(&'static str, u32)>,
     tick: u32,
 }
 
@@ -266,6 +274,8 @@ static mut SHELL: Shell = Shell {
     ben_ids: [usize::MAX; 5],
     reel: story::Reel::empty(),
     roll: story::Roll::new(),
+    cine: None,
+    hint: None,
     tick: 0,
 };
 
@@ -312,7 +322,7 @@ pub fn quit_requested() -> bool {
     sh().quit
 }
 
-/// A check: puts a screen up (1 pause, 2 options, 3 load list, 4 save list, 6 controls, 7 the ending, 8 the credits, 9 the end card).
+/// A check: puts a screen up (1 pause, 2 options, 3 load list, 4 save list, 6 controls, 7 the ending, 8 the credits, 9 the end card, 100 to 107 an opening scene).
 pub fn show(n: u32) {
     let s = sh();
     s.cursor = 0;
@@ -337,7 +347,22 @@ pub fn show(n: u32) {
             s.card = Some(Card::End { score: 1234, lives: 1 });
             return;
         }
-        n if n >= 10 => {
+        n if (100..108).contains(&n) => {
+            // A check: the opening cinematic at a scene, `k` seconds into it (the scene's own clock runs on from there).
+            start_opening(s);
+            let scene = (n - 100) as usize;
+            while s.reel.scene() < scene {
+                let _ = s.reel.press();
+            }
+            if let Some(cine) = s.cine.as_mut() {
+                cine.start(scene as u8);
+                if scene == 2 {
+                    cine.launch();
+                }
+            }
+            return;
+        }
+        n if (10..100).contains(&n) => {
             // A check: load a slot straight away.
             perform(s, Next::Load((n - 10) as u8));
             return;
@@ -439,6 +464,11 @@ fn perform(s: &mut Shell, then: Next) {
             s.played = 0;
             to_map(s);
         }
+        Next::Opening => {
+            game_new();
+            s.played = 0;
+            start_opening(s);
+        }
         Next::Map => to_map(s),
         Next::Quit => s.quit = true,
         Next::Load(slot) => {
@@ -460,6 +490,9 @@ pub fn advance(held: u32) {
     let was_play = s.screen == Screen::Play;
     if let Some((k, a, left)) = s.note {
         s.note = if left <= 1 { None } else { Some((k, a, left - 1)) };
+    }
+    if let Some((text, left)) = s.hint {
+        s.hint = if left <= 1 { None } else { Some((text, left - 1)) };
     }
     if let Some((k, left)) = s.quick {
         s.quick = if left <= 1 { None } else { Some((k, left - 1)) };
@@ -499,6 +532,7 @@ pub fn advance(held: u32) {
         Screen::Play => play_tick(s, edges, sim_held),
         Screen::Ending => ending_tick(s, edges),
         Screen::Credits => credits_tick(s, edges),
+        Screen::Opening => opening_tick(s, edges),
     }
     // Going back into the game from a menu: the key that chose it is still down, and must not be read as a press in the game.
     if !was_play && s.screen == Screen::Play {
@@ -569,7 +603,7 @@ fn title_tick(s: &mut Shell, edges: u32) {
                     fade_to(s, Next::Load(slot as u8));
                 }
             }
-            TitleItem::New => fade_to(s, Next::NewGame),
+            TitleItem::New => fade_to(s, Next::Opening),
             TitleItem::Load => {
                 s.screen = Screen::Slots(SlotKind::Load, Back::Title);
                 s.cursor = 0;
@@ -928,11 +962,64 @@ fn credits_tick(s: &mut Shell, edges: u32) {
     }
 }
 
-/// The song a story screen wants, so the C side can play it: 1 is the ending's, 0 leaves the choice to the game.
+/// A new game from the title: the cinematic, which ends on the map.
+fn start_opening(s: &mut Shell) {
+    reset();
+    s.reel.start(CINE);
+    let mut cine = Cine::new();
+    cine.start(0);
+    s.cine = Some(cine);
+    s.screen = Screen::Opening;
+}
+
+/// The cinematic is over, or was skipped: the map, with a word about where to go.
+fn leave_opening(s: &mut Shell) {
+    s.cine = None;
+    s.screen = Screen::Play;
+    to_map(s);
+    s.hint = Some(("Find Billy. Start at the Crater Fields, along the path to the east.", 360));
+}
+
+fn opening_tick(s: &mut Shell, edges: u32) {
+    s.reel.tick();
+    if let Some(cine) = s.cine.as_mut() {
+        cine.tick();
+    }
+    if edges & MENU_KEY != 0 {
+        cue(FX_BACK);
+        leave_opening(s);
+        return;
+    }
+    if edges & (CONFIRM | JUMP | FIRE) != 0 {
+        let scene = s.reel.scene();
+        match s.reel.press() {
+            Press::End => {
+                cue(FX_SELECT);
+                leave_opening(s);
+                return;
+            }
+            Press::Complete => {}
+            Press::Page | Press::Scene => cue(FX_MOVE),
+        }
+        if let Some(cine) = s.cine.as_mut() {
+            if s.reel.scene() != scene {
+                cine.start(s.reel.scene() as u8);
+            }
+            // The launch waits for the page that opens the hatch.
+            if s.reel.scene() == 2 && s.reel.first_beat() >= LIFTOFF_BEAT {
+                cine.launch();
+            }
+        }
+    }
+}
+
+/// The song a story screen wants, so the C side can play it: 1 is the ending's, 2 to 5 the opening's, 0 leaves the choice to the game.
 pub fn music_key() -> u32 {
     let s = sh();
     match (s.screen, s.card) {
         (Screen::Ending | Screen::Credits, _) | (_, Some(Card::End { .. })) => 1,
+        // The yard, the lab, the liftoff and the flight: the main game's `CINE_TRACK`.
+        (Screen::Opening, _) => [2, 3, 4, 4, 5, 5, 5, 5][s.reel.scene().min(7)],
         _ => 0,
     }
 }
@@ -962,6 +1049,12 @@ pub fn overlay(frame: &mut [u8], cam_px: (i32, i32)) {
         Screen::Title => title_screen(frame, s),
         Screen::Ending => s.reel.draw(frame, s.tick, false),
         Screen::Credits => s.roll.draw(frame),
+        Screen::Opening => {
+            if let Some(cine) = s.cine.as_ref() {
+                cine.draw(frame);
+            }
+            s.reel.draw(frame, s.tick, true);
+        }
         _ => {
             if m == 2 || m == 3 {
                 captions(frame, s, cam_px);
@@ -977,6 +1070,9 @@ pub fn overlay(frame: &mut [u8], cam_px: (i32, i32)) {
             }
             if let Some(card) = s.card {
                 card_screen(frame, card);
+            }
+            if let Some((text, _)) = s.hint {
+                toast_text(frame, text);
             }
             if let Some(d) = s.dialogue {
                 dialogue_box(frame, d, s.tick);
@@ -1355,7 +1451,10 @@ fn hud(frame: &mut [u8]) {
 }
 
 fn toast(frame: &mut [u8], id: u16) {
-    let text = TOASTS[usize::from(id).min(TOASTS.len() - 1)];
+    toast_text(frame, TOASTS[usize::from(id).min(TOASTS.len() - 1)]);
+}
+
+fn toast_text(frame: &mut [u8], text: &str) {
     let mut lines = [(0, 0); 4];
     let n = ui::wrap(text, 290, &mut lines);
     let h = n as i32 * ui::LINE + 11;

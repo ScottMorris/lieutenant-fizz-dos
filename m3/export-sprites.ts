@@ -22,11 +22,20 @@ const x = instance.exports as unknown as {
 };
 const defs = new Map(defineSprites().map((d) => [d.name, d.grid]));
 const order = Object.keys(EGA);
-const count = x.table_len(0);
+const simCount = x.table_len(0);
+// Sprites the sim never draws but the opening cinematic does, after the sim's own so that no id moves (m2/dos-rt/src/cine.rs lists the same names).
+const EXTRA = ['planet', 'house', 'bigTree', 'moon', 'fence', 'labPanel', 'console0', 'console1', 'blueprint', 'bench', 'pad', 'lamp'];
+const names: string[] = [];
+for (let i = 0; i < simCount; i++) names.push(new TextDecoder().decode(new Uint8Array(x.memory.buffer, x.name_ptr(0, i), x.name_len(0, i))));
+for (const n of EXTRA) {
+  if (names.includes(n)) throw new Error(`${n} is a sim sprite already`);
+  names.push(n);
+}
+const count = names.length;
 const blobs: Uint8Array[] = [];
 const missing: string[] = [];
 for (let i = 0; i < count; i++) {
-  const name = new TextDecoder().decode(new Uint8Array(x.memory.buffer, x.name_ptr(0, i), x.name_len(0, i)));
+  const name = names[i]!;
   const g = defs.get(name);
   if (!g) { missing.push(name); blobs.push(new Uint8Array([1, 0, 1, 0, 0, 0, 255])); continue; }
   const b = new Uint8Array(6 + g.w * g.h);
@@ -51,4 +60,4 @@ dv.setUint16(0, count, true);
 let at = headLen;
 blobs.forEach((b, i) => { dv.setUint32(2 + i * 4, at, true); out.set(b, at); at += b.length; });
 writeSync(1, out);
-console.error(`${count} sprites, ${out.length} bytes, missing: ${missing.join(', ') || 'none'}`);
+console.error(`${count} sprites (${simCount} the sim's, ${EXTRA.length} the cinematic's), ${out.length} bytes, missing: ${missing.join(', ') || 'none'}`);

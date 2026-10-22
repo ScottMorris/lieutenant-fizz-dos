@@ -7,6 +7,7 @@
 
 extern crate alloc;
 
+pub mod cine;
 pub mod preview;
 pub mod save;
 pub mod shell;

@@ -111,7 +111,7 @@ struct Sprite {
 }
 
 /// The sheet's sprites, read once.
-const MAX_SPRITES: usize = 256;
+const MAX_SPRITES: usize = 320;
 
 fn sheet() -> &'static [Sprite] {
     static mut TABLE: [Sprite; MAX_SPRITES] = [Sprite { w: 0, h: 0, opaque: false, flat: None, pix: &[], unit: (0, 0) }; MAX_SPRITES];
@@ -1019,4 +1019,50 @@ pub fn draw_sprite_ui_lean(frame: &mut [u8], id: usize, x: i32, y: i32, flip: bo
             }
         }
     }
+}
+
+/// One sprite of the opening cinematic, placed in tiles of half the usual size (so the 20 × 12.5 tile screen shows 40 × 25 of them) with
+/// the camera fixed so that the ground, at y = -1.25, is on row 112 of the picture between the bars.
+#[derive(Clone, Copy)]
+pub struct Inst {
+    pub x: f32,
+    pub y: f32,
+    /// The size across and up in tiles, a negative one mirroring.
+    pub sx: f32,
+    pub sy: f32,
+    /// A turn in radians; small ones only (a series for sine and cosine).
+    pub rot: f32,
+    /// 0xRRGGBB: its hue picks the nearest EGA colour and its largest channel the brightness, so a dark blue is a dim blue.
+    pub tint: u32,
+}
+
+/// The size of sprite `id` in pixels (0 by 0 if there is none).
+pub fn sprite_size(id: usize) -> (i32, i32) {
+    sprite(id).map_or((0, 0), |sp| (sp.w as i32, sp.h as i32))
+}
+
+/// Draws one sprite of the cinematic over `frame`, at the brightness its tint gives and without the lighting pass.
+pub fn draw_cine(frame: &mut [u8], id: usize, i: &Inst) {
+    static mut TINTS: TintCache = TintCache { keys: [0xff_ffff; 4], luts: [[0; 16]; 4], next: 0 };
+    let (r, g, b) = ((i.tint >> 16) & 255, (i.tint >> 8) & 255, i.tint & 255);
+    let top = r.max(g).max(b).max(1);
+    let level = (top * 13 + 127) / 255;
+    let hue = if top == 255 { i.tint } else { (r * 255 / top) << 16 | (g * 255 / top) << 8 | (b * 255 / top) };
+    let mark = ((level + 1) << 4) as u8;
+    let (sn, cs) = (i.rot - i.rot * i.rot * i.rot / 6.0, 1.0 - i.rot * i.rot / 2.0);
+    let mut inst = [0.0f32; 20];
+    inst[0] = cs * i.sx;
+    inst[5] = cs * i.sy;
+    if i.rot != 0.0 {
+        inst[1] = sn * i.sx;
+        inst[4] = -sn * i.sy;
+    }
+    inst[12] = i.x;
+    inst[13] = i.y;
+    inst[16] = id as f32;
+    inst[18] = hue as f32;
+    inst[19] = 3.0;
+    // SAFETY: the DOS build has one thread.
+    let (tints, bakes) = unsafe { (&mut *core::ptr::addr_of_mut!(TINTS), &mut *core::ptr::addr_of_mut!(BAKES)) };
+    blit(frame, &inst, (0, -8), tints, bakes, &[mark; 3]);
 }
