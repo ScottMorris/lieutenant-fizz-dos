@@ -8,7 +8,8 @@
 # usage: tools/make-release.sh <version, such as v0.1.0>
 #
 # Run m4/build.sh --no-run first (it writes m4/c/fizz.exe). Needs zip, mkfs.fat (dosfstools), mtools (mcopy, mattrib, mdir), python3 and the DJGPP
-# toolchain in vendor/. File times in the image and the zips are SOURCE_DATE_EPOCH (default: the last commit's time), so the same
+# toolchain in vendor/. One time stamps everything: the files, the zips, the image's files and the image's own creation time (the volume
+# label's) are all SOURCE_DATE_EPOCH (default: the last commit's time) read as UTC, so they agree with each other, and the same
 # tree gives the same files. tools/make-site.sh builds site/game.jsdos, which this copies.
 
 set -euo pipefail
@@ -17,6 +18,9 @@ cd "$(dirname "$0")/.."
 VERSION="${1:?usage: tools/make-release.sh <version, such as v0.1.0>}"
 PLAIN="${VERSION#v}"
 EPOCH="${SOURCE_DATE_EPOCH:-$(git log -1 --format=%ct)}"
+# mkfs.fat reads the time as UTC while mcopy and zip write file times as local time, so a builder's time zone would put the image's creation
+# time hours from its files' and make the same tree give different files in different places.
+export TZ=UTC
 OUT=dist/release
 DISK="$OUT/disk"
 NAME="fizz-dos-$VERSION"
@@ -108,8 +112,9 @@ FILES=(FIZZ.EXE CWSDPMI.EXE CWSDPMI.DOC TONETEST.EXE README.TXT README.RTF CHANG
 (cd "$DISK" && zip -q -X -D "../$NAME-disk.zip" "${FILES[@]}")
 
 IMG="$OUT/$NAME-floppy.img"
-# --invariant fixes the times that mkfs.fat would take from the clock (it reads SOURCE_DATE_EPOCH); -i sets the serial number.
-SOURCE_DATE_EPOCH="$EPOCH" mkfs.fat -C -F 12 -n "$LABEL" --invariant -i "$SERIAL" "$IMG" 1440 >/dev/null
+# The image's creation time is SOURCE_DATE_EPOCH, as the files' times are (mkfs.fat's --invariant would pin it to a constant of its own, in
+# 2015); -i sets the serial number, which mkfs.fat would otherwise take from the time.
+SOURCE_DATE_EPOCH="$EPOCH" mkfs.fat -C -F 12 -n "$LABEL" -i "$SERIAL" "$IMG" 1440 >/dev/null
 (cd "$DISK" && mcopy -m -i "../$NAME-floppy.img" "${FILES[@]}" ::)
 # The hidden file is for whoever lists the disk with `dir /a`.
 mattrib -i "$IMG" +h +r ::COCOA.TXT
@@ -131,6 +136,41 @@ for f in "${FILES[@]}"; do
   mtype -i "$IMG" "::$f" | cmp -s - "$DISK/$f" || { echo "make-release.sh: $f differs on the image" >&2; exit 1; }
 done
 mdir -i "$IMG" -a ::
+
+# The image's creation time (the volume label's entry in the root directory) and every file's times are the one time, SOURCE_DATE_EPOCH.
+python3 -I - "$IMG" "$EPOCH" <<'PY'
+import datetime
+import struct
+import sys
+
+image, epoch = open(sys.argv[1], "rb").read(), int(sys.argv[2])
+bytes_per_sector, reserved, fats, root_entries, per_fat = (struct.unpack_from("<H", image, 11)[0], struct.unpack_from("<H", image, 14)[0],
+                                                          image[16], struct.unpack_from("<H", image, 17)[0], struct.unpack_from("<H", image, 22)[0])
+root = (reserved + fats * per_fat) * bytes_per_sector
+# FAT keeps seconds in twos; the time is the epoch's, cut down to an even second.
+want = datetime.datetime.fromtimestamp(epoch - epoch % 2, datetime.timezone.utc).replace(tzinfo=None)
+
+
+def stamp(date, time):
+    return datetime.datetime(1980 + (date >> 9), (date >> 5) & 15, date & 31, time >> 11, (time >> 5) & 63, (time & 31) * 2)
+
+
+seen = 0
+for i in range(root_entries):
+    entry = image[root + i * 32 : root + i * 32 + 32]
+    if entry[0] == 0:
+        break
+    if entry[0] == 0xE5:
+        continue
+    c_time, c_date, _, _, w_time, w_date = struct.unpack_from("<HHHHHH", entry, 14)
+    for what, when in (("created", stamp(c_date, c_time)), ("written", stamp(w_date, w_time))):
+        if when != want:
+            sys.exit(f"make-release.sh: {entry[:11].decode('latin1').strip()} was {what} {when}, not {want} (SOURCE_DATE_EPOCH)")
+    seen += 1
+if seen < 10:
+    sys.exit(f"make-release.sh: found {seen} entries in the image's root directory, not the label and nine files")
+print(f"the image and its {seen - 1} files are all stamped {want} UTC")
+PY
 
 (cd "$OUT" && sha256sum "$NAME-floppy.img" "$NAME-disk.zip" "$NAME-dosbox.zip" "$NAME-browser.jsdos" > SHA256SUMS)
 rm -rf "$DISK"
