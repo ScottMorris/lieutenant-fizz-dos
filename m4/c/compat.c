@@ -19,21 +19,37 @@ static int fpu_present(void) {
   return (cw & 0x103F) == 0x003F;
 }
 
-void compat_probe(int v[C_COUNT], char cpu[16]) {
+/* The display combination call (INT 10h AX=1A00h) answers 1Ah on a VGA, with BL 7 for a monochrome display and 8 for
+   colour. Without it, the EGA information call (INT 10h AH=12h BL=10h) changes BL on an EGA; failing both, the BIOS
+   equipment word (INT 11h) bits 4-5 say whether the start-up display was colour (01 or 10, a CGA) or monochrome (11, an
+   MDA or Hercules). */
+int compat_video(void) {
   __dpmi_regs r;
-  struct utsname u;
-  memset(v, 0, C_COUNT * sizeof(int));
-  /* Display combination: VGA is 7 (mono) or 8 (colour). */
+  int display;
   memset(&r, 0, sizeof r);
   r.x.ax = 0x1A00;
   __dpmi_int(0x10, &r);
-  v[C_VGA] = r.h.al == 0x1A && (r.h.bl == 7 || r.h.bl == 8);
-  /* EGA information: BL changes from 0x10 when an EGA or VGA is there. */
+  if (r.h.al == 0x1A && r.h.bl == 8) return VIDEO_VGA;
+  if (r.h.al == 0x1A && r.h.bl == 7) return VIDEO_VGA_MONO;
   memset(&r, 0, sizeof r);
   r.h.ah = 0x12;
   r.h.bl = 0x10;
   __dpmi_int(0x10, &r);
-  v[C_EGA] = r.h.bl != 0x10;
+  if (r.h.bl != 0x10) return VIDEO_EGA;
+  memset(&r, 0, sizeof r);
+  __dpmi_int(0x11, &r);
+  display = (r.x.ax >> 4) & 3;
+  if (display == 3) return VIDEO_MDA;
+  if (display != 0) return VIDEO_CGA;
+  return VIDEO_UNKNOWN;
+}
+
+void compat_probe(int v[C_COUNT], char cpu[16]) {
+  __dpmi_regs r;
+  struct utsname u;
+  unsigned long kb;
+  memset(v, 0, C_COUNT * sizeof(int));
+  v[C_VIDEO] = compat_video();
   memset(&r, 0, sizeof r);
   r.x.ax = 0;
   __dpmi_int(0x33, &r);
@@ -42,7 +58,8 @@ void compat_probe(int v[C_COUNT], char cpu[16]) {
   v[C_ADLIB] = snd_detect_opl();
   v[C_BLASTER] = snd_detect_blaster();
   v[C_FPU] = fpu_present();
-  v[C_MEMORY_KB] = (int)(_go32_dpmi_remaining_physical_memory() / 1024UL);
+  kb = _go32_dpmi_remaining_physical_memory() / 1024UL;
+  v[C_MEMORY_KB] = kb > 0x7FFFFFUL ? 0x7FFFFF : (int)kb;
   if (uname(&u) == 0) strncpy(cpu, u.machine, 15); else strcpy(cpu, "x86");
   cpu[15] = 0;
 }

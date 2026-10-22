@@ -231,14 +231,11 @@ pub extern "C" fn fizz_press(on: c_int) {
     video::set_press(on);
 }
 
-/// Draws the start-up screen: `values` is `preview::COUNT` numbers from the C side and `cpu` a C string.
-#[no_mangle]
-pub extern "C" fn fizz_preview(frame: *mut u8, values: *const i32, cpu: *const u8) {
-    let frame = unsafe { core::slice::from_raw_parts_mut(frame, video::W * video::H) };
-    let v = unsafe { core::slice::from_raw_parts(values, preview::COUNT) };
-    let mut name = [0u8; 16];
+/// Reads the processor's name the C side passes: a C string of at most 15 bytes.
+fn cpu_name(cpu: *const u8, name: &mut [u8; 16]) -> &str {
     let mut n = 0;
     while n < 15 {
+        // The C side passes a NUL-terminated string in a 16-byte buffer, so reading up to 15 bytes stays inside it.
         let c = unsafe { *cpu.add(n) };
         if c == 0 {
             break;
@@ -246,7 +243,33 @@ pub extern "C" fn fizz_preview(frame: *mut u8, values: *const i32, cpu: *const u
         name[n] = c;
         n += 1;
     }
-    preview::draw(frame, v, core::str::from_utf8(&name[..n]).unwrap_or("?"));
+    core::str::from_utf8(&name[..n]).unwrap_or("?")
+}
+
+/// Draws the start-up screen: `values` is `preview::COUNT` numbers from the C side and `cpu` a C string.
+#[no_mangle]
+pub extern "C" fn fizz_preview(frame: *mut u8, values: *const i32, cpu: *const u8) {
+    let frame = unsafe { core::slice::from_raw_parts_mut(frame, video::W * video::H) };
+    let v = unsafe { core::slice::from_raw_parts(values, preview::COUNT) };
+    let mut name = [0u8; 16];
+    preview::draw(frame, v, cpu_name(cpu, &mut name));
+}
+
+/// Whether the machine has what the game needs (a VGA, an x87 and enough memory), from the start-up screen's numbers.
+#[no_mangle]
+pub extern "C" fn fizz_preview_ready(values: *const i32) -> c_int {
+    let v = unsafe { core::slice::from_raw_parts(values, preview::COUNT) };
+    c_int::from(preview::ready(v))
+}
+
+/// Writes the start-up screen as text, with colour codes, into `out` (at most `cap` bytes) for a machine that has no VGA
+/// to draw it on; returns the length.
+#[no_mangle]
+pub extern "C" fn fizz_preview_text(values: *const i32, cpu: *const u8, out: *mut u8, cap: u32) -> u32 {
+    let v = unsafe { core::slice::from_raw_parts(values, preview::COUNT) };
+    let out = unsafe { core::slice::from_raw_parts_mut(out, cap as usize) };
+    let mut name = [0u8; 16];
+    preview::text(out, v, cpu_name(cpu, &mut name)) as u32
 }
 
 /// Whether the player chose to leave the game from a menu.
