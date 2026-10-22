@@ -135,6 +135,7 @@ m4/build.sh [--no-run] [level] [ticks]  # build the playable FIZZ.EXE (and run i
 tools/sync-sim.sh [--check]          # regenerate (or check) m2/sim and m2/game from the main game plus m2/patches
 tools/dosrun.sh <dir> "<command>"    # run a DOS program headless in DOSBox
 tools/make-dist.sh                   # pack dist/fizz-dos-demo.zip
+tools/strip-exe.sh <in> <out>        # a stripped, checked copy of a DJGPP executable (what a release and the browser bundle carry)
 tools/make-release.sh <version>      # build a release's files into dist/release/: floppy image, zips, browser bundle, SHA256SUMS
 tools/make-site.sh                   # build the GitHub Pages bundles in site/ for local use (not committed; the live page serves a release's bundle)
 tools/make-share.sh                  # build the link-preview picture site/img/share.png

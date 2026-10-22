@@ -17,7 +17,7 @@ export TZ=UTC # zip writes file times as local time; this keeps the bundle the s
 STAGE="$(mktemp -d "${TMPDIR:-/tmp}/site.XXXXXX")"
 trap 'rm -rf "$STAGE"' EXIT
 mkdir "$STAGE/.jsdos"
-cp m4/c/fizz.exe "$STAGE/FIZZ.EXE"
+tools/strip-exe.sh m4/c/fizz.exe "$STAGE/FIZZ.EXE" # the bundle carries the stripped game; m4/c/fizz.exe keeps its symbols
 cp vendor/cwsdpmi/bin/CWSDPMI.EXE "$STAGE/CWSDPMI.EXE"
 cp vendor/cwsdpmi/bin/cwsdpmi.doc "$STAGE/CWSDPMI.DOC"
 # A test tone for the sound, to run from the DOS prompt after leaving the game (tools/dos/tonetest.c).

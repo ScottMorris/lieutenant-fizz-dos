@@ -1,6 +1,7 @@
 #!/bin/bash
 # Builds the files of a release into dist/release/: a 1.44 MB floppy image, the disk's contents as a zip, the DOSBox demo zip, the
-# browser bundle and SHA256SUMS.
+# browser bundle, a debug zip and SHA256SUMS. The game in all of them is the stripped FIZZ.EXE (tools/strip-exe.sh); the debug zip holds the
+# unstripped one that m4/build.sh wrote, for reading a crash's traceback against.
 #
 # (c) Copyright 2026 Liminal HQ, Scott Morris
 # SPDX-License-Identifier: Apache-2.0 OR MIT
@@ -42,14 +43,15 @@ done
 [ -f m4/c/fizz.exe ] || { echo "make-release.sh: m4/c/fizz.exe is missing (run m4/build.sh --no-run)" >&2; exit 1; }
 [ -f site/game.jsdos ] || { echo "make-release.sh: site/game.jsdos is missing (run tools/make-site.sh)" >&2; exit 1; }
 [ -f vendor/cwsdpmi/bin/CWSDPMI.EXE ] || { echo "make-release.sh: the extender is missing (run tools/setup.sh)" >&2; exit 1; }
-unzip -p site/game.jsdos FIZZ.EXE | cmp -s - m4/c/fizz.exe \
-  || { echo "make-release.sh: site/game.jsdos holds a different FIZZ.EXE (run tools/make-site.sh)" >&2; exit 1; }
 
 rm -rf "$OUT"
 mkdir -p "$DISK"
 
-# The disk: the game, its extender and the test tone, then the documents. Text goes in with DOS line ends and in ASCII.
-cp m4/c/fizz.exe "$DISK/FIZZ.EXE"
+# The disk: the game (stripped), its extender and the test tone, then the documents. Text goes in with DOS line ends and in ASCII.
+tools/strip-exe.sh m4/c/fizz.exe "$DISK/FIZZ.EXE"
+# The browser bundle, which tools/make-site.sh strips the same way, must hold exactly this game.
+unzip -p site/game.jsdos FIZZ.EXE | cmp -s - "$DISK/FIZZ.EXE" \
+  || { echo "make-release.sh: site/game.jsdos holds a different FIZZ.EXE (run tools/make-site.sh)" >&2; exit 1; }
 cp vendor/cwsdpmi/bin/CWSDPMI.EXE "$DISK/CWSDPMI.EXE"
 cp vendor/cwsdpmi/bin/cwsdpmi.doc "$DISK/CWSDPMI.DOC"
 PATH="$PWD/vendor/djgpp/djgpp/bin:$PATH" i586-pc-msdosdjgpp-gcc -O2 -o "$DISK/TONETEST.EXE" tools/dos/tonetest.c
@@ -110,6 +112,14 @@ find "$DISK" -type f -exec touch -d "@$EPOCH" {} +
 FILES=(FIZZ.EXE CWSDPMI.EXE CWSDPMI.DOC TONETEST.EXE README.TXT README.RTF CHANGES.TXT LICENSE.TXT COCOA.TXT)
 
 (cd "$DISK" && zip -q -X -D "../$NAME-disk.zip" "${FILES[@]}")
+
+# The unstripped game, which keeps the symbols a crash's traceback is read against (symify, from DJGPP, run on it).
+DEBUG="$OUT/debug"
+mkdir "$DEBUG"
+cp m4/c/fizz.exe "$DEBUG/FIZZ.EXE"
+touch -d "@$EPOCH" "$DEBUG/FIZZ.EXE"
+(cd "$DEBUG" && zip -q -X -D "../$NAME-debug.zip" FIZZ.EXE)
+rm -rf "$DEBUG"
 
 IMG="$OUT/$NAME-floppy.img"
 # The image's creation time is SOURCE_DATE_EPOCH, as the files' times are (mkfs.fat's --invariant would pin it to a constant of its own, in
@@ -172,6 +182,6 @@ if seen < 10:
 print(f"the image and its {seen - 1} files are all stamped {want} UTC")
 PY
 
-(cd "$OUT" && sha256sum "$NAME-floppy.img" "$NAME-disk.zip" "$NAME-dosbox.zip" "$NAME-browser.jsdos" > SHA256SUMS)
+(cd "$OUT" && sha256sum "$NAME-floppy.img" "$NAME-disk.zip" "$NAME-dosbox.zip" "$NAME-browser.jsdos" "$NAME-debug.zip" > SHA256SUMS)
 rm -rf "$DISK"
 ls -l "$OUT"
