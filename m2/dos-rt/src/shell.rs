@@ -1006,10 +1006,10 @@ fn title_screen(frame: &mut [u8], s: &Shell) {
     ui::dim(frame, 0, 0, W as i32, H as i32, 5);
     let w = ui::text_width(TITLE_WORDS) * TITLE_LOGO_SCALE;
     ui::text_logo(frame, (W as i32 - w) / 2, TITLE_LOGO_Y, TITLE_WORDS, ui::WHITE, ui::RED, TITLE_LOGO_SCALE);
-    // Ben is drawn under the kicker, so his pogo stick goes behind the words as he crosses them.
-    title_ben(frame, s, (W as i32 - w) / 2, w);
     ui::text_centred(frame, W as i32 / 2, 12, TITLE_KICKER, ui::YELLOW);
     ui::text_centred(frame, W as i32 / 2, 56, TITLE_LINE, ui::CYAN);
+    // Ben is drawn over the words, so his pogo stick crosses in front of them.
+    title_ben(frame, s, (W as i32 - w) / 2, w);
     let (items, n) = title_items(s);
     let mut rows: [(&str, &str); 6] = [("", ""); 6];
     for i in 0..n {
