@@ -998,6 +998,30 @@ pub fn draw_sprite_ui_flip(frame: &mut [u8], id: usize, x: i32, y: i32, flip: bo
     }
 }
 
+/// Sprite `id` at full brightness with every pixel `k` pixels square, its top left at (`x`, `y`), mirrored left to right when `flip` is
+/// set. With `white` every pixel but the black ones is drawn white, as a hit flashes.
+pub fn draw_sprite_scaled(frame: &mut [u8], id: usize, x: i32, y: i32, k: i32, flip: bool, white: bool) {
+    let Some(sp) = sprite(id) else {
+        return;
+    };
+    let w = sp.w as i32;
+    for row in 0..sp.h as i32 {
+        let py = y + row * k;
+        if py + k <= 0 || py >= H as i32 {
+            continue;
+        }
+        for col in 0..w {
+            let c = sp.pix[row as usize * sp.w + col as usize];
+            if c == CLEAR_PIX {
+                continue;
+            }
+            let c = if white && c & 15 != 0 { 15 } else { c & 15 };
+            let px = if flip { x + (w - 1 - col) * k } else { x + col * k };
+            crate::ui::fill(frame, px, py, k, k, c);
+        }
+    }
+}
+
 /// `draw_sprite_ui_flip` leaning `rot` radians (small ones; negative leans to the left) about the middle of the sprite's foot.
 pub fn draw_sprite_ui_lean(frame: &mut [u8], id: usize, x: i32, y: i32, flip: bool, rot: f32) {
     let Some(sp) = sprite(id) else {

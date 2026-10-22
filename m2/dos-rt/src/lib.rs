@@ -14,6 +14,7 @@ pub mod save;
 pub mod shell;
 pub mod sound_data;
 pub mod story;
+pub mod titles;
 pub mod ui;
 pub mod ui_data;
 pub mod video;
