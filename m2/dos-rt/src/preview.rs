@@ -40,10 +40,11 @@ pub const VIDEO_VGA: i32 = 5;
 pub const MEMORY_BEST_KB: i32 = 10 * 1024;
 /// The free memory below which the game does not start, in kilobytes. Below `MEMORY_BEST_KB` CWSDPMI pages what does not
 /// fit to its swap file on disk: the game runs, but the start is slow and so is any frame that touches paged-out memory,
-/// and with no swap file (no writable drive) the allocation fails. In DOSBox the game ran that way with `memsize = 4` and
-/// `memsize = 2` (1.3 MB and less free before the start), but DOSBox's disk is the host's and far faster than a real one,
-/// so the floor keeps a margin above that.
-pub const MEMORY_FLOOR_KB: i32 = 2 * 1024;
+/// and with no swap file (no writable drive) the allocation fails. In DOSBox, with sound, the game ran that way with
+/// `memsize = 4` (1.3 MB free before the start); with `memsize = 2` the sound handler met a paged-out page and DOSBox
+/// stopped ("Pagefault didn't correct page"), and with `memsize = 1` the program ended without its report. Those two read
+/// under 1 MB here (the count wraps round, which `compat_probe` reads as none), so 1 MB is where the game stops working.
+pub const MEMORY_FLOOR_KB: i32 = 1024;
 
 const PANEL: u8 = 3;
 const PANEL_EDGE: u8 = 11;
@@ -126,7 +127,7 @@ fn rows(v: &[i32], cpu: &str, mut f: impl FnMut(usize, i32, &str, State)) {
         let _ = write!(line, "{mb} MB free, {} is best", MEMORY_BEST_KB / 1024);
         State::Warn
     } else {
-        let _ = write!(line, "{mb} MB free, needs {}", MEMORY_FLOOR_KB / 1024);
+        let _ = write!(line, "Under {} MB free", MEMORY_FLOOR_KB / 1024);
         State::Needed
     };
     f(3, 2, line.as_str(), state);

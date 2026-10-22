@@ -6,7 +6,7 @@ simulation, written in Rust, runs as a 32-bit DOS program in VGA mode 13h
 (320x200, 256 colours) with AdLib music and effects, or PC-speaker effects.
 
 It is built for a 486 with an x87 maths unit, and needs a VGA and at
-least 2 MB of free memory; with less than 10 MB the DOS extender pages to
+least 1 MB of free memory; with less than 10 MB the DOS extender pages to
 disk, which is slower. It has been run in DOSBox only: nothing has been
 tried on real hardware yet.
 
