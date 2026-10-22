@@ -90,6 +90,7 @@ struct Ids {
     ladder: usize,
     run: [usize; 2],
     stand: usize,
+    climb: [usize; 2],
     planet: usize,
     house: usize,
     big_tree: usize,
@@ -107,7 +108,7 @@ impl Ids {
     /// How many of the sprites the scenes use are not in the sheet.
     fn missing(&self) -> usize {
         let all = [
-            self.star, self.puff, self.fill, self.saucer, self.hill_top, self.ladder, self.run[0], self.run[1], self.stand, self.planet, self.house,
+            self.star, self.puff, self.fill, self.saucer, self.hill_top, self.ladder, self.run[0], self.run[1], self.stand, self.climb[0], self.climb[1], self.planet, self.house,
             self.big_tree, self.moon, self.fence, self.lab_panel, self.console[0], self.console[1], self.blueprint, self.bench, self.pad, self.lamp,
         ];
         all.iter().filter(|&&id| id == usize::MAX).count()
@@ -123,6 +124,7 @@ impl Ids {
             ladder: sprite_id("ladder"),
             run: [sprite_id("ben_run1"), sprite_id("ben_run2")],
             stand: sprite_id("ben_stand"),
+            climb: [sprite_id("ben_climb1"), sprite_id("ben_climb2")],
             planet: sprite_id("planet"),
             house: sprite_id("house"),
             big_tree: sprite_id("bigTree"),
@@ -448,7 +450,14 @@ impl Cine {
             bx = -8.0 + ww * 2.3;
             walk = ww < 2.35;
         }
-        let id = if walk { ids.run[((t * 8.0) as i32 & 1) as usize ^ 1] } else { ids.stand };
+        // He climbs down the ladder with the climb frames (6.7 a second, as on a ladder in play), then walks.
+        let id = if big_t < 2.2 {
+            ids.climb[((big_t * 6.7) as i32 & 1) as usize]
+        } else if walk {
+            ids.run[((t * 8.0) as i32 & 1) as usize ^ 1]
+        } else {
+            ids.stand
+        };
         p!(bx, by, id, D);
     }
 }
