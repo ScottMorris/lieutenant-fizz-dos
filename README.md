@@ -13,7 +13,7 @@
 
 *Lieutenant Fizz — Episode 1: The Cocoa Caper* for MS-DOS. The game's own Rust simulation, from [`liminal-hq/lieutenant-fizz`](https://github.com/liminal-hq/lieutenant-fizz), runs as a 32-bit DOS program in VGA mode 13h (320 × 200, 256 colours) with AdLib music and effects, or PC-speaker effects. It fits a 1.44 MB floppy, runs in DOSBox, and runs in a browser through js-dos.
 
-> **Status:** Episode 1 plays from the title through the overworld and every level, with boss dialogue, saves and options. The simulation matches the web build's exactly (800 checked state hashes). Still missing: the opening cinematic, the ending and credits, and the controls screen. Nothing has run on real hardware yet. [`docs/STATUS.md`](docs/STATUS.md) has the full list, the measured speed and what has not been verified.
+> **Status:** Episode 1 plays from the title through the overworld and every level, with boss dialogue, saves and options. The simulation matches the web build's exactly (800 checked state hashes). The opening, the ending and the credits are in. Nothing has run on real hardware yet. [`docs/STATUS.md`](docs/STATUS.md) has the full list, the measured speed and what has not been verified.
 
 ## Play it
 
