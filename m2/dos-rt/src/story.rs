@@ -5,8 +5,8 @@
 //
 // Both are presentation only and follow the main game's `BeatCursor` and `CreditsRoll`: a scene's text arrives a page at a time, as
 // many of its beats as fit the text box, typed at 83 characters a second; a press completes the page being typed, the next one moves
-// on. The roll scrolls at 40 pixels a second (4 times that while Enter is held down on), stops with the closing card in the middle
-// and waits for a press.
+// on. The roll scrolls at 40 pixels a second; a press of Enter, Jump or Fire switches it to 4 times that and back, and it stops with the
+// closing card in the middle and waits for a press.
 
 use core::fmt::Write;
 
@@ -44,11 +44,13 @@ pub struct Reel {
     first: usize,
     count: usize,
     typed16: u32,
+    /// The characters on the page showing, counted when the page changes.
+    len: u32,
 }
 
 impl Reel {
     pub const fn empty() -> Reel {
-        Reel { scenes: &[], scene: 0, first: 0, count: 0, typed16: 0 }
+        Reel { scenes: &[], scene: 0, first: 0, count: 0, typed16: 0, len: 0 }
     }
 
     /// Begins at the first page of `scenes`.
@@ -58,6 +60,7 @@ impl Reel {
         self.first = 0;
         self.count = self.fit(0);
         self.typed16 = 0;
+        self.len = self.page_chars();
     }
 
     /// The scene number the sequence is at.
@@ -107,20 +110,20 @@ impl Reel {
 
     /// Types a little more of the page.
     pub fn tick(&mut self) {
-        self.typed16 = (self.typed16 + TYPE_STEP).min(self.page_chars() * 16);
+        self.typed16 = (self.typed16 + TYPE_STEP).min(self.len * 16);
     }
 
     /// One press of Enter, Jump or Fire.
     pub fn press(&mut self) -> Press {
-        let len = self.page_chars();
-        if self.typed16 < len * 16 {
-            self.typed16 = len * 16;
+        if self.typed16 < self.len * 16 {
+            self.typed16 = self.len * 16;
             return Press::Complete;
         }
         if self.first + self.count < self.beats().len() {
             self.first += self.count;
             self.count = self.fit(self.first);
             self.typed16 = 0;
+            self.len = self.page_chars();
             return Press::Page;
         }
         if self.scene + 1 < self.scenes.len() {
@@ -128,6 +131,7 @@ impl Reel {
             self.first = 0;
             self.count = self.fit(0);
             self.typed16 = 0;
+            self.len = self.page_chars();
             return Press::Scene;
         }
         Press::End
@@ -159,19 +163,22 @@ impl Reel {
         let text = self.page();
         let typed = (self.typed16 / 16) as usize;
         ui::paragraph_upto(frame, 16, h - 54, TEXT_W, text.as_str(), ui::WHITE, typed);
-        if self.typed16 >= self.page_chars() * 16 && (tick / 20) % 2 == 0 {
+        if self.typed16 >= self.len * 16 && (tick / 20) % 2 == 0 {
             ui::text(frame, w - 16 - ui::text_width("Enter"), h - 14, "Enter", ui::CYAN);
         }
     }
 }
 
-/// Fixed point for the roll's offset: 256 to the pixel. 40 pixels a second at 60 ticks a second.
-const ROLL_STEP: u32 = 40 * 256 / 60;
+/// Fixed point for the roll's offset: 65536 to the pixel, so 40 pixels a second at 60 ticks a second does not lose a fraction a tick.
+const ROLL_ONE: u32 = 65536;
+const ROLL_STEP: u32 = 40 * ROLL_ONE / 60;
 const ROLL_FAST: u32 = 4;
 
 /// The credits roll.
 pub struct Roll {
     offset: u32,
+    /// How far the roll travels to the closing card, found when it starts.
+    total: u32,
     fast: bool,
     /// Ticks since the roll came to rest on the closing card.
     held_for: u32,
@@ -179,21 +186,18 @@ pub struct Roll {
 
 impl Roll {
     pub const fn new() -> Roll {
-        Roll { offset: 0, fast: false, held_for: 0 }
+        Roll { offset: 0, total: 0, fast: false, held_for: 0 }
     }
 
     pub fn start(&mut self) {
-        *self = Roll::new();
-    }
-
-    fn total() -> u32 {
         let (close, _) = walk(None, 0);
-        ((H as i32 / 2 + close + 30).max(0) as u32) * 256
+        *self = Roll::new();
+        self.total = ((H as i32 / 2 + close + 30).max(0) as u32) * ROLL_ONE;
     }
 
     /// Whether the roll has stopped on the closing card.
     pub fn held(&self) -> bool {
-        self.offset >= Self::total()
+        self.offset >= self.total
     }
 
     pub fn tick(&mut self) {
@@ -201,7 +205,7 @@ impl Roll {
             self.held_for += 1;
             return;
         }
-        self.offset = (self.offset + ROLL_STEP * if self.fast { ROLL_FAST } else { 1 }).min(Self::total());
+        self.offset = (self.offset + ROLL_STEP * if self.fast { ROLL_FAST } else { 1 }).min(self.total);
     }
 
     /// A press of Enter, Jump or Fire: speeds the roll up or slows it down; on the closing card it leaves. Returns whether to leave.
@@ -216,10 +220,10 @@ impl Roll {
     pub fn draw(&self, frame: &mut [u8]) {
         let (w, h) = (W as i32, H as i32);
         ui::fill(frame, 0, 0, w, h, ui::BLACK);
-        let (_, ret_y) = walk(Some(frame), (self.offset / 256) as i32);
+        let (_, ret_y) = walk(Some(frame), (self.offset / ROLL_ONE) as i32);
         let hint = if self.held() {
             // The last line comes in once the roll has stopped.
-            let sy = h - (self.offset / 256) as i32 + ret_y;
+            let sy = h - (self.offset / ROLL_ONE) as i32 + ret_y;
             let colour = if self.held_for > 30 { ui::WHITE } else { ui::DARK };
             if self.held_for > 10 {
                 ui::text_centred(frame, w / 2, sy, CREDITS_RETURN, colour);

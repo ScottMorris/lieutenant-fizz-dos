@@ -760,15 +760,17 @@ fn play_tick(s: &mut Shell, edges: u32, sim_held: u32) {
 
     if let Some(card) = s.card {
         s.card_age += 1;
-        if edges & CONFIRM != 0 && s.card_age > CARD_ARM {
+        if edges & CONFIRM != 0 && s.card_age > CARD_ARM && s.fade.is_none() {
             if matches!(card, Card::GameOver(_)) {
                 fade_to(s, Next::NewGame);
+                s.card = None;
             } else if matches!(card, Card::End { .. }) {
+                // The card stays up through the fade, so the ending's song plays until the title takes over.
                 fade_to(s, Next::Title);
             } else {
                 fade_to(s, Next::Map);
+                s.card = None;
             }
-            s.card = None;
         }
         return;
     }
@@ -887,11 +889,14 @@ fn start_ending(s: &mut Shell) {
     s.fade = None;
     s.reel.start(END);
     s.screen = Screen::Ending;
+    s.card_age = 0;
 }
 
 fn ending_tick(s: &mut Shell, edges: u32) {
     s.reel.tick();
-    if edges & (CONFIRM | JUMP | FIRE) != 0 {
+    // The presses that were still going when the sim ended the game must not turn the first page.
+    s.card_age += 1;
+    if edges & (CONFIRM | JUMP | FIRE) != 0 && s.card_age > CARD_ARM {
         match s.reel.press() {
             Press::End => {
                 cue(FX_SELECT);
@@ -980,7 +985,6 @@ pub fn overlay(frame: &mut [u8], cam_px: (i32, i32)) {
                 Screen::Pause => pause_screen(frame, s),
                 Screen::Options(_) => options_screen(frame, s),
                 Screen::Controls(_) => controls_screen(frame),
-                Screen::Ending | Screen::Credits => {}
                 Screen::Slots(kind, _) => slots_screen(frame, s, kind),
                 _ => {}
             }
