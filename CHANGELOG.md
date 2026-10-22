@@ -2,6 +2,13 @@
 
 What changed in each release of Lieutenant Fizz for DOS. A release is a tag `vX.Y.Z`; `tools/make-release.sh` builds its files and `.github/workflows/release.yml` publishes them. The simulation is the main game's and does not change between releases.
 
+## Unreleased
+
+### Changed
+
+- A release updates the page: it serves the release's browser bundle and shows the release's version in its footer, and the game bundles are no longer committed.
+- The floppy image's creation time is the time its files carry. It was fixed at a constant in 2015 by `mkfs.fat --invariant`, while the files were stamped with the build's time. The files, the zips, the image and the browser bundle now all carry the one time (the last commit's, or `SOURCE_DATE_EPOCH`, in UTC), so a build gives the same files in any time zone.
+
 ## 0.2.0 — 2026-10-22
 
 Everything the main game has in Episode 1 is in: the opening titles, the opening story, the ending and credits, the controls screen, quick-save and Ben on the title. Nothing has run on real hardware yet, and the sound has been listened to only in DOSBox and the browser; see `docs/STATUS.md`.

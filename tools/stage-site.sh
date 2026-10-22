@@ -12,6 +12,7 @@
 # working tree for local use, and leaves the footer saying "development build".
 
 set -euo pipefail
+export TZ=UTC # unzip and zip read and write file times as local time; this keeps the comparison bundles' times as the release's
 
 TAG="${1:?usage: tools/stage-site.sh <tag, such as v0.2.0> <the release browser bundle>}"
 BUNDLE="$(realpath -- "${2:?usage: tools/stage-site.sh <tag, such as v0.2.0> <the release browser bundle>}")"
