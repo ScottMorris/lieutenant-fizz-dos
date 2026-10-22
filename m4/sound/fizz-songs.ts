@@ -270,6 +270,8 @@ export type SongDef = {
 	form?: string;
 	/** A hand-laid form (layers arriving section by section) instead of a chosen one. */
 	build?: BuildStep[];
+	/** Sections laid out elsewhere, played as they are. */
+	sections?: Section[];
 };
 
 const fromGame = (
@@ -726,6 +728,17 @@ const TARGET_SECONDS = 60;
 /** Chooses the form whose length lands nearest a minute, and lays out its sections. */
 export function planSong(def: SongDef): Plan {
 	const { track } = def;
+	if (def.sections) {
+		const cycles = def.sections.reduce((total, section) => total + section.cycles, 0);
+		return {
+			def,
+			sections: def.sections,
+			cycles,
+			seconds: (cycles * 240) / track.bpm,
+			bpm: track.bpm,
+			form: def.sections.map((section) => section.name).join(' '),
+		};
+	}
 	if (def.build) {
 		const sections = [
 			...def.build.map((step) =>
