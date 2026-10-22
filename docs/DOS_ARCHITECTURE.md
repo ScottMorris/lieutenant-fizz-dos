@@ -69,7 +69,7 @@ The sound handler's smaller statics (`want_music`, `want_fx`, `spk_*`, `old_acc`
 Reading the state (main program side):
 
 - `kbd_held()` — the game's input bits from what is held now, through `keymap_bits` (`m4/c/keymap.c`): arrows or WASD move, Ctrl or Z jump, Alt or X pogo, Space or C fire, Enter confirm, Esc menu. The bits are the sim's (`IN_*` in `keymap.h`).
-- `kbd_tick_bits()` — what is held **or** latched, for the 16 game keys, and clears those latches. A key pressed and released between two ticks has `keys` clear but `latch` set, so the tick still sees it: a tap shorter than a tick (1/60 s) is never lost.
+- `kbd_tick_bits()` — what is held **or** latched, for the 16 game keys, and clears those latches. A key pressed and released between two ticks has `keys` clear but `latch` set, so the tick still sees it: a tap shorter than a tick (1/60 s) is never lost. It also carries `IN_ANY` (bit 2048) for a key of any kind pressed since the last call: the ISR sets a flag on each new press (never on a repeat, so a key already down does not count), and this clears it. Only the opening titles read it.
 - `kbd_pressed(sc)` — one latched press of a key, cleared on read; used by the main loop for its own keys (PgUp/PgDn change level, R restarts, Backspace goes to the map, N night, M music, E effects) and by the system check.
 - `kbd_down(sc)` — the held state of one key.
 
@@ -285,6 +285,7 @@ All calls are plain `extern "C"` with 32-bit integers, `f32` and raw pointers; t
 | `snd_set_music(on)`, `snd_music_enabled()` | `sound.c` | `shell.rs` | music toggle |
 | `snd_set_fx(on)`, `snd_fx_enabled()` | `sound.c` | `shell.rs` | effects toggle |
 | `snd_have_opl()` | `sound.c` | `shell.rs` | whether an OPL2 was found (offers the device choice) |
+| `snd_current_song()`, `snd_music_clock()` | `sound.c` | `shell.rs` | the song playing, and its clock in 560 Hz ticks since the stream began (through its loops; -1 when nothing plays on the OPL2 or a change of song is waiting for the handler): the opening titles follow it and the idle wait on the title menu counts by it |
 | `snd_fx_device()`, `snd_set_fx_device(dev)` | `sound.c` | `shell.rs` | effects on OPL2 (1) or speaker (2) |
 | `rate_mode()`, `rate_set(mode)`, `rate_active()` | `main.c` | `shell.rs` | frame-rate setting and the rate in use |
 | `detail_mode()`, `detail_set(mode)`, `detail_active()` | `main.c` | `shell.rs` | detail setting and whether low detail is in use |

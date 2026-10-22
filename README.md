@@ -13,7 +13,7 @@
 
 *Lieutenant Fizz — Episode 1: The Cocoa Caper* for MS-DOS. The game's own Rust simulation, from [`liminal-hq/lieutenant-fizz`](https://github.com/liminal-hq/lieutenant-fizz), runs as a 32-bit DOS program in VGA mode 13h (320 × 200, 256 colours) with AdLib music and effects, or PC-speaker effects. It fits a 1.44 MB floppy, runs in DOSBox, and runs in a browser through js-dos.
 
-> **Status:** Episode 1 plays from the title through the overworld and every level, with boss dialogue, saves and options. The simulation matches the web build's exactly (800 checked state hashes). The opening, the ending and the credits are in. Nothing has run on real hardware yet. [`docs/STATUS.md`](docs/STATUS.md) has the full list, the measured speed and what has not been verified.
+> **Status:** Episode 1 plays from the title through the overworld and every level, with boss dialogue, saves and options. The simulation matches the web build's exactly (800 checked state hashes). The opening titles, the opening, the ending and the credits are in. Nothing has run on real hardware yet. [`docs/STATUS.md`](docs/STATUS.md) has the full list, the measured speed and what has not been verified.
 
 ## Play it
 
@@ -21,7 +21,7 @@
 
 **From a release:** [the releases page](https://github.com/ScottMorris/lieutenant-fizz-dos/releases) has a 1.44 MB floppy image (`-floppy.img`, volume label `FIZZ EP1`), the same files as a zip for copying to a real disk or folder (`-disk.zip`), the DOSBox demo (`-dosbox.zip`), the browser bundle (`-browser.jsdos`, for any js-dos 8 player) and `SHA256SUMS`. `CHANGELOG.md` lists what changed. `tools/make-release.sh <version>` builds them.
 
-**In DOSBox:** unpack `dist/fizz-dos-demo.zip` (or build it, below) and run `dosbox --conf DOSBOX.CONF` in the folder. `FIZZ.EXE` starts at a system check in the manner of Keen's — the hardware it found, a speed test of the real renderer and the sound it will use (A AdLib for everything, M music on AdLib with effects on the speaker, P speaker only, O off) — and Enter continues to the title.
+**In DOSBox:** unpack `dist/fizz-dos-demo.zip` (or build it, below) and run `dosbox --conf DOSBOX.CONF` in the folder. `FIZZ.EXE` starts at a system check in the manner of Keen's — the hardware it found, a speed test of the real renderer and the sound it will use (A AdLib for everything, M music on AdLib with effects on the speaker, P speaker only, O off) — and Enter continues to the opening titles (any key skips them) and then the title.
 
 | Key | Action |
 |---|---|
