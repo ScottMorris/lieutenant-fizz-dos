@@ -5,7 +5,7 @@ Where the DOS port stands against the main game (`liminal-hq/lieutenant-fizz`, E
 ## What plays
 
 - **The game:** the title with its attract loop, the overworld, every level in the simulation (0 to 15), the boss fights with their dialogue, lives, score, Fizz ammo and extra lives.
-- **The shell:** a start-up system check (video, input, sound and maths hardware, and a speed test of the real renderer), title, pause, options, load and save lists, a boxed HUD, map prompts, floating caption words, toasts and result cards, with fades between screens.
+- **The shell:** a start-up system check (video, input, sound and maths hardware, and a speed test of the real renderer), title, pause, options, load and save lists, a boxed HUD, map prompts, floating caption words, toasts and result cards, a controls screen (from the title and the pause menu) and a key hint under each menu, with fades between screens.
 - **Saves and options:** progress is written to `AUTO.SAV` on every map visit and to `SLOT1.SAV` to `SLOT4.SAV` from the pause menu. F5 and F9 quick-save and quick-load in `QUICK.SAV`, a slot of its own (the main game writes the newest manual slot instead). Saves are progress-only, which is also the main game's behaviour. The options are written to `FIZZ.CFG`, a separate file, and read at the next start.
 - **Sound:** AdLib (OPL2) music and effects, PC-speaker effects, or the music on AdLib with the effects on the speaker. The music and effects are converted from the main game's Undertone data.
 - **Speed options:** frame rate (auto, 60 Hz, 30 Hz) and detail (auto, high, low) in Options, with command-line overrides.
@@ -15,7 +15,6 @@ Where the DOS port stands against the main game (`liminal-hq/lieutenant-fizz`, E
 
 - The eight-scene opening cinematic, drawn in TypeScript in the main game and not part of the simulation.
 - The ending: the closing panels, the credits roll and the stinger. The port shows result cards but has no ending sequence.
-- The controls screen and the in-game hints.
 - Ben standing on the title wordmark and pogoing across it.
 - Play samples and replays.
 

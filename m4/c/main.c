@@ -200,6 +200,7 @@ int main(int argc, char **argv) {
     if (!strcmp(argv[i], "options")) screen = 2;
     if (!strcmp(argv[i], "load")) screen = 3;
     if (!strcmp(argv[i], "save")) screen = 4;
+    if (!strcmp(argv[i], "controls")) screen = 6;
     if (!strcmp(argv[i], "dialogue")) screen = 5;
     if (!strncmp(argv[i], "loadslot", 8)) screen = 10 + atoi(argv[i] + 8);
     if (!strcmp(argv[i], "preview")) previewshot = 1;

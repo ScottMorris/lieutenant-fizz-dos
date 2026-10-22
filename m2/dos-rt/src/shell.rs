@@ -107,6 +107,7 @@ enum Screen {
     Play,
     Pause,
     Options(Back),
+    Controls(Back),
     Slots(SlotKind, Back),
 }
 
@@ -154,6 +155,7 @@ enum TitleItem {
     New,
     Load,
     Options,
+    Controls,
     Quit,
 }
 
@@ -162,6 +164,7 @@ enum PauseItem {
     Resume,
     Save,
     Options,
+    Controls,
     Map,
     Title,
 }
@@ -278,7 +281,7 @@ pub fn quit_requested() -> bool {
     sh().quit
 }
 
-/// A check: puts a screen up (1 pause, 2 options, 3 load list, 4 save list).
+/// A check: puts a screen up (1 pause, 2 options, 3 load list, 4 save list, 6 controls).
 pub fn show(n: u32) {
     let s = sh();
     s.cursor = 0;
@@ -288,6 +291,7 @@ pub fn show(n: u32) {
         2 => Screen::Options(Back::Pause),
         3 => Screen::Slots(SlotKind::Load, Back::Pause),
         4 => Screen::Slots(SlotKind::Save, Back::Pause),
+        6 => Screen::Controls(Back::Pause),
         n if n >= 10 => {
             // A check: load a slot straight away.
             perform(s, Next::Load((n - 10) as u8));
@@ -445,6 +449,7 @@ pub fn advance(held: u32) {
         Screen::Title => title_tick(s, edges),
         Screen::Pause => pause_tick(s, edges),
         Screen::Options(back) => options_tick(s, edges, back),
+        Screen::Controls(back) => controls_tick(s, edges, back),
         Screen::Slots(kind, back) => slots_tick(s, edges, kind, back),
         Screen::Play => play_tick(s, edges, sim_held),
     }
@@ -474,9 +479,9 @@ fn quick_keys(s: &mut Shell, edges: u32) {
     }
 }
 
-fn title_items(s: &Shell) -> ([TitleItem; 5], usize) {
+fn title_items(s: &Shell) -> ([TitleItem; 6], usize) {
     let any = s.saves.iter().any(Option::is_some);
-    let mut v = [TitleItem::New; 5];
+    let mut v = [TitleItem::New; 6];
     let mut n = 0;
     let mut push = |item| {
         v[n] = item;
@@ -490,6 +495,7 @@ fn title_items(s: &Shell) -> ([TitleItem; 5], usize) {
         push(TitleItem::Load);
     }
     push(TitleItem::Options);
+    push(TitleItem::Controls);
     push(TitleItem::Quit);
     (v, n)
 }
@@ -521,18 +527,22 @@ fn title_tick(s: &mut Shell, edges: u32) {
                 s.screen = Screen::Options(Back::Title);
                 s.cursor = 0;
             }
+            TitleItem::Controls => {
+                s.screen = Screen::Controls(Back::Title);
+                s.cursor = 0;
+            }
             TitleItem::Quit => fade_to(s, Next::Quit),
         }
     }
 }
 
-fn pause_items() -> ([PauseItem; 5], usize) {
-    let mut v = [PauseItem::Resume, PauseItem::Save, PauseItem::Options, PauseItem::Map, PauseItem::Title];
+fn pause_items() -> ([PauseItem; 6], usize) {
+    let mut v = [PauseItem::Resume, PauseItem::Save, PauseItem::Options, PauseItem::Controls, PauseItem::Map, PauseItem::Title];
     if mode() == 3 {
-        (v, 5)
+        (v, 6)
     } else {
-        v[3] = PauseItem::Title;
-        (v, 4)
+        v[4] = PauseItem::Title;
+        (v, 5)
     }
 }
 
@@ -556,6 +566,10 @@ fn pause_tick(s: &mut Shell, edges: u32) {
                     s.screen = Screen::Options(Back::Pause);
                     s.cursor = 0;
                 }
+                PauseItem::Controls => {
+                    s.screen = Screen::Controls(Back::Pause);
+                    s.cursor = 0;
+                }
                 PauseItem::Map => {
                     s.screen = Screen::Play;
                     fade_to(s, Next::Map);
@@ -567,6 +581,19 @@ fn pause_tick(s: &mut Shell, edges: u32) {
             }
         }
         _ => {}
+    }
+}
+
+fn controls_tick(s: &mut Shell, edges: u32, back: Back) {
+    if edges & (MENU_KEY | CONFIRM | JUMP | FIRE) != 0 {
+        cue(FX_BACK);
+        if back == Back::Title {
+            s.screen = Screen::Title;
+            s.cursor = title_items(s).0.iter().position(|i| *i == TitleItem::Controls).unwrap_or(0);
+        } else {
+            s.screen = Screen::Pause;
+            s.cursor = pause_items().0.iter().position(|i| *i == PauseItem::Controls).unwrap_or(0);
+        }
     }
 }
 
@@ -845,6 +872,7 @@ pub fn overlay(frame: &mut [u8], cam_px: (i32, i32)) {
             match s.screen {
                 Screen::Pause => pause_screen(frame, s),
                 Screen::Options(_) => options_screen(frame, s),
+                Screen::Controls(_) => controls_screen(frame),
                 Screen::Slots(kind, _) => slots_screen(frame, s, kind),
                 _ => {}
             }
@@ -913,7 +941,7 @@ fn title_screen(frame: &mut [u8], s: &Shell) {
     ui::text_logo(frame, (W as i32 - w) / 2, 24, TITLE_WORDS, ui::WHITE, ui::RED, 3);
     ui::text_centred(frame, W as i32 / 2, 56, TITLE_LINE, ui::CYAN);
     let (items, n) = title_items(s);
-    let mut rows: [(&str, &str); 5] = [("", ""); 5];
+    let mut rows: [(&str, &str); 6] = [("", ""); 6];
     for i in 0..n {
         rows[i] = (
             match items[i] {
@@ -921,6 +949,7 @@ fn title_screen(frame: &mut [u8], s: &Shell) {
                 TitleItem::New => "New game",
                 TitleItem::Load => "Load game",
                 TitleItem::Options => "Options",
+                TitleItem::Controls => "Controls",
                 TitleItem::Quit => "Quit",
             },
             "",
@@ -934,13 +963,14 @@ fn pause_screen(frame: &mut [u8], s: &Shell) {
     ui::dim(frame, 0, 0, W as i32, H as i32, 7);
     heading(frame, "Paused", 30);
     let (items, n) = pause_items();
-    let mut rows: [(&str, &str); 5] = [("", ""); 5];
+    let mut rows: [(&str, &str); 6] = [("", ""); 6];
     for i in 0..n {
         rows[i] = (
             match items[i] {
                 PauseItem::Resume => "Resume",
                 PauseItem::Save => "Save game",
                 PauseItem::Options => "Options",
+                PauseItem::Controls => "Controls",
                 PauseItem::Map => "Back to the map",
                 PauseItem::Title => "Quit to title",
             },
@@ -948,6 +978,32 @@ fn pause_screen(frame: &mut [u8], s: &Shell) {
         );
     }
     plate_rows(frame, 70, 66, 180, &rows[..n], s.cursor, s.tick);
+    ui::text_centred(frame, W as i32 / 2, 188, "Up and Down choose, Enter selects, Esc resumes", ui::GREY);
+}
+
+/// The keys, as the C side's key map reads them: both schemes work at once.
+const CONTROLS: [(&str, &str); 8] = [
+    ("Move", "Arrows or A and D"),
+    ("Aim Fizz", "Up and Down, or W and S"),
+    ("Jump", "Ctrl or Z"),
+    ("Pogo (toggle)", "Alt or X"),
+    ("Fizz", "Space or C"),
+    ("Menu, and back", "Esc"),
+    ("Choose in a menu", "Enter"),
+    ("Quick-save, quick-load", "F5, F9"),
+];
+
+fn controls_screen(frame: &mut [u8]) {
+    ui::dim(frame, 0, 0, W as i32, H as i32, 11);
+    heading(frame, "Controls", 14);
+    let (x, w) = (20, W as i32 - 40);
+    for (i, (action, keys)) in CONTROLS.iter().enumerate() {
+        let y = 44 + i as i32 * 14;
+        ui::text(frame, x, y, action, ui::WHITE);
+        ui::text(frame, x + w - ui::text_width(keys), y, keys, ui::CYAN);
+    }
+    ui::paragraph(frame, x, 44 + CONTROLS.len() as i32 * 14 + 8, w, "Hold jump while pogoing for a high bounce. Aim Fizz up with Up, or down with Down in the air.", ui::GREY);
+    ui::text_centred(frame, W as i32 / 2, 188, "Enter or Esc goes back", ui::GREY);
 }
 
 fn options_screen(frame: &mut [u8], s: &Shell) {
@@ -982,6 +1038,7 @@ fn options_screen(frame: &mut [u8], s: &Shell) {
         };
     }
     plate_rows(frame, 50, 66, 220, &rows[..n], s.cursor, s.tick);
+    ui::text_centred(frame, W as i32 / 2, 188, "Up and Down choose, Left and Right change, Esc goes back", ui::GREY);
 }
 
 fn slots_screen(frame: &mut [u8], s: &Shell, kind: SlotKind) {
@@ -1015,6 +1072,7 @@ fn slots_screen(frame: &mut [u8], s: &Shell, kind: SlotKind) {
     }
     rows[count] = ("Back", "");
     plate_rows(frame, 15, 40, 290, &rows[..=count], s.cursor, s.tick);
+    ui::text_centred(frame, W as i32 / 2, 172, "Up and Down choose, Enter selects, Esc goes back", ui::GREY);
     match s.note {
         Some((1, slot, _)) => {
             let mut b = Buf::new();
