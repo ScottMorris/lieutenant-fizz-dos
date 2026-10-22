@@ -8,7 +8,8 @@
 //
 // Environment: NOCOUNT=1 runs without the instruction counter, SCENE=<word> runs only the scenes whose name holds it, TICKONLY=1
 // steps the sim without drawing, DUMP=<dir> writes each scene's last frame, LOW=1 draws at low detail, HIST=1 lists the sprites
-// that cover the most pixels. Where the counter is not allowed (a virtual machine), `valgrind --tool=callgrind` counts the
+// that cover the most pixels, TITLES_DUMP=<file> writes every tick of one pass of the opening titles (768 frames) for
+// `bun m4/check-titles.ts --dump <file>`. Where the counter is not allowed (a virtual machine), `valgrind --tool=callgrind` counts the
 // instructions instead; see docs/PERFORMANCE.md.
 
 #![allow(dead_code)]
@@ -27,6 +28,8 @@ mod shell;
 mod sound_data;
 #[path = "../../../m2/dos-rt/src/story.rs"]
 mod story;
+#[path = "../../../m2/dos-rt/src/titles.rs"]
+mod titles;
 #[path = "../../../m2/dos-rt/src/ui.rs"]
 mod ui;
 #[path = "../../../m2/dos-rt/src/ui_data.rs"]
@@ -159,6 +162,11 @@ fn hook(stage: u8) {
 const NAMES: [&str; 10] = ["", "sim render", "", "lights", "clear", "sprites", "shade", "overlay", "sim step", "events"];
 
 fn scene(name: &str, level: u32, night: bool, script: fn(u32) -> u32, frames: u32) {
+    scene_on(name, level, 0, night, script, frames);
+}
+
+/// `scene`, with a screen put up after the start (`shell::show`'s number; 0 for none).
+fn scene_on(name: &str, level: u32, show: u32, night: bool, script: fn(u32) -> u32, frames: u32) {
     // SCENE=<word> runs only the scenes whose name contains it (for a profiler, which wants one scene at a time).
     if std::env::var("SCENE").is_ok_and(|s| !name.contains(s.as_str())) {
         return;
@@ -166,6 +174,9 @@ fn scene(name: &str, level: u32, night: bool, script: fn(u32) -> u32, frames: u3
     video::set_night(night);
     video::set_low_detail(std::env::var("LOW").is_ok());
     video::start(level);
+    if show != 0 {
+        shell::show(show);
+    }
     let mut frame = vec![0u8; video::W * video::H];
     // Settle: a few ticks and one frame, so the first frame's set-up is not counted.
     for t in 0..120 {
@@ -227,6 +238,29 @@ fn walk(t: u32) -> u32 {
     video::scripted_input(t)
 }
 
+fn no_keys(_: u32) -> u32 {
+    0
+}
+
+/// Every tick of one pass of the opening titles, through the shell and the renderer as the game draws them: tick n is the frame after
+/// n ticks, the first drawn before any.
+fn titles_dump(file: &str) {
+    video::start(video::TITLE);
+    shell::show(200);
+    let mut frame = vec![0u8; video::W * video::H];
+    let mut all = Vec::with_capacity(frame.len() * titles::LOOP as usize);
+    for n in 0..titles::LOOP {
+        if n > 0 {
+            shell::advance(0);
+        }
+        let count = video::build(1.0);
+        video::paint(&mut frame, count);
+        all.extend_from_slice(&frame);
+    }
+    std::fs::write(file, &all).expect("could not write the titles' frames");
+    println!("wrote {} ticks of the titles to {file}", titles::LOOP);
+}
+
 /// Pause on the map with Ben standing on a level, choose Resume with Enter and keep it down: the game must not take that as
 /// "enter the level". Prints the game's mode (2 map, 3 level) before and after.
 fn pause_resume_test() {
@@ -267,6 +301,10 @@ fn main() {
         pause_resume_test();
         return;
     }
+    if let Ok(file) = std::env::var("TITLES_DUMP") {
+        titles_dump(&file);
+        return;
+    }
     let frames: u32 = std::env::args().nth(1).and_then(|a| a.parse().ok()).unwrap_or(300);
     // NOCOUNT=1 skips the instruction counter (a CI runner may not allow it) and only prints the frame checksums.
     if std::env::var("NOCOUNT").is_err() {
@@ -283,4 +321,5 @@ fn main() {
     scene("level 1 (cave)", 1, false, walk, frames);
     scene("level 1 (cave, night)", 1, true, walk, frames);
     scene("level 9 (theatre)", 9, false, walk, frames);
+    scene_on("titles", video::TITLE, 200, false, no_keys, frames);
 }
