@@ -255,6 +255,8 @@ fn pause_resume_test() {
 }
 
 fn main() {
+    // The opening cinematic's sprite names must all be in the sheet (a name that drifts from the export would draw nothing).
+    assert_eq!(cine::missing_sprites(), 0, "a sprite of the cinematic is not in the sheet");
     if std::env::var("PAUSETEST").is_ok() {
         pause_resume_test();
         return;

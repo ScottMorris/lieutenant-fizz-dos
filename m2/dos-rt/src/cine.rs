@@ -5,7 +5,8 @@
 //
 // A port of the main game's `cine.ts`. The scenes are the same sprites in the same places, drawn at half the usual tile size so the
 // 320 × 200 screen shows 40 × 25 tiles, through `video::draw_cine`: hue picks the nearest EGA colour and brightness a palette level, so
-// the dark blues of the night are dim blues. Alpha is a threshold (a sprite under half is left out), and the lighting pass is not run.
+// the dark blues of the night are dim blues. Alpha is a threshold (a sprite under half is left out), so the main game's faint glows (the
+// window, the tree, the lamp, the exhaust's halo) are left out, and the lighting pass is not run.
 
 use crate::video::{self, Inst};
 
@@ -15,8 +16,6 @@ const GROUND: f32 = -2.5;
 const STARS: usize = 260;
 const PUFFS: usize = 32;
 const DT: f32 = 1.0 / 60.0;
-/// The sprites the sim never draws, which `m3/export-sprites.ts` puts after its own.
-const EXTRA: [&str; 12] = ["planet", "house", "bigTree", "moon", "fence", "labPanel", "console0", "console1", "blueprint", "bench", "pad", "lamp"];
 
 /// A deterministic hash in [0, 1), the sim's `hashf`.
 fn hashf(x: i32, y: i32) -> f32 {
@@ -46,13 +45,9 @@ fn sin(x: f32) -> f32 {
     sign * 16.0 * a * (PI - a) / (5.0 * PI * PI - 4.0 * a * (PI - a))
 }
 
+/// The sheet id of a sprite, or `usize::MAX` for a name the sheet lacks, which `put` leaves out.
 fn sprite_id(name: &str) -> usize {
-    let names = lf_episode_1::sprites::SPRITE_NAMES;
-    names
-        .iter()
-        .position(|n| *n == name)
-        .or_else(|| EXTRA.iter().position(|n| *n == name).map(|i| names.len() + i))
-        .unwrap_or(0)
+    video::sprite_by_name(name).unwrap_or(usize::MAX)
 }
 
 #[derive(Clone, Copy)]
@@ -109,6 +104,15 @@ struct Ids {
 }
 
 impl Ids {
+    /// How many of the sprites the scenes use are not in the sheet.
+    fn missing(&self) -> usize {
+        let all = [
+            self.star, self.puff, self.fill, self.saucer, self.hill_top, self.ladder, self.run[0], self.run[1], self.stand, self.planet, self.house,
+            self.big_tree, self.moon, self.fence, self.lab_panel, self.console[0], self.console[1], self.blueprint, self.bench, self.pad, self.lamp,
+        ];
+        all.iter().filter(|&&id| id == usize::MAX).count()
+    }
+
     fn find() -> Ids {
         Ids {
             star: sprite_id("star"),
@@ -132,6 +136,11 @@ impl Ids {
             lamp: sprite_id("lamp"),
         }
     }
+}
+
+/// How many sprites of the scenes the sheet lacks: 0 unless the export and the lists have drifted apart (the bench checks it).
+pub fn missing_sprites() -> usize {
+    Ids::find().missing()
 }
 
 pub struct Cine {
@@ -292,6 +301,9 @@ impl Cine {
             return;
         }
         let (w, h) = video::sprite_size(id);
+        if w == 0 {
+            return;
+        }
         let sx = w as f32 / 16.0 * o.s * o.sx * if o.flip { -1.0 } else { 1.0 } * Z;
         let sy = h as f32 / 16.0 * o.s * o.sy * Z;
         video::draw_cine(f, id, &Inst { x: x * Z, y: (y - oy) * Z, sx, sy, rot: o.rot, tint: o.tint });
@@ -358,15 +370,11 @@ impl Cine {
         }
         p!(0.0, g + 0.2, fl, Opt { sx: 40.0, sy: 0.42, tint: 0x1b_1638, ..D });
         p!(-8.2, g + 1.75, ids.house, Opt { s: 1.4, tint: 0x8a_90bb, ..D });
-        p!(-9.1, g + 1.3, ids.puff, Opt { s: 1.8, alpha: 0.2, tint: 0xff_d866, ..D });
         for i in 0..44 {
             p!(i as f32 - 21.5, g + 0.5, ids.fence, Opt { tint: 0x5e_6490, ..D });
         }
         p!(6.0, g + 3.75, ids.big_tree, Opt { s: 1.5, tint: 0x9a_a2cc, ..D });
-        p!(5.16, g + 4.5, ids.puff, Opt { s: 2.0, alpha: 0.2, tint: 0xff_d866, ..D });
         if !launch {
-            p!(6.0, g + 0.45, ids.puff, Opt { s: 1.3 + 0.15 * sin(t * 3.0), alpha: 0.4, tint: 0xff_cc44, ..D });
-            p!(6.0, g + 1.4, fl, Opt { sx: 0.5, sy: 1.8, alpha: 0.1, tint: 0xff_dd88, ..D });
         }
         macro_rules! saucer {
             () => {
@@ -381,7 +389,6 @@ impl Cine {
         let k = if launch { (big_t / 1.2).min(1.0) } else { 0.0 };
         if k > 0.0 {
             p!(0.0, g - 0.08, fl, Opt { sx: 2.6 * k, sy: 0.2, tint: 0x00_0000, ..D });
-            p!(0.0, g + 0.15, ids.puff, Opt { s: 2.2 * k, alpha: 0.35 * k, tint: 0x55_ffff, ..D });
         }
         p!(-0.65 - k * 1.3, g - 0.04, fl, Opt { sx: 1.3, sy: 0.14, tint: 0x88_88aa, ..D });
         p!(0.65 + k * 1.3, g - 0.04, fl, Opt { sx: 1.3, sy: 0.14, tint: 0x88_88aa, ..D });
@@ -433,7 +440,6 @@ impl Cine {
         p!(0.0, g - 4.0, fl, Opt { sx: 40.0, sy: 8.0, tint: 0x22_223a, ..D });
         p!(0.0, g - 0.06, fl, Opt { sx: 40.0, sy: 0.14, tint: 0x9a_9ac0, ..D });
         p!(-1.0, g + 0.5, ids.bench, D);
-        p!(-1.22, g + 0.78, ids.puff, Opt { s: 0.9 + 0.15 * sin(t * 4.0), alpha: 0.35, tint: 0xff_ff88, ..D });
         let (mut bx, mut by, mut walk) = (-8.0, g + 0.75, false);
         if big_t < 2.2 {
             by = 4.0 + (g + 0.75 - 4.0) * (big_t / 2.2);

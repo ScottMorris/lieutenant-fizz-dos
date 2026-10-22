@@ -152,6 +152,8 @@ enum Next {
     NewGame,
     /// A new game from the title: the opening cinematic, then the map.
     Opening,
+    /// The cinematic is over or was skipped: the map, with a word about where to start.
+    OpeningEnd,
     Map,
     Quit,
     Load(u8),
@@ -469,6 +471,7 @@ fn perform(s: &mut Shell, then: Next) {
             s.played = 0;
             start_opening(s);
         }
+        Next::OpeningEnd => leave_opening(s),
         Next::Map => to_map(s),
         Next::Quit => s.quit = true,
         Next::Load(slot) => {
@@ -977,6 +980,7 @@ fn leave_opening(s: &mut Shell) {
     s.cine = None;
     s.screen = Screen::Play;
     to_map(s);
+    // The main game's words for the same moment (`skipCine` in game.ts), which it does not keep as data.
     s.hint = Some(("Find Billy. Start at the Crater Fields, along the path to the east.", 360));
 }
 
@@ -987,7 +991,7 @@ fn opening_tick(s: &mut Shell, edges: u32) {
     }
     if edges & MENU_KEY != 0 {
         cue(FX_BACK);
-        leave_opening(s);
+        fade_to(s, Next::OpeningEnd);
         return;
     }
     if edges & (CONFIRM | JUMP | FIRE) != 0 {
@@ -995,7 +999,7 @@ fn opening_tick(s: &mut Shell, edges: u32) {
         match s.reel.press() {
             Press::End => {
                 cue(FX_SELECT);
-                leave_opening(s);
+                fade_to(s, Next::OpeningEnd);
                 return;
             }
             Press::Complete => {}
@@ -1018,7 +1022,8 @@ pub fn music_key() -> u32 {
     let s = sh();
     match (s.screen, s.card) {
         (Screen::Ending | Screen::Credits, _) | (_, Some(Card::End { .. })) => 1,
-        // The yard, the lab, the liftoff and the flight: the main game's `CINE_TRACK`.
+        // The yard, the lab, the liftoff and the flight: the main game's `CINE_TRACK`, as positions in the extra songs that
+        // `m4/export-sound.ts` writes after the ending (1: ending, 2 yard, 3 lab, 4 launch, 5 cine).
         (Screen::Opening, _) => [2, 3, 4, 4, 5, 5, 5, 5][s.reel.scene().min(7)],
         _ => 0,
     }
