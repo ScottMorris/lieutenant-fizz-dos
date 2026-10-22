@@ -6,7 +6,7 @@ What changed in each release of Lieutenant Fizz for DOS. A release is a tag `vX.
 
 ### Added
 
-- Opening titles: Liminal HQ presents, the *Lieutenant Fizz* wordmark and a chase, with a new score. They play when the game starts, any key skips them, and they come back for two loops when the title menu has sat untouched for four loops of its song.
+- Opening titles: Liminal HQ presents, the *Lieutenant Fizz* wordmark and a chase, with a new score. They play when the game starts, any key skips them, and they come back for two loops when the title menu has sat untouched for two loops of its song.
 - `fx`, a small module of screen effects (fades, a flash, easings and tweens in fixed point, a cue timeline) that the titles use and the shell's fades now run on.
 - A music clock in the sound driver, an any-key input bit, and `FIZZ.EXE soundtestN` to play any extra song headless.
 

@@ -341,10 +341,10 @@ fn flow_test() {
     run(30);
     check("the titles run while nothing is pressed", shell::on_titles());
 
-    // The wait: four loops of the title's song, 14800 ticks of the menu without music (the tick that ends its fade-in does not count), then a fade and the titles for two loops.
+    // The wait: two loops of the title's song, 7394 ticks of the menu without music (the tick that ends its fade-in does not count), then a fade and the titles for two loops.
     video::start(video::TITLE);
-    run(14798);
-    check("the menu waits 14798 ticks", shell::on_title());
+    run(7392);
+    check("the menu waits 7392 ticks", shell::on_title());
     run(1 + 14);
     check("the titles are back once the wait and the fade are over", shell::on_titles());
     run(1535);
@@ -354,12 +354,12 @@ fn flow_test() {
 
     // A key on the menu starts the wait again.
     video::start(video::TITLE);
-    run(14000);
+    run(7000);
     shell::advance(ANY);
-    run(14000);
-    check("a key 14000 ticks in sets the wait back", shell::on_title());
+    run(7000);
+    check("a key 7000 ticks in sets the wait back", shell::on_title());
     run(1000);
-    check("and the titles come 14800 ticks after it", shell::on_titles());
+    check("and the titles come 7394 ticks after it", shell::on_titles());
 
     if bad == 0 {
         println!("flow ok");

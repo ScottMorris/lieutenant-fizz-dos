@@ -219,7 +219,7 @@ enum OptionItem {
 const FADE_TICKS: u32 = 12;
 /// How long the title menu can sit untouched before the opening titles play again, in loops of the title's song, and how many loops of the
 /// titles then play.
-const IDLE_LOOPS: i64 = 4;
+const IDLE_LOOPS: i64 = 2;
 const REWATCH_LOOPS: u8 = 2;
 /// The attract loop shows each of the title's three levels in turn.
 const ATTRACT_LEVELS: u32 = 3;
