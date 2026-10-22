@@ -41,7 +41,7 @@ const MOTION = {
   enter: (s: number, e: number, a: number, b: number) => animate({ from: a, to: b, start: s, end: e, ease: Easing.easeOutBack }),
   slide: (s: number, e: number, a: number, b: number) => animate({ from: a, to: b, start: s, end: e, ease: Easing.easeInOutCubic }),
 };
-const rnd = (i: number) => {
+export const rnd = (i: number) => {
   const x = Math.sin(i * 127.1 + 311.7) * 43758.5453;
   return x - Math.floor(x);
 };
@@ -60,7 +60,7 @@ for (const n of ['ben_shoot', 'bat0', 'bat1', 'gloop0', 'gloop1', 'phantom0', 'p
 const sheetName = (name: string) => (name === 'ben_shoot' ? name : name.replace(/0_(\d)$/, '$1'));
 
 // The Pen effects from enemies.ts: bubble() and stars(f).
-const BUBBLE: Pic = (() => {
+export const BUBBLE: Pic = (() => {
   const g = Array(64).fill('.');
   const ell = (cx: number, cy: number, r: number, c: string) => {
     for (let j = 0; j < 8; j++)
