@@ -23,6 +23,8 @@ mod preview;
 mod save;
 #[path = "../../../m2/dos-rt/src/shell.rs"]
 mod shell;
+#[path = "../../../m2/dos-rt/src/sound_data.rs"]
+mod sound_data;
 #[path = "../../../m2/dos-rt/src/story.rs"]
 mod story;
 #[path = "../../../m2/dos-rt/src/ui.rs"]
@@ -259,6 +261,7 @@ fn pause_resume_test() {
 fn main() {
     // The opening cinematic's sprite names must all be in the sheet (a name that drifts from the export would draw nothing).
     assert_eq!(cine::missing_sprites(), 0, "a sprite of the cinematic is not in the sheet");
+    assert!(sound_data::self_check(), "the sound data lacks the titles' song or a song is not the length the pictures expect");
     assert!(fx::self_check(), "an easing or a tween is off");
     if std::env::var("PAUSETEST").is_ok() {
         pause_resume_test();

@@ -12,6 +12,7 @@ pub mod fx;
 pub mod preview;
 pub mod save;
 pub mod shell;
+pub mod sound_data;
 pub mod story;
 pub mod ui;
 pub mod ui_data;
@@ -200,17 +201,15 @@ pub extern "C" fn fizz_boss_hp() -> u32 {
     video::boss_hp()
 }
 
-static SOUND: &[u8] = include_bytes!("../../../m4/assets/sound.bin");
-
 /// The sound data (songs, effects and the tables that choose them) for the C driver.
 #[no_mangle]
 pub extern "C" fn fizz_sound_data() -> *const u8 {
-    SOUND.as_ptr()
+    sound_data::SOUND.as_ptr()
 }
 
 #[no_mangle]
 pub extern "C" fn fizz_sound_len() -> usize {
-    SOUND.len()
+    sound_data::SOUND.len()
 }
 
 /// The sim's mode: 0 none, 1 attract, 2 map, 3 level.
