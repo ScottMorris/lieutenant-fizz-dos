@@ -172,8 +172,30 @@ const BK = 3;
 
 type Hit = { s: string; at: number };
 
+/** What `draw` worked out for a tick, for the generator to bake: the values the runtime cannot cheaply reproduce. */
+export type Probe = {
+  /** The brightness level (6..14) of each of the 46 stars. */
+  twinkle: number[];
+  /** Where each of the five rows of words starts (rounded), and their level. */
+  rowX: number[];
+  rowL: number;
+  /** The ground's top. */
+  gy: number;
+  /** Ben: whether he is drawn, his sprite's top left, and the width of his shadow. */
+  ben: { on: boolean; x: number; y: number; shadow: number };
+  /** The enemies in the order they are drawn, as the sprite is placed. */
+  enemies: { x: number; y: number; w: number; h: number; frame: number; stunned: boolean; white: boolean; stars: number }[];
+  /** The bubbles in flight: the sprite's top left and its scale. */
+  bubbles: { x: number; y: number; scale: number }[];
+  /** Every shot Ben takes that is not held back: when it leaves, and when and what it hits. */
+  shots: { fired: number; hit?: { s: string; at: number }; mx: number; my: number }[];
+};
+
+/** A probe with nothing in it yet. */
+export const newProbe = (): Probe => ({ twinkle: [], rowX: [], rowL: 0, gy: 0, ben: { on: false, x: 0, y: 0, shadow: 0 }, enemies: [], bubbles: [], shots: [] });
+
 /** Draws the scene at time `T` seconds into `fb`; returns the fade's steps and whether the flash is on. */
-export function draw(T: number): { flash: boolean; steps: number } {
+export function draw(T: number, probe?: Probe): { flash: boolean; steps: number } {
   const total = TOTAL;
   fb.fill(16); // black at level 1
   const Pr = P;
@@ -185,6 +207,7 @@ export function draw(T: number): { flash: boolean; steps: number } {
     const x = ((((rnd(i) * 330 - T * (3 + (i % 3) * 3)) % 330) + 330) % 330) - 5;
     const L = 6 + ri(8 * Math.abs(Math.sin(T * (1 + rnd(i + 3) * 2) + i)));
     put(x, rnd(i + 1) * 170, CI[['W', 'c', 'y', 'm', 'b'][i % 5]!]!, L);
+    if (probe) probe.twinkle[i] = L;
   }
 
   // Lieutenant / Fizz rows drifting left and right, dim (low brightness levels).
@@ -196,10 +219,12 @@ export function draw(T: number): { flash: boolean; steps: number } {
     const travel = (T * (26 + i * 6) + boost * (1 + i * 0.2)) * dir;
     const base = dir < 0 ? -20 - i * 50 : -900 + i * 40;
     glyphs(base + travel, 2 + i * 40, Array(8).fill(w).join('  '), dir < 0 ? CI.b! : CI.m!, 5, Math.max(1, rowL));
+    if (probe) (probe.rowX[i] = ri(base + travel)), (probe.rowL = Math.max(1, rowL));
   }
 
   // ground + chase
   const gy = ri(GROUND + MOTION.slide(C + 0.1, C + 0.7, 30, 0)(T));
+  if (probe) probe.gy = gy;
   if (gy < SH) {
     fill(0, gy, SW, SH - gy, CI.M!, 9);
     for (let i = 0; i < 90; i++) {
@@ -341,6 +366,7 @@ export function draw(T: number): { flash: boolean; steps: number } {
         if (bx - 4 <= p.x + p.w && bx + 4 >= p.x && my + 3 >= p.y && my - 3 <= p.y + p.h) hit = { s: e.s, at: t0 + a };
       });
     }
+    if (probe) probe.shots.push({ fired: t0, hit: hit ?? undefined, mx, my });
     if (hit) {
       hits.push(hit);
       continue;
@@ -348,7 +374,10 @@ export function draw(T: number): { flash: boolean; steps: number } {
     const bx = mx - 4 - SPEED * age;
     if (bx >= -10) live.push([bx, my, age]);
   }
-  live.forEach(([bx, my, age]) => sprite('bubble', bx - 4, my - 4, age < 0.05 ? 1 : 2));
+  live.forEach(([bx, my, age]) => {
+    sprite('bubble', bx - 4, my - 4, age < 0.05 ? 1 : 2);
+    if (probe) probe.bubbles.push({ x: ri(bx - 4), y: ri(my - 4), scale: age < 0.05 ? 1 : 2 });
+  });
 
   const order = ENEMIES.map((_, j) => j).sort((a, b) => (ENEMIES[a]!.slide ? 1 : 0) - (ENEMIES[b]!.slide ? 1 : 0));
   order.forEach((j) => {
@@ -359,8 +388,11 @@ export function draw(T: number): { flash: boolean; steps: number } {
     const f = p.st ? 0 : Math.floor((T + e.ph) * 6) % 2;
     sprite(`${e.s}_${f}`, p.x, p.y, EK, false, since !== undefined && since < 0.08);
     if (p.st) stars(Math.floor(T * 8) % 3, p.x + (p.w >> 1) - 8, p.y - 8);
+    if (probe)
+      probe.enemies.push({ x: ri(p.x), y: ri(p.y), w: p.w, h: p.h, frame: f, stunned: !!p.st, white: since !== undefined && since < 0.08, stars: Math.floor(T * 8) % 3 });
   });
 
+  if (probe) probe.ben = { on: T > C + 0.25, x: benX, y: benY, shadow: bw - 12 - ri(run * 8) };
   if (T > C + 0.25) {
     fill(benX + 6, gy - 1, bw - 12 - ri(run * 8), 2, CI.k!, 1);
     sprite('ben_shoot', benX, benY, BK, true);
