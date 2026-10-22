@@ -216,6 +216,7 @@ int main(int argc, char **argv) {
     if (!strcmp(argv[i], "controls")) screen = 6;
     if (!strcmp(argv[i], "ending")) screen = 7;
     if (!strcmp(argv[i], "credits")) screen = 8;
+    if (!strcmp(argv[i], "endcard")) screen = 9;
     if (!strcmp(argv[i], "dialogue")) screen = 5;
     if (!strncmp(argv[i], "loadslot", 8)) screen = 10 + atoi(argv[i] + 8);
     if (!strcmp(argv[i], "preview")) previewshot = 1;

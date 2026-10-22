@@ -312,7 +312,7 @@ pub fn quit_requested() -> bool {
     sh().quit
 }
 
-/// A check: puts a screen up (1 pause, 2 options, 3 load list, 4 save list, 6 controls, 7 the ending, 8 the credits).
+/// A check: puts a screen up (1 pause, 2 options, 3 load list, 4 save list, 6 controls, 7 the ending, 8 the credits, 9 the end card).
 pub fn show(n: u32) {
     let s = sh();
     s.cursor = 0;
@@ -330,6 +330,11 @@ pub fn show(n: u32) {
         8 => {
             s.roll.start();
             s.screen = Screen::Credits;
+            return;
+        }
+        9 => {
+            s.screen = Screen::Play;
+            s.card = Some(Card::End { score: 1234, lives: 1 });
             return;
         }
         n if n >= 10 => {
