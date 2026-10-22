@@ -10,7 +10,7 @@
    PgUp and PgDn change level, R restarts it, Backspace goes back to the map, N toggles night, M music, E effects, Esc pauses
    (and goes back in a menu; Quit to title, then Quit, leaves).
    With ticks it runs a scripted walk for that many ticks and, with "shot", writes FRAME.RAW (64000 bytes) and PAL.RAW
-   (256 x RGB, 6-bit) at the end. "soundtest" plays the title song for a few seconds headless and reports what the driver did; "soundtestN" plays extra song N (0 is the ending, 5 the opening titles). */
+   (256 x RGB, 6-bit) at the end; "titles" puts the opening titles up first, so FRAME.RAW after N ticks is their tick N. "soundtest" plays the title song for a few seconds headless and reports what the driver did; "soundtestN" plays extra song N (0 is the ending, 5 the opening titles). */
 #include <conio.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -219,6 +219,7 @@ int main(int argc, char **argv) {
     if (!strcmp(argv[i], "endcard")) screen = 9;
     if (!strncmp(argv[i], "cine", 4)) screen = 100 + atoi(argv[i] + 4);
     if (!strcmp(argv[i], "dialogue")) screen = 5;
+    if (!strcmp(argv[i], "titles")) screen = 200; /* the opening titles from their first tick; with "noinput" for a check */
     if (!strncmp(argv[i], "loadslot", 8)) screen = 10 + atoi(argv[i] + 8);
     if (!strcmp(argv[i], "preview")) previewshot = 1;
     if (!strcmp(argv[i], "fps60")) rate_set(1);

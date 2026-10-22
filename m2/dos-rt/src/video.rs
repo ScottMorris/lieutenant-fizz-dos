@@ -299,6 +299,10 @@ pub fn draw(frame: &mut [u8], alpha: f32) -> u32 {
 
 /// The sim writes the scene into its instance buffer; returns how many sprites.
 pub fn build(alpha: f32) -> usize {
+    if crate::shell::draws_whole_frame() {
+        mark(1);
+        return 0;
+    }
     let night = if NIGHT.load(Ordering::Relaxed) != 0 { lf_episode_1::render::flags::NIGHT } else { 0 };
     let n = render(f64::from(alpha), lf_episode_1::render::flags::CULLING | night) as usize;
     mark(1);
@@ -307,6 +311,13 @@ pub fn build(alpha: f32) -> usize {
 
 /// Draws what `build` wrote into `frame`.
 pub fn paint(frame: &mut [u8], count: usize) -> u32 {
+    if crate::shell::draws_whole_frame() {
+        // Nothing of the sim shows, and slot 255 is not used.
+        mark(6);
+        crate::shell::overlay(frame, (0, 0));
+        mark(7);
+        return 0;
+    }
     let out = unsafe { core::slice::from_raw_parts(out_ptr(), 32) };
     // The camera is snapped to whole pixels first: a sprite's place is its own world position rounded, less the camera, so
     // things that are still stay still relative to each other as the camera glides.

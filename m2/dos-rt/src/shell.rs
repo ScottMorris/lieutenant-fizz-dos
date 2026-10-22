@@ -21,6 +21,7 @@ use crate::cine::Cine;
 use crate::fx;
 use crate::save::{self, SLOTS};
 use crate::story::{self, Press};
+use crate::titles::Titles;
 use crate::ui::{self, Buf};
 use crate::ui_data::{
     BOSS_DEFEATED, BOSS_INTRO, CAPTIONS, CINE, END, LIFTOFF_BEAT, LEVEL_BLURBS, LEVEL_CLEARED, LEVEL_NAMES, SIGNS, TITLE_KICKER, TITLE_LINE,
@@ -131,6 +132,8 @@ enum Screen {
     Credits,
     /// The opening cinematic: the pictures, with the letterboxed text over them.
     Opening,
+    /// The opening titles: Liminal HQ presents, the wordmark and the chase, drawn whole by `titles`.
+    Titles,
 }
 
 /// Where Options and the slot lists go back to.
@@ -245,6 +248,7 @@ struct Shell {
     reel: story::Reel,
     roll: story::Roll,
     cine: Option<Cine>,
+    titles: Option<Titles>,
     /// A message over the game with its ticks left (the first words of a new game).
     hint: Option<(&'static str, u32)>,
     tick: u32,
@@ -277,6 +281,7 @@ static mut SHELL: Shell = Shell {
     reel: story::Reel::empty(),
     roll: story::Roll::new(),
     cine: None,
+    titles: None,
     hint: None,
     tick: 0,
 };
@@ -324,7 +329,8 @@ pub fn quit_requested() -> bool {
     sh().quit
 }
 
-/// A check: puts a screen up (1 pause, 2 options, 3 load list, 4 save list, 6 controls, 7 the ending, 8 the credits, 9 the end card, 100 to 107 an opening scene).
+/// A check: puts a screen up (1 pause, 2 options, 3 load list, 4 save list, 6 controls, 7 the ending, 8 the credits, 9 the end card, 100 to 107 an opening scene,
+/// 200 the opening titles from their first tick).
 pub fn show(n: u32) {
     let s = sh();
     s.cursor = 0;
@@ -364,6 +370,12 @@ pub fn show(n: u32) {
             }
             return;
         }
+        200 => {
+            // A new game first, so that nothing of the title's attract loop is left under the titles.
+            game_new();
+            start_titles(s, 1);
+            return;
+        }
         n if (10..100).contains(&n) => {
             // A check: load a slot straight away.
             perform(s, Next::Load((n - 10) as u8));
@@ -376,6 +388,11 @@ pub fn show(n: u32) {
         }
         _ => Screen::Play,
     };
+}
+
+/// Whether the screen draws every pixel of the frame itself (the opening titles), so the sim's scene need not be built or painted.
+pub fn draws_whole_frame() -> bool {
+    sh().screen == Screen::Titles
 }
 
 /// Whether a card is up, so the sim is waiting.
@@ -536,6 +553,7 @@ pub fn advance(held: u32) {
         Screen::Ending => ending_tick(s, edges),
         Screen::Credits => credits_tick(s, edges),
         Screen::Opening => opening_tick(s, edges),
+        Screen::Titles => titles_tick(s),
     }
     // Going back into the game from a menu: the key that chose it is still down, and must not be read as a press in the game.
     if !was_play && s.screen == Screen::Play {
@@ -975,6 +993,23 @@ fn start_opening(s: &mut Shell) {
     s.screen = Screen::Opening;
 }
 
+/// The opening titles, `loops` times over.
+fn start_titles(s: &mut Shell, loops: u8) {
+    reset();
+    s.fade = None;
+    s.titles = Some(Titles::new(loops));
+    s.screen = Screen::Titles;
+}
+
+/// The titles run on their own clock and keys do nothing; they fade themselves out, so the title menu follows straight on.
+fn titles_tick(s: &mut Shell) {
+    let more = s.titles.as_mut().is_some_and(|t| t.tick(0));
+    if !more {
+        s.titles = None;
+        perform(s, Next::Title);
+    }
+}
+
 /// The cinematic is over, or was skipped: the map, with a word about where to go.
 fn leave_opening(s: &mut Shell) {
     s.cine = None;
@@ -1017,7 +1052,8 @@ fn opening_tick(s: &mut Shell, edges: u32) {
     }
 }
 
-/// The song a story screen wants, so the C side can play it: 1 is the ending's, 2 to 5 the opening's, 0 leaves the choice to the game.
+/// The song a story screen wants, so the C side can play it: 1 is the ending's, 2 to 5 the opening's, 6 the titles', 0 leaves the choice to
+/// the game.
 pub fn music_key() -> u32 {
     let s = sh();
     match (s.screen, s.card) {
@@ -1025,6 +1061,7 @@ pub fn music_key() -> u32 {
         // The yard, the lab, the liftoff and the flight: the main game's `CINE_TRACK`, as positions in the extra songs that
         // `m4/export-sound.ts` writes after the ending (1: ending, 2 yard, 3 lab, 4 launch, 5 cine).
         (Screen::Opening, _) => [2, 3, 4, 4, 5, 5, 5, 5][s.reel.scene().min(7)],
+        (Screen::Titles, _) => crate::sound_data::EXTRA_TITLES as u32 + 1,
         _ => 0,
     }
 }
@@ -1059,6 +1096,11 @@ pub fn overlay(frame: &mut [u8], cam_px: (i32, i32)) {
                 cine.draw(frame);
             }
             s.reel.draw(frame, s.tick, true);
+        }
+        Screen::Titles => {
+            if let Some(t) = s.titles.as_ref() {
+                t.draw(frame);
+            }
         }
         _ => {
             if m == 2 || m == 3 {
