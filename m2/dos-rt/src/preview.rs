@@ -5,8 +5,9 @@
 //
 // The C side finds out about the hardware (the video adapter, input, sound, maths, memory, the speed of a few trial frames)
 // and hands over a list of numbers; this shows them, read-only. White with a green tick is found, grey with a cross is
-// missing, red with a cross is missing and needed: without a VGA, an x87 or enough memory the game does not start. A
-// machine without a VGA cannot show the drawn screen, so the same rows are also written out as text for the text screen.
+// missing, yellow with a triangle is there but short of the best, red with a cross is missing and needed: without a VGA,
+// an x87 or the least memory the game does not start. A machine without a VGA cannot show the drawn screen, so the same
+// rows are also written out as text for the text screen.
 
 use crate::ui::{self, Buf, DARK, GREEN, GREY, RED, WHITE, YELLOW};
 use crate::video::{H, W};
@@ -32,11 +33,17 @@ pub const VIDEO_EGA: i32 = 3;
 pub const VIDEO_VGA_MONO: i32 = 4;
 pub const VIDEO_VGA: i32 = 5;
 
-/// The free memory the game needs, in kilobytes. Starting the game takes about 9.4 MB at once, nearly all of it the sim's
-/// instance buffer (120,000 instances of 20 floats, written whole when the world is made), measured as the drop in free
-/// physical memory across `fizz_start`; the speed test and play add tens of kilobytes more. 10 MB leaves room for that.
-/// With less, CWSDPMI pages to its swap file when it has one, or the allocation fails.
-pub const MEMORY_NEEDED_KB: i32 = 10 * 1024;
+/// The free memory that runs the game from memory alone, in kilobytes. Starting the game takes about 9.4 MB at once, nearly
+/// all of it the sim's instance buffer (120,000 instances of 20 floats, written whole when the world is made), measured in
+/// DOSBox as the drop in free physical memory across `fizz_start` (13,648 KB free before, 4,224 KB after); the speed test
+/// and play add tens of kilobytes more. 10 MB leaves room for that.
+pub const MEMORY_BEST_KB: i32 = 10 * 1024;
+/// The free memory below which the game does not start, in kilobytes. Below `MEMORY_BEST_KB` CWSDPMI pages what does not
+/// fit to its swap file on disk: the game runs, but the start is slow and so is any frame that touches paged-out memory,
+/// and with no swap file (no writable drive) the allocation fails. In DOSBox the game ran that way with `memsize = 4` and
+/// `memsize = 2` (1.3 MB and less free before the start), but DOSBox's disk is the host's and far faster than a real one,
+/// so the floor keeps a margin above that.
+pub const MEMORY_FLOOR_KB: i32 = 2 * 1024;
 
 const PANEL: u8 = 3;
 const PANEL_EDGE: u8 = 11;
@@ -49,6 +56,8 @@ const PANELS: [&str; 4] = ["Video", "Input", "Sound", "Machine"];
 #[derive(Clone, Copy, PartialEq)]
 enum State {
     Found,
+    /// Found, but short of the best: the game runs, slowly.
+    Warn,
     Missing,
     /// Missing, and the game cannot run without it.
     Needed,
@@ -75,7 +84,7 @@ fn vga(v: &[i32]) -> bool {
 }
 
 fn memory_ok(v: &[i32]) -> bool {
-    v[MEMORY_KB] >= MEMORY_NEEDED_KB
+    v[MEMORY_KB] >= MEMORY_FLOOR_KB
 }
 
 /// Whether the game can start: a VGA, an x87 and enough free memory.
@@ -110,12 +119,17 @@ fn rows(v: &[i32], cpu: &str, mut f: impl FnMut(usize, i32, &str, State)) {
     f(3, 1, "x87 maths (needed)", need(v[FPU] != 0));
     let mut line = Buf::new();
     let mb = v[MEMORY_KB] / 1024;
-    if memory_ok(v) {
+    let state = if v[MEMORY_KB] >= MEMORY_BEST_KB {
         let _ = write!(line, "{mb} MB memory free");
+        State::Found
+    } else if memory_ok(v) {
+        let _ = write!(line, "{mb} MB free, {} is best", MEMORY_BEST_KB / 1024);
+        State::Warn
     } else {
-        let _ = write!(line, "{mb} MB free, needs {}", MEMORY_NEEDED_KB / 1024);
-    }
-    f(3, 2, line.as_str(), need(memory_ok(v)));
+        let _ = write!(line, "{mb} MB free, needs {}", MEMORY_FLOOR_KB / 1024);
+        State::Needed
+    };
+    f(3, 2, line.as_str(), state);
 }
 
 /// The footer's speed line: the words before the verdict, the verdict and its colour.
@@ -206,6 +220,10 @@ pub fn draw(frame: &mut [u8], v: &[i32], cpu: &str) {
                 ui::tick_mark(frame, x, y, GREEN);
                 ui::text_fit(frame, x + 11, y, label, WHITE, max - 11);
             }
+            State::Warn => {
+                ui::warn_mark(frame, x, y, YELLOW);
+                ui::text_fit(frame, x + 11, y, label, YELLOW, max - 11);
+            }
             State::Missing | State::Needed => {
                 let colour = if state == State::Needed { RED } else { DARK };
                 // The cross is six pixels to the tick's eight, so it sits one pixel in to share the tick's centre.
@@ -236,8 +254,9 @@ const T_GREY: u8 = 2;
 const T_RED: u8 = 3;
 const T_GREEN: u8 = 4;
 const T_YELLOW: u8 = 5;
-/// The tick in code page 437.
+/// The tick and the warning triangle in code page 437.
 const TICK: u8 = 0xFB;
+const WARN: u8 = 0x1E;
 /// Where the right-hand column starts on an 80-column text screen.
 const COLUMN: usize = 40;
 
@@ -317,6 +336,10 @@ pub fn text(out: &mut [u8], v: &[i32], cpu: &str) -> usize {
                         o.colour(T_GREEN);
                         o.byte(TICK);
                         o.colour(T_WHITE);
+                    }
+                    State::Warn => {
+                        o.colour(T_YELLOW);
+                        o.byte(WARN);
                     }
                     State::Missing => {
                         o.colour(T_GREY);

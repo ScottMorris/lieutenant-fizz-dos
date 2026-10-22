@@ -5,8 +5,9 @@ This is the real Episode 1 simulation, written in Rust, running as a 32-bit DOS 
 (320x200, 256 colours), with AdLib (OPL2) music and effects, or PC speaker effects if there is no AdLib, the game's own pixel font, a score/lives/Fizz HUD, map prompts, floating caption words, toasts and result cards. Everything is drawn from the game's own sprites. After the system check the opening titles play (any key skips them), then you reach the title (New game, Options, Quit; Continue and Load game once you have a save), then the overworld map; walk to a level marker and press Jump, Fire or Enter to go in.
 
 The first thing you see is a system check in the manner of Keen's: what video, input, sound and machine hardware it found and a
-speed test of the real renderer. Enter starts the game. The game needs a VGA, an x87 maths unit and 10 MB of free memory; without
-one of them the check says what is missing and Esc leaves. The sound is set on the Options screen. Add 'nopreview' on the command
+speed test of the real renderer. Enter starts the game. The game needs a VGA, an x87 maths unit and at least 2 MB of free memory;
+without one of them the check says what is missing and Esc leaves. Below 10 MB the memory row is a yellow warning: the game still
+starts, but the DOS extender pages memory to disk, so it is slower. The sound is set on the Options screen. Add 'nopreview' on the command
 line to skip the check.
 
 Run it
