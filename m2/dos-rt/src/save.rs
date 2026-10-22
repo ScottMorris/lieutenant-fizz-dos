@@ -24,8 +24,10 @@ extern "C" {
 const MAGIC: &[u8; 4] = b"FZSV";
 const VERSION: u8 = 1;
 const LEN: usize = 48;
-/// Slot 0 is the autosave; 1 to 4 are the player's.
-pub const SLOTS: usize = 5;
+/// Slot 0 is the autosave; 1 to 4 are the player's; 5 is the quick-save, which F5 writes and F9 loads.
+pub const SLOTS: usize = 6;
+/// The quick-save slot.
+pub const QUICK: usize = 5;
 /// The bits of the cleared mask that are levels (the 16th is the secret).
 const LEVEL_BITS: u32 = 0x7FFF;
 
@@ -99,11 +101,11 @@ pub fn load(slot: i32) -> Option<u32> {
     Some(get(&b, 44))
 }
 
-/// The slot with the newest save, the autosave included.
+/// The slot with the newest save, the autosave included. The clock ticks in whole seconds, so of two saves with one stamp the lower slot wins: a quick-save is not taken over the map's autosave by chance.
 pub fn newest(saves: &[Option<Info>; SLOTS]) -> Option<usize> {
     (0..SLOTS)
         .filter_map(|i| saves[i].map(|s| (i, s.stamp)))
-        .max_by_key(|&(_, stamp)| stamp)
+        .max_by(|a, b| a.1.cmp(&b.1).then(b.0.cmp(&a.0)))
         .map(|(i, _)| i)
 }
 

@@ -33,6 +33,7 @@ extern unsigned fizz_mode(void);
 extern void fizz_press(int on);
 extern unsigned fizz_quit(void);
 extern void fizz_show(unsigned n);
+extern unsigned fizz_music_key(void);
 extern void fizz_goto_map(void);
 extern void fizz_night(int on);
 extern unsigned fizz_build(float alpha);
@@ -159,8 +160,20 @@ static int sound_using(int choice, int adlib) {
 }
 
 static void choose_music(void) {
-  static int last_level = -2, last_boss = -2;
+  static int last_level = -2, last_boss = -2, last_key = 0;
+  unsigned key = fizz_music_key(); /* a story screen's song, 1 for the first of the extras; 0 for the game's own */
   int level = fizz_mode() == 1 ? -2 : fizz_mode() == 2 ? -1 : (int)fizz_level(), boss = fizz_mode() == 3 && fizz_boss_hp() > 0;
+  if (key) {
+    if ((int)key != last_key) {
+      last_key = (int)key;
+      snd_music_extra((int)key - 1);
+    }
+    return;
+  }
+  if (last_key) {
+    last_key = 0;
+    last_level = -9; /* the screen is over: choose the game's song again */
+  }
   if (level != last_level || boss != last_boss) {
     last_level = level;
     last_boss = boss;
@@ -200,6 +213,11 @@ int main(int argc, char **argv) {
     if (!strcmp(argv[i], "options")) screen = 2;
     if (!strcmp(argv[i], "load")) screen = 3;
     if (!strcmp(argv[i], "save")) screen = 4;
+    if (!strcmp(argv[i], "controls")) screen = 6;
+    if (!strcmp(argv[i], "ending")) screen = 7;
+    if (!strcmp(argv[i], "credits")) screen = 8;
+    if (!strcmp(argv[i], "endcard")) screen = 9;
+    if (!strncmp(argv[i], "cine", 4)) screen = 100 + atoi(argv[i] + 4);
     if (!strcmp(argv[i], "dialogue")) screen = 5;
     if (!strncmp(argv[i], "loadslot", 8)) screen = 10 + atoi(argv[i] + 8);
     if (!strcmp(argv[i], "preview")) previewshot = 1;

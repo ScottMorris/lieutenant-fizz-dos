@@ -28,6 +28,10 @@ int main(void) {
   expect("Escape is the menu key", keymap_bits(k), IN_MENU);
   memset((void *)k, 0, sizeof k); k[SC_ENTER] = 1;
   expect("Enter confirms", keymap_bits(k), IN_CONFIRM);
+  memset((void *)k, 0, sizeof k); k[SC_F5] = 1;
+  expect("F5 quick-saves", keymap_bits(k), IN_QSAVE);
+  memset((void *)k, 0, sizeof k); k[SC_F9] = 1;
+  expect("F9 quick-loads", keymap_bits(k), IN_QLOAD);
   if (!failed) printf("keymap ok\n");
   return failed;
 }

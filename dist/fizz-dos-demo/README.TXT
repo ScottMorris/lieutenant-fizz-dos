@@ -21,6 +21,7 @@ Keys
   Alt or X         pogo stick
   Space or C       fire
   Enter            confirm: enter a level marker, dismiss a card
+  F5 / F9          quick-save / quick-load (QUICK.SAV, a slot of its own)
   Backspace        back to the overworld map
   PgUp / PgDn      previous / next level (0-15)
   R                restart the level
@@ -30,9 +31,10 @@ Keys
   Esc              pause menu (and back, in a menu); Quit to title, then Quit, leaves the game
 
 Notes
-  - Saves are small files next to FIZZ.EXE: AUTO.SAV (written every time you reach the map) and SLOT1.SAV to SLOT4.SAV (Pause, Save game).
+  - Saves are small files next to FIZZ.EXE: AUTO.SAV (written every time you reach the map), QUICK.SAV (F5) and SLOT1.SAV to SLOT4.SAV (Pause, Save game).
   - Options (music, effects, frame rate, detail, night, and the sound you chose at start-up) are kept in FIZZ.CFG, apart from the saves. Delete it to start fresh.
   - Options (title or pause menu): music, effects, which chip plays the effects, frame rate (auto, 60 or 30 Hz), detail (auto, high or low; low drops the backdrop layers on slow machines) and night.
+  - New game plays the opening story (Enter moves on, Esc skips it); beating the last boss plays the ending and the credits. Controls, on the title and pause menus, lists the keys.
   - The boss fight now starts with its dialogue: Enter finishes a line and moves on.
   - If it runs slowly with sound on, the OPL emulator is the cost: DOSBOX.CONF uses 'oplemu = compat' (light). Nuked is
     more exact but needs a fast machine.

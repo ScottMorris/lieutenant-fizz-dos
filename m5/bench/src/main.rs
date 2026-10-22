@@ -13,12 +13,16 @@
 
 #![allow(dead_code)]
 
+#[path = "../../../m2/dos-rt/src/cine.rs"]
+mod cine;
 #[path = "../../../m2/dos-rt/src/preview.rs"]
 mod preview;
 #[path = "../../../m2/dos-rt/src/save.rs"]
 mod save;
 #[path = "../../../m2/dos-rt/src/shell.rs"]
 mod shell;
+#[path = "../../../m2/dos-rt/src/story.rs"]
+mod story;
 #[path = "../../../m2/dos-rt/src/ui.rs"]
 mod ui;
 #[path = "../../../m2/dos-rt/src/ui_data.rs"]
@@ -251,6 +255,8 @@ fn pause_resume_test() {
 }
 
 fn main() {
+    // The opening cinematic's sprite names must all be in the sheet (a name that drifts from the export would draw nothing).
+    assert_eq!(cine::missing_sprites(), 0, "a sprite of the cinematic is not in the sheet");
     if std::env::var("PAUSETEST").is_ok() {
         pause_resume_test();
         return;

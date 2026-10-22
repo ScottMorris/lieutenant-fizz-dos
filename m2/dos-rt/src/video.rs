@@ -111,7 +111,7 @@ struct Sprite {
 }
 
 /// The sheet's sprites, read once.
-const MAX_SPRITES: usize = 256;
+const MAX_SPRITES: usize = 320;
 
 fn sheet() -> &'static [Sprite] {
     static mut TABLE: [Sprite; MAX_SPRITES] = [Sprite { w: 0, h: 0, opaque: false, flat: None, pix: &[], unit: (0, 0) }; MAX_SPRITES];
@@ -327,7 +327,7 @@ pub fn paint(frame: &mut [u8], count: usize) -> u32 {
     frame.fill(CLEAR_SLOT);
     mark(4);
     let inst = unsafe { core::slice::from_raw_parts(instance_ptr(), count * 20) };
-    let mut tints = TintCache::new();
+    let mut tints = TintCache::<4>::new();
     // SAFETY: the DOS build has one thread, and only `paint` touches the cache.
     let bakes = unsafe { &mut *core::ptr::addr_of_mut!(BAKES) };
     // Where the light is the same all over (the map, the day levels) the markers are the final bytes' high nibble
@@ -442,19 +442,19 @@ impl Still {
 }
 
 /// The last few tints seen and their colour tables, so a tint shared by many sprites is worked out once a frame.
-struct TintCache {
-    keys: [u32; 4],
-    luts: [[u8; 16]; 4],
+struct TintCache<const N: usize> {
+    keys: [u32; N],
+    luts: [[u8; 16]; N],
     next: usize,
 }
 
-impl TintCache {
+impl<const N: usize> TintCache<N> {
     fn new() -> Self {
-        TintCache { keys: [0xff_ffff; 4], luts: [[0; 16]; 4], next: 0 }
+        TintCache { keys: [0xff_ffff; N], luts: [[0; 16]; N], next: 0 }
     }
 
     fn get(&mut self, tint: u32) -> [u8; 16] {
-        for i in 0..4 {
+        for i in 0..N {
             if self.keys[i] == tint {
                 return self.luts[i];
             }
@@ -462,15 +462,15 @@ impl TintCache {
         let lut = tint_lut(tint);
         self.keys[self.next] = tint;
         self.luts[self.next] = lut;
-        self.next = (self.next + 1) % 4;
+        self.next = (self.next + 1) % N;
         lut
     }
 }
 
 /// The largest sprite `BakeCache` keeps: a tile.
 const BAKED_PIX: usize = 16 * 16;
-/// Sprites `BakeCache` has a slot for (the sheet has 253).
-const BAKED: usize = 256;
+/// Sprites `BakeCache` has a slot for: one for every sprite the sheet can hold.
+const BAKED: usize = MAX_SPRITES;
 
 /// Opaque tiles with their final colours worked out (the tint's colour table and the light marker applied to every pixel), so a
 /// tile drawn many times a frame is copied rather than changed a pixel at a time. One slot per sprite, kept from frame to frame: a
@@ -562,7 +562,7 @@ const F4_5: u32 = 4.5f32.to_bits();
 const F5_5: u32 = 5.5f32.to_bits();
 const F6_5: u32 = 6.5f32.to_bits();
 
-fn blit(frame: &mut [u8], b: &[f32], cam_px: (i32, i32), tints: &mut TintCache, bakes: &mut BakeCache, marks: &[u8; 3]) {
+fn blit<const N: usize>(frame: &mut [u8], b: &[f32], cam_px: (i32, i32), tints: &mut TintCache<N>, bakes: &mut BakeCache, marks: &[u8; 3]) {
     // Alpha, emissive and actor share one float: alpha + 2 * emissive + 4 * actor. A sprite under half alpha is not drawn. They
     // are read from the bits, which compare as the values do: with w2 the float less the actor's 4, the sprite is drawn when w2
     // is in [0.5, 1.5) or at least 2.5, and glows when w2 is 1.5 or more.
@@ -724,7 +724,7 @@ fn blit(frame: &mut [u8], b: &[f32], cam_px: (i32, i32), tints: &mut TintCache, 
 }
 
 /// A sprite that is rotated (a few effects): each screen pixel is mapped back through the instance's matrix.
-fn blit_turned(frame: &mut [u8], b: &[f32], cx: f32, cy: f32, mark: u8, tints: &mut TintCache) {
+fn blit_turned<const N: usize>(frame: &mut [u8], b: &[f32], cx: f32, cy: f32, mark: u8, tints: &mut TintCache<N>) {
     let Some(sp) = sprite(b[16] as usize) else {
         return;
     };
@@ -962,16 +962,113 @@ fn shade_word(w: u32, add: u32, tables: &[[u8; 256]; LEVELS + 1]) -> u32 {
 
 /// Draws sprite `id` for the interface (full brightness, no lighting) with its top left at (`x`, `y`).
 pub fn draw_sprite_ui(frame: &mut [u8], id: usize, x: i32, y: i32) {
+    draw_sprite_ui_flip(frame, id, x, y, false);
+}
+
+/// The sprites the sim never draws but the opening cinematic does, which `m3/export-sprites.ts` puts after the sim's own (its `EXTRA`
+/// lists the same names in the same order; `cine::missing_sprites` checks that they all resolve).
+const EXTRA_SPRITES: [&str; 12] = ["planet", "house", "bigTree", "moon", "fence", "labPanel", "console0", "console1", "blueprint", "bench", "pad", "lamp"];
+
+/// The sheet's id for a sprite name: one the sim draws, or one of the cinematic's.
+pub fn sprite_by_name(name: &str) -> Option<usize> {
+    let names = lf_episode_1::sprites::SPRITE_NAMES;
+    names.iter().position(|n| *n == name).or_else(|| EXTRA_SPRITES.iter().position(|n| *n == name).map(|i| names.len() + i))
+}
+
+/// The height of sprite `id` in pixels (0 if there is none).
+pub fn sprite_height(id: usize) -> i32 {
+    sprite(id).map_or(0, |sp| sp.h as i32)
+}
+
+/// `draw_sprite_ui`, mirrored left to right when `flip` is set.
+pub fn draw_sprite_ui_flip(frame: &mut [u8], id: usize, x: i32, y: i32, flip: bool) {
     let Some(sp) = sprite(id) else {
         return;
     };
+    // The column to read for the first pixel of a row, and the step along it.
+    let (first, step) = if flip { (sp.w as i32 - 1, -1) } else { (0, 1) };
     for row in 0..sp.h as i32 {
         for col in 0..sp.w as i32 {
-            let c = sp.pix[row as usize * sp.w + col as usize];
+            let c = sp.pix[row as usize * sp.w + (first + step * col) as usize];
             let (px, py) = (x + col, y + row);
             if c != CLEAR_PIX && px >= 0 && py >= 0 && (px as usize) < W && (py as usize) < H {
                 frame[py as usize * W + px as usize] = crate::ui::FULL + (c & 15);
             }
         }
     }
+}
+
+/// `draw_sprite_ui_flip` leaning `rot` radians (small ones; negative leans to the left) about the middle of the sprite's foot.
+pub fn draw_sprite_ui_lean(frame: &mut [u8], id: usize, x: i32, y: i32, flip: bool, rot: f32) {
+    let Some(sp) = sprite(id) else {
+        return;
+    };
+    let (w, h) = (sp.w as i32, sp.h as i32);
+    // The sine and cosine as short series, as the cinematic does: they are accurate to a few thousandths up to about 0.4.
+    let (sn, cs) = (rot - rot * rot * rot / 6.0, 1.0 - rot * rot / 2.0);
+    let (cx, cy) = (x as f32 + w as f32 / 2.0, (y + h) as f32);
+    let reach = h + w;
+    for py in (y - reach / 4).max(0)..(y + h + 1).min(H as i32) {
+        for px in (x - reach / 2).max(0)..(x + w + reach / 2).min(W as i32) {
+            // Back from the screen pixel to the sprite's own, undoing the lean.
+            let (dx, dy) = (px as f32 + 0.5 - cx, py as f32 + 0.5 - cy);
+            let u = dx * cs + dy * sn + w as f32 / 2.0;
+            let v = -dx * sn + dy * cs + h as f32;
+            if u < 0.0 || v < 0.0 || u >= w as f32 || v >= h as f32 {
+                continue;
+            }
+            let col = if flip { w - 1 - u as i32 } else { u as i32 };
+            let c = sp.pix[v as usize * sp.w + col as usize];
+            if c != CLEAR_PIX {
+                frame[py as usize * W + px as usize] = crate::ui::FULL + (c & 15);
+            }
+        }
+    }
+}
+
+/// One sprite of the opening cinematic, placed in tiles of half the usual size (so the 20 × 12.5 tile screen shows 40 × 25 of them) with
+/// the camera fixed so that the ground, at y = -1.25, is on row 112 of the picture between the bars.
+#[derive(Clone, Copy)]
+pub struct Inst {
+    pub x: f32,
+    pub y: f32,
+    /// The size across and up in tiles, a negative one mirroring.
+    pub sx: f32,
+    pub sy: f32,
+    /// A turn in radians; small ones only (a series for sine and cosine).
+    pub rot: f32,
+    /// 0xRRGGBB: its hue picks the nearest EGA colour and its largest channel the brightness, so a dark blue is a dim blue.
+    pub tint: u32,
+}
+
+/// The size of sprite `id` in pixels (0 by 0 if there is none).
+pub fn sprite_size(id: usize) -> (i32, i32) {
+    sprite(id).map_or((0, 0), |sp| (sp.w as i32, sp.h as i32))
+}
+
+/// Draws one sprite of the cinematic over `frame`, at the brightness its tint gives and without the lighting pass.
+pub fn draw_cine(frame: &mut [u8], id: usize, i: &Inst) {
+    // A frame of the cinematic has a couple of dozen tints, far more than the four the game's sprites share.
+    static mut TINTS: TintCache<32> = TintCache { keys: [0xff_ffff; 32], luts: [[0; 16]; 32], next: 0 };
+    let (r, g, b) = ((i.tint >> 16) & 255, (i.tint >> 8) & 255, i.tint & 255);
+    let top = r.max(g).max(b).max(1);
+    let level = (top * 13 + 127) / 255;
+    let hue = if top == 255 { i.tint } else { (r * 255 / top) << 16 | (g * 255 / top) << 8 | (b * 255 / top) };
+    let mark = ((level + 1) << 4) as u8;
+    let (sn, cs) = (i.rot - i.rot * i.rot * i.rot / 6.0, 1.0 - i.rot * i.rot / 2.0);
+    let mut inst = [0.0f32; 20];
+    inst[0] = cs * i.sx;
+    inst[5] = cs * i.sy;
+    if i.rot != 0.0 {
+        inst[1] = sn * i.sx;
+        inst[4] = -sn * i.sy;
+    }
+    inst[12] = i.x;
+    inst[13] = i.y;
+    inst[16] = id as f32;
+    inst[18] = hue as f32;
+    inst[19] = 3.0;
+    // SAFETY: the DOS build has one thread.
+    let (tints, bakes) = unsafe { (&mut *core::ptr::addr_of_mut!(TINTS), &mut *core::ptr::addr_of_mut!(BAKES)) };
+    blit(frame, &inst, (0, -8), tints, bakes, &[mark; 3]);
 }

@@ -17,10 +17,12 @@ use lf_episode_1::{
     enter_map, events_clear, events_len, events_ptr, game_new, load_attract, mode, state_get, step,
 };
 
+use crate::cine::Cine;
 use crate::save::{self, SLOTS};
+use crate::story::{self, Press};
 use crate::ui::{self, Buf};
 use crate::ui_data::{
-    BOSS_DEFEATED, BOSS_INTRO, CAPTIONS, LEVEL_BLURBS, LEVEL_CLEARED, LEVEL_NAMES, SIGNS, TITLE_KICKER, TITLE_LINE,
+    BOSS_DEFEATED, BOSS_INTRO, CAPTIONS, CINE, END, LIFTOFF_BEAT, LEVEL_BLURBS, LEVEL_CLEARED, LEVEL_NAMES, SIGNS, TITLE_KICKER, TITLE_LINE,
     TITLE_WORDS, TOASTS,
 };
 use crate::video::{H, W};
@@ -57,6 +59,9 @@ const FX_DENY: i32 = 9;
 
 /// Input bit for Escape, which the C side adds.
 const MENU_KEY: u32 = 256;
+/// Input bits for F5 (quick-save) and F9 (quick-load), which the C side adds.
+const QSAVE: u32 = 512;
+const QLOAD: u32 = 1024;
 const UP: u32 = 4;
 const DOWN: u32 = 8;
 const LEFT: u32 = 1;
@@ -72,6 +77,20 @@ const SAUCER: f32 = 15.0;
 const CLEARED_WAIT: u32 = 90;
 const DIED_WAIT: u32 = 70;
 const GAME_OVER_WAIT: u32 = 100;
+/// Ticks a second: the game's sim and the shell's timers run at 60 Hz whatever the screen's rate.
+const TICKS_PER_SEC: u32 = 60;
+/// Ticks Ben on the title keeps facing the menu after the cursor moves (1.6 s) and waves after a pick (0.9 s), and the length of his
+/// loop (14 s).
+const BEN_LOOK: u32 = TICKS_PER_SEC * 8 / 5;
+const BEN_WAVE: u32 = TICKS_PER_SEC * 9 / 10;
+const BEN_CYCLE: u32 = 14 * TICKS_PER_SEC;
+/// The title's wordmark: its top, the size of a glyph pixel and the height of its eight rows. Ben stands on it, and `title_screen`
+/// draws it from the same numbers.
+const TITLE_LOGO_Y: i32 = 24;
+const TITLE_LOGO_SCALE: i32 = 3;
+const TITLE_LOGO_H: i32 = 8 * TITLE_LOGO_SCALE;
+/// How long the quick-save message stays, in ticks.
+const QUICK_TICKS: u32 = 120;
 /// How long a toast stays, and how long a caption word floats, in ticks.
 const TOAST_TICKS: u32 = 200;
 const CAPTION_TICKS: u32 = 45;
@@ -85,6 +104,8 @@ enum Card {
     Cleared(u8),
     Died { lives: i32, level: u8 },
     GameOver(i32),
+    /// The end of the episode, with the score and the lives left.
+    End { score: i32, lives: i32 },
 }
 
 #[derive(Clone, Copy)]
@@ -102,7 +123,13 @@ enum Screen {
     Play,
     Pause,
     Options(Back),
+    Controls(Back),
     Slots(SlotKind, Back),
+    /// The ending's panels, then the credits roll.
+    Ending,
+    Credits,
+    /// The opening cinematic: the pictures, with the letterboxed text over them.
+    Opening,
 }
 
 /// Where Options and the slot lists go back to.
@@ -123,6 +150,10 @@ enum SlotKind {
 enum Next {
     Title,
     NewGame,
+    /// A new game from the title: the opening cinematic, then the map.
+    Opening,
+    /// The cinematic is over or was skipped: the map, with a word about where to start.
+    OpeningEnd,
     Map,
     Quit,
     Load(u8),
@@ -149,6 +180,7 @@ enum TitleItem {
     New,
     Load,
     Options,
+    Controls,
     Quit,
 }
 
@@ -157,6 +189,7 @@ enum PauseItem {
     Resume,
     Save,
     Options,
+    Controls,
     Map,
     Title,
 }
@@ -196,12 +229,24 @@ struct Shell {
     saves: [Option<save::Info>; SLOTS],
     /// A short message under the menus: 1 saved (the slot in `note_arg`), 2 could not save.
     note: Option<(u8, u8, u32)>,
+    /// A short message over the game after F5 or F9: 1 quick-saved, 2 could not save, 3 nothing to load.
+    quick: Option<(u8, u32)>,
     played: u32,
     prev_held: u32,
     /// Keys that a menu or a line of dialogue took as its own press and that are still down: the sim does not see them until they are let go.
     swallow: u32,
     last_mode: u32,
     attract: u32,
+    /// The tick up to which Ben on the title faces the menu (after the cursor moves) and waves (after a pick).
+    ben_look: u32,
+    ben_wave: u32,
+    /// The sheet ids of Ben's title poses (stand, jump, shoot, pogo, pogo2); `usize::MAX` for one the sheet lacks, which draws nothing.
+    ben_ids: [usize; 5],
+    reel: story::Reel,
+    roll: story::Roll,
+    cine: Option<Cine>,
+    /// A message over the game with its ticks left (the first words of a new game).
+    hint: Option<(&'static str, u32)>,
     tick: u32,
 }
 
@@ -220,11 +265,19 @@ static mut SHELL: Shell = Shell {
     dialogue: None,
     saves: [None; SLOTS],
     note: None,
+    quick: None,
     played: 0,
     prev_held: 0,
     swallow: 0,
     last_mode: 0,
     attract: 0,
+    ben_look: 0,
+    ben_wave: 0,
+    ben_ids: [usize::MAX; 5],
+    reel: story::Reel::empty(),
+    roll: story::Roll::new(),
+    cine: None,
+    hint: None,
     tick: 0,
 };
 
@@ -261,6 +314,7 @@ pub fn start_title() {
     s.screen = Screen::Title;
     s.cursor = 0;
     s.attract = 0;
+    s.ben_ids = ["ben_stand", "ben_jump", "ben_shoot", "ben_pogo", "ben_pogo2"].map(|n| crate::video::sprite_by_name(n).unwrap_or(usize::MAX));
     s.fade = Some(Fade { out: false, t: 0, then: Next::Title });
     load_attract(0, 0);
 }
@@ -270,7 +324,7 @@ pub fn quit_requested() -> bool {
     sh().quit
 }
 
-/// A check: puts a screen up (1 pause, 2 options, 3 load list, 4 save list).
+/// A check: puts a screen up (1 pause, 2 options, 3 load list, 4 save list, 6 controls, 7 the ending, 8 the credits, 9 the end card, 100 to 107 an opening scene).
 pub fn show(n: u32) {
     let s = sh();
     s.cursor = 0;
@@ -280,7 +334,37 @@ pub fn show(n: u32) {
         2 => Screen::Options(Back::Pause),
         3 => Screen::Slots(SlotKind::Load, Back::Pause),
         4 => Screen::Slots(SlotKind::Save, Back::Pause),
-        n if n >= 10 => {
+        6 => Screen::Controls(Back::Pause),
+        7 => {
+            start_ending(s);
+            return;
+        }
+        8 => {
+            s.roll.start();
+            s.screen = Screen::Credits;
+            return;
+        }
+        9 => {
+            s.screen = Screen::Play;
+            s.card = Some(Card::End { score: 1234, lives: 1 });
+            return;
+        }
+        n if (100..108).contains(&n) => {
+            // A check: the opening cinematic at a scene, `k` seconds into it (the scene's own clock runs on from there).
+            start_opening(s);
+            let scene = (n - 100) as usize;
+            while s.reel.scene() < scene {
+                let _ = s.reel.press();
+            }
+            if let Some(cine) = s.cine.as_mut() {
+                cine.start(scene as u8);
+                if scene == 2 {
+                    cine.launch();
+                }
+            }
+            return;
+        }
+        n if (10..100).contains(&n) => {
             // A check: load a slot straight away.
             perform(s, Next::Load((n - 10) as u8));
             return;
@@ -382,6 +466,12 @@ fn perform(s: &mut Shell, then: Next) {
             s.played = 0;
             to_map(s);
         }
+        Next::Opening => {
+            game_new();
+            s.played = 0;
+            start_opening(s);
+        }
+        Next::OpeningEnd => leave_opening(s),
         Next::Map => to_map(s),
         Next::Quit => s.quit = true,
         Next::Load(slot) => {
@@ -403,6 +493,16 @@ pub fn advance(held: u32) {
     let was_play = s.screen == Screen::Play;
     if let Some((k, a, left)) = s.note {
         s.note = if left <= 1 { None } else { Some((k, a, left - 1)) };
+    }
+    if let Some((text, left)) = s.hint {
+        s.hint = if left <= 1 { None } else { Some((text, left - 1)) };
+    }
+    if let Some((k, left)) = s.quick {
+        s.quick = if left <= 1 { None } else { Some((k, left - 1)) };
+    }
+    // Not over a card, a line of dialogue or a result on its way: a save then would hold the state of a lost or finished run.
+    if matches!(s.screen, Screen::Play | Screen::Pause) && s.fade.is_none() && s.card.is_none() && s.pending.is_none() && s.dialogue.is_none() {
+        quick_keys(s, edges);
     }
 
     // A fade out holds everything still until it is black; a fade in lets the screen run.
@@ -430,8 +530,12 @@ pub fn advance(held: u32) {
         Screen::Title => title_tick(s, edges),
         Screen::Pause => pause_tick(s, edges),
         Screen::Options(back) => options_tick(s, edges, back),
+        Screen::Controls(back) => controls_tick(s, edges, back),
         Screen::Slots(kind, back) => slots_tick(s, edges, kind, back),
         Screen::Play => play_tick(s, edges, sim_held),
+        Screen::Ending => ending_tick(s, edges),
+        Screen::Credits => credits_tick(s, edges),
+        Screen::Opening => opening_tick(s, edges),
     }
     // Going back into the game from a menu: the key that chose it is still down, and must not be read as a press in the game.
     if !was_play && s.screen == Screen::Play {
@@ -439,9 +543,29 @@ pub fn advance(held: u32) {
     }
 }
 
-fn title_items(s: &Shell) -> ([TitleItem; 5], usize) {
+/// F5 writes the quick-save slot and F9 loads it, in a level, on the map or in the pause menu. The slot is its own: the
+/// four the player picks in the pause menu are never touched.
+fn quick_keys(s: &mut Shell, edges: u32) {
+    if edges & QSAVE != 0 {
+        let ok = save::write(save::QUICK as i32, seconds(s));
+        refresh_saves(s);
+        cue(if ok { FX_SELECT } else { FX_DENY });
+        s.quick = Some((if ok { 1 } else { 2 }, QUICK_TICKS));
+    } else if edges & QLOAD != 0 {
+        if s.saves[save::QUICK].is_some() {
+            cue(FX_SELECT);
+            s.screen = Screen::Play;
+            fade_to(s, Next::Load(save::QUICK as u8));
+        } else {
+            cue(FX_DENY);
+            s.quick = Some((3, QUICK_TICKS));
+        }
+    }
+}
+
+fn title_items(s: &Shell) -> ([TitleItem; 6], usize) {
     let any = s.saves.iter().any(Option::is_some);
-    let mut v = [TitleItem::New; 5];
+    let mut v = [TitleItem::New; 6];
     let mut n = 0;
     let mut push = |item| {
         v[n] = item;
@@ -455,6 +579,7 @@ fn title_items(s: &Shell) -> ([TitleItem; 5], usize) {
         push(TitleItem::Load);
     }
     push(TitleItem::Options);
+    push(TitleItem::Controls);
     push(TitleItem::Quit);
     (v, n)
 }
@@ -469,15 +594,19 @@ fn title_tick(s: &mut Shell, edges: u32) {
         load_attract(s.attract, 0);
     }
     let (items, n) = title_items(s);
+    if edges & (UP | DOWN) != 0 {
+        s.ben_look = s.tick + BEN_LOOK;
+    }
     if let Pick::Chosen = menu_keys(s, edges, n) {
         cue(FX_SELECT);
+        s.ben_wave = s.tick + BEN_WAVE;
         match items[s.cursor] {
             TitleItem::Continue => {
                 if let Some(slot) = save::newest(&s.saves) {
                     fade_to(s, Next::Load(slot as u8));
                 }
             }
-            TitleItem::New => fade_to(s, Next::NewGame),
+            TitleItem::New => fade_to(s, Next::Opening),
             TitleItem::Load => {
                 s.screen = Screen::Slots(SlotKind::Load, Back::Title);
                 s.cursor = 0;
@@ -486,18 +615,22 @@ fn title_tick(s: &mut Shell, edges: u32) {
                 s.screen = Screen::Options(Back::Title);
                 s.cursor = 0;
             }
+            TitleItem::Controls => {
+                s.screen = Screen::Controls(Back::Title);
+                s.cursor = 0;
+            }
             TitleItem::Quit => fade_to(s, Next::Quit),
         }
     }
 }
 
-fn pause_items() -> ([PauseItem; 5], usize) {
-    let mut v = [PauseItem::Resume, PauseItem::Save, PauseItem::Options, PauseItem::Map, PauseItem::Title];
+fn pause_items() -> ([PauseItem; 6], usize) {
+    let mut v = [PauseItem::Resume, PauseItem::Save, PauseItem::Options, PauseItem::Controls, PauseItem::Map, PauseItem::Title];
     if mode() == 3 {
-        (v, 5)
+        (v, 6)
     } else {
-        v[3] = PauseItem::Title;
-        (v, 4)
+        v[4] = PauseItem::Title;
+        (v, 5)
     }
 }
 
@@ -521,6 +654,10 @@ fn pause_tick(s: &mut Shell, edges: u32) {
                     s.screen = Screen::Options(Back::Pause);
                     s.cursor = 0;
                 }
+                PauseItem::Controls => {
+                    s.screen = Screen::Controls(Back::Pause);
+                    s.cursor = 0;
+                }
                 PauseItem::Map => {
                     s.screen = Screen::Play;
                     fade_to(s, Next::Map);
@@ -532,6 +669,24 @@ fn pause_tick(s: &mut Shell, edges: u32) {
             }
         }
         _ => {}
+    }
+}
+
+/// Goes back from a sub-screen to the title or the pause menu, with the cursor on the row that opened it.
+fn return_to(s: &mut Shell, back: Back, title: TitleItem, pause: PauseItem) {
+    cue(FX_BACK);
+    if back == Back::Title {
+        s.screen = Screen::Title;
+        s.cursor = title_items(s).0.iter().position(|i| *i == title).unwrap_or(0);
+    } else {
+        s.screen = Screen::Pause;
+        s.cursor = pause_items().0.iter().position(|i| *i == pause).unwrap_or(0);
+    }
+}
+
+fn controls_tick(s: &mut Shell, edges: u32, back: Back) {
+    if edges & (MENU_KEY | CONFIRM) != 0 {
+        return_to(s, back, TitleItem::Controls, PauseItem::Controls);
     }
 }
 
@@ -548,11 +703,7 @@ fn option_items() -> ([OptionItem; 7], usize) {
 
 fn options_tick(s: &mut Shell, edges: u32, back: Back) {
     let (items, n) = option_items();
-    let leave = |s: &mut Shell| {
-        cue(FX_BACK);
-        s.screen = if back == Back::Title { Screen::Title } else { Screen::Pause };
-        s.cursor = if back == Back::Title { 2 } else { 2 };
-    };
+    let leave = |s: &mut Shell| return_to(s, back, TitleItem::Options, PauseItem::Options);
     match menu_keys(s, edges, n) {
         Pick::Back => leave(s),
         Pick::Chosen | Pick::Left | Pick::Right => match items[s.cursor] {
@@ -606,17 +757,13 @@ fn slot_rows(kind: SlotKind) -> (usize, usize) {
     if kind == SlotKind::Load {
         (0, SLOTS)
     } else {
-        (1, SLOTS - 1)
+        (1, save::QUICK - 1)
     }
 }
 
 fn slots_tick(s: &mut Shell, edges: u32, kind: SlotKind, back: Back) {
     let (first, count) = slot_rows(kind);
-    let leave = |s: &mut Shell| {
-        cue(FX_BACK);
-        s.screen = if back == Back::Title { Screen::Title } else { Screen::Pause };
-        s.cursor = if back == Back::Title { 1 } else { 1 };
-    };
+    let leave = |s: &mut Shell| return_to(s, back, TitleItem::Load, PauseItem::Save);
     match menu_keys(s, edges, count + 1) {
         Pick::Back => leave(s),
         Pick::Chosen => {
@@ -650,13 +797,17 @@ fn play_tick(s: &mut Shell, edges: u32, sim_held: u32) {
 
     if let Some(card) = s.card {
         s.card_age += 1;
-        if edges & CONFIRM != 0 && s.card_age > CARD_ARM {
+        if edges & CONFIRM != 0 && s.card_age > CARD_ARM && s.fade.is_none() {
             if matches!(card, Card::GameOver(_)) {
                 fade_to(s, Next::NewGame);
+                s.card = None;
+            } else if matches!(card, Card::End { .. }) {
+                // The card stays up through the fade, so the ending's song plays until the title takes over.
+                fade_to(s, Next::Title);
             } else {
                 fade_to(s, Next::Map);
+                s.card = None;
             }
-            s.card = None;
         }
         return;
     }
@@ -731,6 +882,7 @@ fn events(s: &mut Shell) {
     const DIED: f32 = 5.0;
     const GAME_OVER: f32 = 6.0;
     const DIALOGUE: f32 = 7.0;
+    const ENDING: f32 = 9.0;
     const MAP_PROMPT: f32 = 10.0;
     const LEVEL_START: f32 = 11.0;
     let n = events_len() as usize;
@@ -755,6 +907,9 @@ fn events(s: &mut Shell) {
                 s.pending = Some((Card::GameOver(a as i32), GAME_OVER_WAIT));
             } else if e[0] == DIALOGUE {
                 s.dialogue = Some(Dialogue { id: a as u8, line: 0, typed: 0 });
+            } else if e[0] == ENDING {
+                start_ending(s);
+                break;
             } else if e[0] == MAP_PROMPT {
                 s.prompt = if a == 0.0 { None } else { Some((a as u8, b as i32, c as i32)) };
             } else if e[0] == LEVEL_START {
@@ -763,6 +918,115 @@ fn events(s: &mut Shell) {
         }
     }
     events_clear();
+}
+
+/// The sim has finished the episode: the closing panels, the credits, then the end card.
+fn start_ending(s: &mut Shell) {
+    reset();
+    s.fade = None;
+    s.reel.start(END);
+    s.screen = Screen::Ending;
+    s.card_age = 0;
+}
+
+fn ending_tick(s: &mut Shell, edges: u32) {
+    s.reel.tick();
+    // The presses that were still going when the sim ended the game must not turn the first page.
+    s.card_age += 1;
+    if edges & (CONFIRM | JUMP | FIRE) != 0 && s.card_age > CARD_ARM {
+        match s.reel.press() {
+            Press::End => {
+                cue(FX_SELECT);
+                s.roll.start();
+                s.screen = Screen::Credits;
+            }
+            Press::Complete => {}
+            Press::Page | Press::Scene => cue(FX_MOVE),
+        }
+    }
+}
+
+fn credits_tick(s: &mut Shell, edges: u32) {
+    s.roll.tick();
+    let leave = if edges & MENU_KEY != 0 {
+        true
+    } else if edges & (CONFIRM | JUMP | FIRE) != 0 {
+        cue(FX_MOVE);
+        s.roll.press()
+    } else {
+        false
+    };
+    if leave {
+        cue(FX_SELECT);
+        // The end card sits over the last frame of the game, and a press of Enter takes it back to the title.
+        s.screen = Screen::Play;
+        s.card = Some(Card::End { score: state_get(SCORE) as i32, lives: state_get(LIVES) as i32 });
+        s.card_age = 0;
+    }
+}
+
+/// A new game from the title: the cinematic, which ends on the map.
+fn start_opening(s: &mut Shell) {
+    reset();
+    s.reel.start(CINE);
+    let mut cine = Cine::new();
+    cine.start(0);
+    s.cine = Some(cine);
+    s.screen = Screen::Opening;
+}
+
+/// The cinematic is over, or was skipped: the map, with a word about where to go.
+fn leave_opening(s: &mut Shell) {
+    s.cine = None;
+    s.screen = Screen::Play;
+    to_map(s);
+    // The main game's words for the same moment (`skipCine` in game.ts), which it does not keep as data.
+    s.hint = Some(("Find Billy. Start at the Crater Fields, along the path to the east.", 360));
+}
+
+fn opening_tick(s: &mut Shell, edges: u32) {
+    s.reel.tick();
+    if let Some(cine) = s.cine.as_mut() {
+        cine.tick();
+    }
+    if edges & MENU_KEY != 0 {
+        cue(FX_BACK);
+        fade_to(s, Next::OpeningEnd);
+        return;
+    }
+    if edges & (CONFIRM | JUMP | FIRE) != 0 {
+        let scene = s.reel.scene();
+        match s.reel.press() {
+            Press::End => {
+                cue(FX_SELECT);
+                fade_to(s, Next::OpeningEnd);
+                return;
+            }
+            Press::Complete => {}
+            Press::Page | Press::Scene => cue(FX_MOVE),
+        }
+        if let Some(cine) = s.cine.as_mut() {
+            if s.reel.scene() != scene {
+                cine.start(s.reel.scene() as u8);
+            }
+            // The launch waits for the page that opens the hatch.
+            if s.reel.scene() == 2 && s.reel.first_beat() >= LIFTOFF_BEAT {
+                cine.launch();
+            }
+        }
+    }
+}
+
+/// The song a story screen wants, so the C side can play it: 1 is the ending's, 2 to 5 the opening's, 0 leaves the choice to the game.
+pub fn music_key() -> u32 {
+    let s = sh();
+    match (s.screen, s.card) {
+        (Screen::Ending | Screen::Credits, _) | (_, Some(Card::End { .. })) => 1,
+        // The yard, the lab, the liftoff and the flight: the main game's `CINE_TRACK`, as positions in the extra songs that
+        // `m4/export-sound.ts` writes after the ending (1: ending, 2 yard, 3 lab, 4 launch, 5 cine).
+        (Screen::Opening, _) => [2, 3, 4, 4, 5, 5, 5, 5][s.reel.scene().min(7)],
+        _ => 0,
+    }
 }
 
 /// Starts a floating word, unless the same one was shown a moment ago or it has no colour.
@@ -788,6 +1052,14 @@ pub fn overlay(frame: &mut [u8], cam_px: (i32, i32)) {
     let m = mode();
     match s.screen {
         Screen::Title => title_screen(frame, s),
+        Screen::Ending => s.reel.draw(frame, s.tick, false),
+        Screen::Credits => s.roll.draw(frame),
+        Screen::Opening => {
+            if let Some(cine) = s.cine.as_ref() {
+                cine.draw(frame);
+            }
+            s.reel.draw(frame, s.tick, true);
+        }
         _ => {
             if m == 2 || m == 3 {
                 captions(frame, s, cam_px);
@@ -804,14 +1076,29 @@ pub fn overlay(frame: &mut [u8], cam_px: (i32, i32)) {
             if let Some(card) = s.card {
                 card_screen(frame, card);
             }
+            if let Some((text, _)) = s.hint {
+                toast_text(frame, text);
+            }
             if let Some(d) = s.dialogue {
                 dialogue_box(frame, d, s.tick);
             }
             match s.screen {
                 Screen::Pause => pause_screen(frame, s),
                 Screen::Options(_) => options_screen(frame, s),
+                Screen::Controls(_) => controls_screen(frame),
                 Screen::Slots(kind, _) => slots_screen(frame, s, kind),
                 _ => {}
+            }
+            // After the menus, so the pause screen's dim does not reach it, and above its hint line.
+            if let (Screen::Play | Screen::Pause, Some((kind, _))) = (s.screen, s.quick) {
+                let (text, ink) = match kind {
+                    1 => ("Quick-saved", ui::GREEN),
+                    2 => ("Could not write QUICK.SAV", ui::RED),
+                    _ => ("No quick-save yet: F5 makes one", ui::RED),
+                };
+                let w = ui::text_width(text) + 14;
+                ui::dim(frame, (W as i32 - w) / 2, 164, w, 14, 11);
+                ui::text_centred(frame, W as i32 / 2, 168, text, ink);
             }
         }
     }
@@ -851,7 +1138,7 @@ fn plate_rows(frame: &mut [u8], x: i32, y: i32, w: i32, rows: &[(&str, &str)], c
 
 /// The sprite the menus use for their cursor.
 fn soda_id() -> usize {
-    lf_episode_1::sprites::SPRITE_NAMES.iter().position(|n| *n == "soda").unwrap_or(0)
+    crate::video::sprite_by_name("soda").unwrap_or(0)
 }
 
 fn heading(frame: &mut [u8], s: &str, y: i32) {
@@ -859,15 +1146,63 @@ fn heading(frame: &mut [u8], s: &str, y: i32) {
     ui::text_big(frame, (W as i32 - w) / 2, y, s, ui::WHITE, 2);
 }
 
+/// Ben on the wordmark, as the main game's `benFrame` has him on a 14 second loop: he stands at the end of the logo with a bob, leans
+/// aside now and then, hops up and pogoes across the top and back, turns to face the menu when the cursor moves and waves when an
+/// item is picked. The lean turns the sprite about its feet, and the sizes are those of a 16-pixel sprite at 1×. `left` and
+/// `logo_w` place the wordmark.
+fn title_ben(frame: &mut [u8], s: &Shell, left: i32, logo_w: i32) {
+    // The curve sin(k·π) over 0..1, as a parabola.
+    fn arc(k: f32) -> f32 {
+        4.0 * k * (1.0 - k)
+    }
+    let bw = 16.0f32;
+    let home = (logo_w + 6) as f32;
+    let top = TITLE_LOGO_H as f32 * 0.5;
+    let p = (s.tick % BEN_CYCLE) as f32 / TICKS_PER_SEC as f32;
+    let looking = s.ben_look > s.tick;
+    // A wave is for when Ben is at home; while he is across the wordmark it waits, so he does not jump back and forth.
+    let waving = s.ben_wave > s.tick && !(9.0..13.0).contains(&p);
+    // (pose index into `ben_ids`, x from the wordmark's left, feet above its bottom, faces left, lean in radians)
+    let (pose, x, y, flip, lean) = if waving {
+        let k = 1.0 - (s.ben_wave - s.tick) as f32 / BEN_WAVE as f32;
+        (2, home, arc(k) * bw * 0.4, true, 0.0)
+    } else if (4.5..6.5).contains(&p) {
+        (0, home - bw / 6.0, 0.0, looking, -12.0 * 0.017_453_3)
+    } else if (9.0..13.0).contains(&p) {
+        let start = home - bw;
+        if p < 9.4 {
+            let k = (p - 9.0) / 0.4;
+            (1, home + (start - home) * k, top * k + arc(k) * bw * 0.5, true, 0.0)
+        } else if p < 12.6 {
+            let q = if p < 11.0 { (p - 9.4) / 1.6 } else { 1.0 - (p - 11.0) / 1.6 };
+            let u = (p - 9.4) * 1.25;
+            let hop = arc(u - (u as i32) as f32);
+            (if hop < 0.25 { 4 } else { 3 }, start * (1.0 - q), top + hop * bw * 0.3, p < 11.0, 0.0)
+        } else {
+            let k = (p - 12.6) / 0.4;
+            (1, start + (home - start) * k, top * (1.0 - k) + arc(k) * bw * 0.4, false, 0.0)
+        }
+    } else {
+        (0, home, if ((p * 1.5) as i32) % 2 == 1 { 1.0 } else { 0.0 }, looking, 0.0)
+    };
+    let id = s.ben_ids[pose];
+    let feet = TITLE_LOGO_Y + TITLE_LOGO_H - y.max(0.0) as i32;
+    // Kept on the screen if a longer title pushes the wordmark's end out.
+    let at = (left + x as i32).min(W as i32 - bw as i32);
+    crate::video::draw_sprite_ui_lean(frame, id, at, feet - crate::video::sprite_height(id), flip, lean);
+}
+
 /// The title: the attract loop behind, dimmed, with the name and the menu.
 fn title_screen(frame: &mut [u8], s: &Shell) {
     ui::dim(frame, 0, 0, W as i32, H as i32, 5);
+    let w = ui::text_width(TITLE_WORDS) * TITLE_LOGO_SCALE;
+    ui::text_logo(frame, (W as i32 - w) / 2, TITLE_LOGO_Y, TITLE_WORDS, ui::WHITE, ui::RED, TITLE_LOGO_SCALE);
     ui::text_centred(frame, W as i32 / 2, 12, TITLE_KICKER, ui::YELLOW);
-    let w = ui::text_width(TITLE_WORDS) * 3;
-    ui::text_logo(frame, (W as i32 - w) / 2, 24, TITLE_WORDS, ui::WHITE, ui::RED, 3);
     ui::text_centred(frame, W as i32 / 2, 56, TITLE_LINE, ui::CYAN);
+    // Ben is drawn over the words, so his pogo stick crosses in front of them.
+    title_ben(frame, s, (W as i32 - w) / 2, w);
     let (items, n) = title_items(s);
-    let mut rows: [(&str, &str); 5] = [("", ""); 5];
+    let mut rows: [(&str, &str); 6] = [("", ""); 6];
     for i in 0..n {
         rows[i] = (
             match items[i] {
@@ -875,6 +1210,7 @@ fn title_screen(frame: &mut [u8], s: &Shell) {
                 TitleItem::New => "New game",
                 TitleItem::Load => "Load game",
                 TitleItem::Options => "Options",
+                TitleItem::Controls => "Controls",
                 TitleItem::Quit => "Quit",
             },
             "",
@@ -888,13 +1224,14 @@ fn pause_screen(frame: &mut [u8], s: &Shell) {
     ui::dim(frame, 0, 0, W as i32, H as i32, 7);
     heading(frame, "Paused", 30);
     let (items, n) = pause_items();
-    let mut rows: [(&str, &str); 5] = [("", ""); 5];
+    let mut rows: [(&str, &str); 6] = [("", ""); 6];
     for i in 0..n {
         rows[i] = (
             match items[i] {
                 PauseItem::Resume => "Resume",
                 PauseItem::Save => "Save game",
                 PauseItem::Options => "Options",
+                PauseItem::Controls => "Controls",
                 PauseItem::Map => "Back to the map",
                 PauseItem::Title => "Quit to title",
             },
@@ -902,6 +1239,32 @@ fn pause_screen(frame: &mut [u8], s: &Shell) {
         );
     }
     plate_rows(frame, 70, 66, 180, &rows[..n], s.cursor, s.tick);
+    ui::text_centred(frame, W as i32 / 2, 188, "Up and Down choose, Enter selects, Esc resumes", ui::GREY);
+}
+
+/// The keys, as the C side's key map reads them: both schemes work at once.
+const CONTROLS: [(&str, &str); 8] = [
+    ("Move", "Arrows or A and D"),
+    ("Aim Fizz", "Up and Down, or W and S"),
+    ("Jump", "Ctrl or Z"),
+    ("Pogo (toggle)", "Alt or X"),
+    ("Fizz", "Space or C"),
+    ("Menu, and back", "Esc"),
+    ("Choose in a menu", "Enter"),
+    ("Quick-save, load (in play)", "F5, F9"),
+];
+
+fn controls_screen(frame: &mut [u8]) {
+    ui::dim(frame, 0, 0, W as i32, H as i32, 11);
+    heading(frame, "Controls", 14);
+    let (x, w) = (20, W as i32 - 40);
+    for (i, (action, keys)) in CONTROLS.iter().enumerate() {
+        let y = 44 + i as i32 * 13;
+        ui::text(frame, x, y, action, ui::WHITE);
+        ui::text(frame, x + w - ui::text_width(keys), y, keys, ui::CYAN);
+    }
+    ui::paragraph(frame, x, 44 + CONTROLS.len() as i32 * 13 + 6, w, "Hold jump while pogoing for a high bounce. Aim Fizz up with Up, or down with Down in the air.", ui::GREY);
+    ui::text_centred(frame, W as i32 / 2, 188, "Enter or Esc goes back", ui::GREY);
 }
 
 fn options_screen(frame: &mut [u8], s: &Shell) {
@@ -936,18 +1299,21 @@ fn options_screen(frame: &mut [u8], s: &Shell) {
         };
     }
     plate_rows(frame, 50, 66, 220, &rows[..n], s.cursor, s.tick);
+    ui::text_centred(frame, W as i32 / 2, 188, "Up and Down choose, Left and Right change, Esc goes back", ui::GREY);
 }
 
 fn slots_screen(frame: &mut [u8], s: &Shell, kind: SlotKind) {
     ui::dim(frame, 0, 0, W as i32, H as i32, 7);
     heading(frame, if kind == SlotKind::Load { "Load game" } else { "Save game" }, 12);
     let (first, count) = slot_rows(kind);
-    let mut labels: [Buf; 6] = core::array::from_fn(|_| Buf::new());
-    let mut values: [Buf; 6] = core::array::from_fn(|_| Buf::new());
+    let mut labels: [Buf; SLOTS] = core::array::from_fn(|_| Buf::new());
+    let mut values: [Buf; SLOTS] = core::array::from_fn(|_| Buf::new());
     for i in 0..count {
         let slot = first + i;
         if slot == 0 {
             let _ = write!(labels[i], "Autosave");
+        } else if slot == save::QUICK {
+            let _ = write!(labels[i], "Quick save");
         } else {
             let _ = write!(labels[i], "Slot {slot}");
         }
@@ -961,12 +1327,13 @@ fn slots_screen(frame: &mut [u8], s: &Shell, kind: SlotKind) {
             }
         }
     }
-    let mut rows: [(&str, &str); 6] = [("", ""); 6];
+    let mut rows: [(&str, &str); SLOTS + 1] = [("", ""); SLOTS + 1];
     for i in 0..count {
         rows[i] = (labels[i].as_str(), values[i].as_str());
     }
     rows[count] = ("Back", "");
     plate_rows(frame, 15, 40, 290, &rows[..=count], s.cursor, s.tick);
+    ui::text_centred(frame, W as i32 / 2, 172, "Up and Down choose, Enter selects, Esc goes back", ui::GREY);
     match s.note {
         Some((1, slot, _)) => {
             let mut b = Buf::new();
@@ -1089,7 +1456,10 @@ fn hud(frame: &mut [u8]) {
 }
 
 fn toast(frame: &mut [u8], id: u16) {
-    let text = TOASTS[usize::from(id).min(TOASTS.len() - 1)];
+    toast_text(frame, TOASTS[usize::from(id).min(TOASTS.len() - 1)]);
+}
+
+fn toast_text(frame: &mut [u8], text: &str) {
     let mut lines = [(0, 0); 4];
     let n = ui::wrap(text, 290, &mut lines);
     let h = n as i32 * ui::LINE + 11;
@@ -1175,6 +1545,15 @@ fn card_screen(frame: &mut [u8], card: Card) {
                 if lives == 1 { "life" } else { "lives" }
             );
             button = "Press Enter: back to the map";
+        }
+        Card::End { score, lives } => {
+            let _ = write!(title, "The end of Episode 1");
+            let _ = write!(
+                text,
+                "Billy's home, the cocoa's back, and you finished with {score} snack points and {lives} {} to spare. Mildred will be back.",
+                if lives == 1 { "life" } else { "lives" }
+            );
+            button = "Press Enter: back to the title";
         }
         Card::GameOver(score) => {
             let _ = write!(title, "Out of lives");
