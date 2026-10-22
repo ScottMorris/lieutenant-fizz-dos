@@ -123,8 +123,32 @@ rm -rf "$DEBUG"
 
 IMG="$OUT/$NAME-floppy.img"
 # The image's creation time is SOURCE_DATE_EPOCH, as the files' times are (mkfs.fat's --invariant would pin it to a constant of its own, in
-# 2015); -i sets the serial number, which mkfs.fat would otherwise take from the time.
+# 2015); -i sets the serial number, which mkfs.fat would otherwise take from the time. Only newer dosfstools read SOURCE_DATE_EPOCH (the
+# CI image's stamps the time of the build), so the label's entry is written here whichever mkfs.fat made it.
 SOURCE_DATE_EPOCH="$EPOCH" mkfs.fat -C -F 12 -n "$LABEL" -i "$SERIAL" "$IMG" 1440 >/dev/null
+python3 -I - "$IMG" "$EPOCH" <<'PY'
+import datetime
+import struct
+import sys
+
+path, epoch = sys.argv[1], int(sys.argv[2])
+image = bytearray(open(path, "rb").read())
+reserved, fats, root_entries, per_fat = (struct.unpack_from("<H", image, 14)[0], image[16], struct.unpack_from("<H", image, 17)[0],
+                                         struct.unpack_from("<H", image, 22)[0])
+root = (reserved + fats * per_fat) * struct.unpack_from("<H", image, 11)[0]
+t = datetime.datetime.fromtimestamp(epoch - epoch % 2, datetime.timezone.utc)
+date, time = (t.year - 1980) << 9 | t.month << 5 | t.day, t.hour << 11 | t.minute << 5 | t.second // 2
+for i in range(root_entries):
+    at = root + i * 32
+    if image[at] == 0:
+        break
+    if image[at + 11] == 0x08:  # the volume label
+        struct.pack_into("<HHHHHH", image, at + 14, time, date, date, 0, time, date)
+        open(path, "wb").write(image)
+        break
+else:
+    sys.exit("make-release.sh: the image has no volume label")
+PY
 (cd "$DISK" && mcopy -m -i "../$NAME-floppy.img" "${FILES[@]}" ::)
 # The hidden file is for whoever lists the disk with `dir /a`.
 mattrib -i "$IMG" +h +r ::COCOA.TXT
