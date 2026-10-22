@@ -6,8 +6,8 @@
 // The C side finds out about the hardware (the video adapter, input, sound, maths, memory, the speed of a few trial frames)
 // and hands over a list of numbers; this shows them, read-only. White with a green tick is found, grey with a cross is
 // missing, yellow with a triangle is there but short of the best, red with a cross is missing and needed: without a VGA,
-// an x87 or the least memory the game does not start. A machine without a VGA cannot show the drawn screen, so the same
-// rows are also written out as text for the text screen.
+// an x87 or the least memory the game does not start. The same rows also make an 80x25 text screen (`cells`), which a
+// machine without a VGA can show and which the `text` option asks for on any machine.
 
 use crate::ui::{self, Buf, DARK, GREEN, GREY, RED, WHITE, YELLOW};
 use crate::video::{H, W};
@@ -157,13 +157,9 @@ fn speed(v: &[i32]) -> (Buf, &'static str, u8) {
     (line, verdict, colour)
 }
 
-/// The footer's last line: the call to play, or what is missing. `short` names the x87 more briefly.
-fn call(v: &[i32], short: bool) -> (Buf, u8) {
-    let mut line = Buf::new();
-    if ready(v) {
-        let _ = line.write_str("Press Enter to play, Esc to quit");
-        return (line, YELLOW);
-    }
+/// What the game needs and the machine lacks, joined as in a sentence ("VGA, x87 and more memory"). `short` names the x87
+/// more briefly.
+fn needs(v: &[i32], short: bool, line: &mut Buf) {
     let mut parts: [&str; 3] = [""; 3];
     let mut n = 0;
     for (missing, name) in [
@@ -176,7 +172,6 @@ fn call(v: &[i32], short: bool) -> (Buf, u8) {
             n += 1;
         }
     }
-    let _ = line.write_str("Needs ");
     for (i, part) in parts[..n].iter().enumerate() {
         let gap = if i == 0 {
             ""
@@ -187,6 +182,17 @@ fn call(v: &[i32], short: bool) -> (Buf, u8) {
         };
         let _ = write!(line, "{gap}{part}");
     }
+}
+
+/// The footer's last line: the call to play, or what is missing. `short` names the x87 more briefly.
+fn call(v: &[i32], short: bool) -> (Buf, u8) {
+    let mut line = Buf::new();
+    if ready(v) {
+        let _ = line.write_str("Press Enter to play, Esc to quit");
+        return (line, YELLOW);
+    }
+    let _ = line.write_str("Needs ");
+    needs(v, short, &mut line);
     let _ = line.write_str(": Esc to quit");
     (line, RED)
 }
@@ -249,129 +255,168 @@ pub fn draw(frame: &mut [u8], v: &[i32], cpu: &str) {
     ui::text_fit(frame, cut, y0 + 16, line.as_str(), colour, fw);
 }
 
-/// Colour codes in the text form of the screen: each byte below 8 sets the colour of what follows it.
-const T_WHITE: u8 = 1;
-const T_GREY: u8 = 2;
-const T_RED: u8 = 3;
-const T_GREEN: u8 = 4;
-const T_YELLOW: u8 = 5;
-/// The tick and the warning triangle in code page 437.
-const TICK: u8 = 0xFB;
-const WARN: u8 = 0x1E;
-/// Where the right-hand column starts on an 80-column text screen.
-const COLUMN: usize = 40;
 
-/// Bytes going into the C side's buffer; what does not fit is dropped.
-struct Out<'a> {
-    bytes: &'a mut [u8],
-    len: usize,
-    /// Characters on the current line, not counting colour codes.
-    col: usize,
-}
+/// Frames a second in the `FPS` slot while the speed test runs: the text screen is up before the test and says so.
+pub const FPS_RUNNING: i32 = -1;
 
-impl Out<'_> {
-    fn byte(&mut self, b: u8) {
-        if self.len < self.bytes.len() {
-            self.bytes[self.len] = b;
-            self.len += 1;
-        }
-        if b == b'\n' {
-            self.col = 0;
-        } else if b >= 8 {
-            self.col += 1;
-        }
-    }
-    fn colour(&mut self, code: u8) {
-        self.byte(code);
-    }
-    fn text(&mut self, s: &str) {
-        for b in s.bytes() {
-            self.byte(b);
-        }
-    }
-    fn pad_to(&mut self, col: usize) {
-        while self.col < col {
-            self.byte(b' ');
+/// The text screen's size in character cells.
+pub const COLS: usize = 80;
+pub const ROWS: usize = 25;
+pub const CELLS: usize = COLS * ROWS;
+
+/// Text-mode colours (the attribute's nibbles). A background is 0..7 only: bit 7 of the attribute is never set, so it
+/// cannot blink whatever the adapter makes of it.
+const T_BLACK: u8 = 0;
+const T_RED: u8 = 4;
+const T_BROWN: u8 = 6;
+const T_LIGHT_GREEN: u8 = 10;
+const T_LIGHT_CYAN: u8 = 11;
+const T_YELLOW: u8 = 14;
+const T_WHITE: u8 = 15;
+
+/// Code page 437 characters: the tick, the warning triangle, two shades and the double-line box.
+const CP_TICK: u8 = 0xFB;
+const CP_WARN: u8 = 0x1E;
+const CP_LIGHT_SHADE: u8 = 0xB0;
+const CP_DARK_SHADE: u8 = 0xB2;
+const CP_H: u8 = 0xCD;
+const CP_V: u8 = 0xBA;
+const CP_TOP_LEFT: u8 = 0xC9;
+const CP_TOP_RIGHT: u8 = 0xBB;
+const CP_BOTTOM_LEFT: u8 = 0xC8;
+const CP_BOTTOM_RIGHT: u8 = 0xBC;
+
+/// The text screen being built: a cell is the character in the low byte and the attribute in the high byte (foreground in
+/// the low nibble, background in bits 4..6), as text-mode video memory holds it.
+struct Cells<'a>(&'a mut [u16]);
+
+impl Cells<'_> {
+    fn set(&mut self, x: usize, y: usize, ch: u8, fg: u8, bg: Option<u8>) {
+        if x < COLS && y < ROWS {
+            let cell = &mut self.0[y * COLS + x];
+            let bg = bg.unwrap_or((*cell >> 12) as u8 & 7);
+            *cell = u16::from(ch) | u16::from(fg & 15) << 8 | u16::from(bg & 7) << 12;
         }
     }
-}
 
-fn code(colour: u8) -> u8 {
-    match colour {
-        GREEN => T_GREEN,
-        RED => T_RED,
-        YELLOW => T_YELLOW,
-        GREY | DARK => T_GREY,
-        _ => T_WHITE,
+    /// Writes `s` from column `x`; with no `bg` each cell keeps the background it had. Returns the column after it.
+    fn put(&mut self, x: usize, y: usize, s: &[u8], fg: u8, bg: Option<u8>) -> usize {
+        for (i, &ch) in s.iter().enumerate() {
+            self.set(x + i, y, ch, fg, bg);
+        }
+        x + s.len()
     }
-}
 
-/// Writes the screen as lines of text for the 80x25 text screen into `out`, with colour codes (see `T_WHITE`); returns
-/// the number of bytes written.
-pub fn text(out: &mut [u8], v: &[i32], cpu: &str) -> usize {
-    let mut o = Out { bytes: out, len: 0, col: 0 };
-    o.colour(T_WHITE);
-    o.text("\n  Lieutenant Fizz");
-    o.colour(T_YELLOW);
-    o.text(" - Episode 1 - The Cocoa Caper\n");
-    // Each row of panels in two columns: the legends, then three rows.
-    let mut grid: [[(Buf, State); 3]; 4] = core::array::from_fn(|_| core::array::from_fn(|_| (Buf::new(), State::Missing)));
-    rows(v, cpu, |panel, n, label, state| {
-        let _ = grid[panel][n as usize].0.write_str(label);
-        grid[panel][n as usize].1 = state;
-    });
-    for pair in [0, 2] {
-        o.text("\n");
-        o.colour(T_YELLOW);
-        o.pad_to(2);
-        o.text(PANELS[pair]);
-        o.pad_to(COLUMN);
-        o.text(PANELS[pair + 1]);
-        o.text("\n");
-        for n in 0..3 {
-            for (side, panel) in [pair, pair + 1].into_iter().enumerate() {
-                o.pad_to(if side == 0 { 2 } else { COLUMN });
-                let (label, state) = &grid[panel][n];
-                match state {
-                    State::Found => {
-                        o.colour(T_GREEN);
-                        o.byte(TICK);
-                        o.colour(T_WHITE);
-                    }
-                    State::Warn => {
-                        o.colour(T_YELLOW);
-                        o.byte(WARN);
-                    }
-                    State::Missing => {
-                        o.colour(T_GREY);
-                        o.byte(b'x');
-                    }
-                    State::Needed => {
-                        o.colour(T_RED);
-                        o.byte(b'x');
-                    }
-                }
-                o.byte(b' ');
-                o.text(label.as_str());
+    fn fill(&mut self, x: usize, y: usize, n: usize, ch: u8, fg: u8, bg: Option<u8>) {
+        for i in 0..n {
+            self.set(x + i, y, ch, fg, bg);
+        }
+    }
+
+    /// Changes the background of `n` cells and leaves their characters and foregrounds alone: the bar behind a row.
+    fn recolour(&mut self, x: usize, y: usize, n: usize, bg: u8) {
+        for i in 0..n {
+            if x + i < COLS && y < ROWS {
+                let cell = &mut self.0[y * COLS + x + i];
+                *cell = *cell & 0x8FFF | u16::from(bg & 7) << 12;
             }
-            o.text("\n");
         }
     }
-    o.text("\n");
-    let (line, verdict, colour) = speed(v);
-    if !line.as_str().is_empty() {
-        o.pad_to(2);
-        o.colour(if verdict.is_empty() { code(colour) } else { T_WHITE });
-        o.text(line.as_str());
-        o.colour(code(colour));
-        o.text(verdict);
-        o.text("\n");
+
+    fn centre(&mut self, y: usize, s: &[u8], fg: u8) {
+        self.put(COLS.saturating_sub(s.len()) / 2, y, s, fg, None);
     }
-    let (line, colour) = call(v, false);
-    o.pad_to(2);
-    o.colour(code(colour));
-    o.text(line.as_str());
-    o.text("\n");
-    o.colour(T_WHITE);
-    o.len
+
+    /// A plate: a black or coloured fill with a double-line edge, a legend on the top edge if `title` is given, and a shadow
+    /// of light shade in brown two columns wide down the right (a cell is about twice as tall as it is wide) and one row
+    /// below, offset two columns.
+    fn plate(&mut self, x: usize, y: usize, w: usize, h: usize, fill: u8, edge: u8, title: Option<&str>) {
+        for r in 0..h {
+            self.fill(x, y + r, w, b' ', edge, Some(fill));
+        }
+        self.set(x, y, CP_TOP_LEFT, edge, Some(fill));
+        self.fill(x + 1, y, w - 2, CP_H, edge, Some(fill));
+        self.set(x + w - 1, y, CP_TOP_RIGHT, edge, Some(fill));
+        for r in 1..h - 1 {
+            self.set(x, y + r, CP_V, edge, Some(fill));
+            self.set(x + w - 1, y + r, CP_V, edge, Some(fill));
+        }
+        self.set(x, y + h - 1, CP_BOTTOM_LEFT, edge, Some(fill));
+        self.fill(x + 1, y + h - 1, w - 2, CP_H, edge, Some(fill));
+        self.set(x + w - 1, y + h - 1, CP_BOTTOM_RIGHT, edge, Some(fill));
+        if let Some(title) = title {
+            let end = self.put(x + 2, y, b" ", T_WHITE, Some(T_BROWN));
+            let end = self.put(end, y, title.as_bytes(), T_WHITE, Some(T_BROWN));
+            self.put(end, y, b" ", T_WHITE, Some(T_BROWN));
+        }
+        for r in 1..=h {
+            self.fill(x + w, y + r, 2, CP_LIGHT_SHADE, T_BROWN, Some(T_BLACK));
+        }
+        self.fill(x + 2, y + h, w, CP_LIGHT_SHADE, T_BROWN, Some(T_BLACK));
+    }
+}
+
+/// Builds the start-up screen as 80x25 text cells into `out` (`CELLS` of them): the same rows and rules as `draw`, in brown,
+/// yellow and white on black over a field of dark shade. `v[FPS]` is `FPS_RUNNING` while the speed test runs.
+pub fn cells(out: &mut [u16], v: &[i32], cpu: &str) {
+    let mut s = Cells(out);
+    for cell in s.0.iter_mut() {
+        *cell = u16::from(CP_DARK_SHADE) | u16::from(T_BROWN) << 8;
+    }
+    // A narrow title plate, four panels across the full width in two columns, and a narrow footer.
+    s.plate(6, 2, 68, 3, T_BROWN, T_YELLOW, None);
+    s.centre(3, b"Lieutenant Fizz - Episode 1 - The Cocoa Caper", T_WHITE);
+    const PANEL_X: [usize; 2] = [2, 41];
+    const PANEL_Y: [usize; 2] = [6, 12];
+    const PANEL_W: usize = 37;
+    const FOOT_Y: usize = 18;
+    for (i, name) in PANELS.iter().enumerate() {
+        s.plate(PANEL_X[i % 2], PANEL_Y[i / 2], PANEL_W, 5, T_BLACK, T_YELLOW, Some(name));
+    }
+    rows(v, cpu, |panel, n, label, state| {
+        let (x, y) = (PANEL_X[panel % 2], PANEL_Y[panel / 2] + 1 + n as usize);
+        let (mark, mark_fg, label_fg, bar) = match state {
+            State::Found => (CP_TICK, T_LIGHT_GREEN, T_WHITE, None),
+            State::Missing => (b'x', T_BROWN, T_BROWN, None),
+            State::Warn => (CP_WARN, T_YELLOW, T_YELLOW, Some(T_BROWN)),
+            State::Needed => (b'!', T_WHITE, T_WHITE, Some(T_RED)),
+        };
+        if let Some(bar) = bar {
+            s.recolour(x + 1, y, PANEL_W - 2, bar);
+        }
+        s.set(x + 2, y, mark, mark_fg, None);
+        s.put(x + 4, y, label.as_bytes(), label_fg, None);
+    });
+
+    s.plate(6, FOOT_Y, 68, 5, T_BLACK, T_YELLOW, None);
+    if !ready(v) {
+        s.centre(FOOT_Y + 1, b"Speed test: not run", T_BROWN);
+        s.recolour(7, FOOT_Y + 3, 66, T_RED);
+        let mut line = Buf::new();
+        let _ = line.write_str("! Needs ");
+        needs(v, true, &mut line);
+        let _ = line.write_str(": Esc to quit");
+        s.centre(FOOT_Y + 3, line.as_str().as_bytes(), T_WHITE);
+        return;
+    }
+    let fps = v[FPS];
+    if fps < 0 {
+        s.centre(FOOT_Y + 1, b"Speed test: running", T_BROWN);
+        return;
+    }
+    let (verdict, fg, bg) = if fps >= 90 {
+        ("smooth", T_LIGHT_GREEN, None)
+    } else if fps >= 62 {
+        ("fine", T_LIGHT_CYAN, None)
+    } else if fps >= 40 {
+        ("borderline", T_YELLOW, None)
+    } else {
+        ("too slow", T_WHITE, Some(T_RED))
+    };
+    let mut head = Buf::new();
+    let _ = write!(head, "Speed test: {fps} frames a second - ");
+    let x = COLS.saturating_sub(head.as_str().len() + verdict.len()) / 2;
+    let x = s.put(x, FOOT_Y + 1, head.as_str().as_bytes(), T_BROWN, None);
+    s.put(x, FOOT_Y + 1, verdict.as_bytes(), fg, bg);
+    s.centre(FOOT_Y + 3, b"Press Enter to play, Esc to quit", T_YELLOW);
 }

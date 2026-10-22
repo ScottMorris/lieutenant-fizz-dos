@@ -268,14 +268,15 @@ pub extern "C" fn fizz_preview_ready(values: *const i32) -> c_int {
     c_int::from(preview::ready(v))
 }
 
-/// Writes the start-up screen as text, with colour codes, into `out` (at most `cap` bytes) for a machine that has no VGA
-/// to draw it on; returns the length.
+/// Builds the start-up screen as an 80x25 text screen into `out`: `preview::CELLS` cells of a character in the low byte and
+/// an attribute in the high byte, ready for text-mode video memory. `values` and `cpu` are as for `fizz_preview`.
 #[no_mangle]
-pub extern "C" fn fizz_preview_text(values: *const i32, cpu: *const u8, out: *mut u8, cap: u32) -> u32 {
+pub extern "C" fn fizz_preview_cells(values: *const i32, cpu: *const u8, out: *mut u16) {
     let v = unsafe { core::slice::from_raw_parts(values, preview::COUNT) };
-    let out = unsafe { core::slice::from_raw_parts_mut(out, cap as usize) };
+    // The C side passes a buffer of `preview::CELLS` cells.
+    let out = unsafe { core::slice::from_raw_parts_mut(out, preview::CELLS) };
     let mut name = [0u8; 16];
-    preview::text(out, v, cpu_name(cpu, &mut name)) as u32
+    preview::cells(out, v, cpu_name(cpu, &mut name));
 }
 
 /// Whether the player chose to leave the game from a menu.
