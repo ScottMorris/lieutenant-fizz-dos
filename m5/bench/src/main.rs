@@ -15,6 +15,8 @@
 
 #[path = "../../../m2/dos-rt/src/cine.rs"]
 mod cine;
+#[path = "../../../m2/dos-rt/src/fx.rs"]
+mod fx;
 #[path = "../../../m2/dos-rt/src/preview.rs"]
 mod preview;
 #[path = "../../../m2/dos-rt/src/save.rs"]
@@ -257,6 +259,7 @@ fn pause_resume_test() {
 fn main() {
     // The opening cinematic's sprite names must all be in the sheet (a name that drifts from the export would draw nothing).
     assert_eq!(cine::missing_sprites(), 0, "a sprite of the cinematic is not in the sheet");
+    assert!(fx::self_check(), "an easing or a tween is off");
     if std::env::var("PAUSETEST").is_ok() {
         pause_resume_test();
         return;

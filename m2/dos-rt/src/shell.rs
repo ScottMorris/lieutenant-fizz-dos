@@ -18,6 +18,7 @@ use lf_episode_1::{
 };
 
 use crate::cine::Cine;
+use crate::fx;
 use crate::save::{self, SLOTS};
 use crate::story::{self, Press};
 use crate::ui::{self, Buf};
@@ -161,8 +162,7 @@ enum Next {
 
 #[derive(Clone, Copy)]
 struct Fade {
-    out: bool,
-    t: u32,
+    ramp: fx::Ramp,
     then: Next,
 }
 
@@ -315,7 +315,7 @@ pub fn start_title() {
     s.cursor = 0;
     s.attract = 0;
     s.ben_ids = ["ben_stand", "ben_jump", "ben_shoot", "ben_pogo", "ben_pogo2"].map(|n| crate::video::sprite_by_name(n).unwrap_or(usize::MAX));
-    s.fade = Some(Fade { out: false, t: 0, then: Next::Title });
+    s.fade = Some(Fade { ramp: fx::Ramp::new(FADE_TICKS, false), then: Next::Title });
     load_attract(0, 0);
 }
 
@@ -451,7 +451,7 @@ fn menu_keys(s: &mut Shell, edges: u32, len: usize) -> Pick {
 }
 
 fn fade_to(s: &mut Shell, then: Next) {
-    s.fade = Some(Fade { out: true, t: 0, then });
+    s.fade = Some(Fade { ramp: fx::Ramp::new(FADE_TICKS, true), then });
 }
 
 /// Does what a finished fade out led to.
@@ -507,13 +507,13 @@ pub fn advance(held: u32) {
 
     // A fade out holds everything still until it is black; a fade in lets the screen run.
     if let Some(mut f) = s.fade {
-        f.t += 1;
-        if f.t >= FADE_TICKS {
-            if f.out {
+        f.ramp.t += 1;
+        if f.ramp.done() {
+            if f.ramp.out {
                 s.fade = None;
                 perform(s, f.then);
                 if !s.quit {
-                    s.fade = Some(Fade { out: false, t: 0, then: f.then });
+                    s.fade = Some(Fade { ramp: fx::Ramp::new(FADE_TICKS, false), then: f.then });
                 }
             } else {
                 s.fade = None;
@@ -521,7 +521,7 @@ pub fn advance(held: u32) {
             return;
         }
         s.fade = Some(f);
-        if f.out {
+        if f.ramp.out {
             return;
         }
     }
@@ -848,7 +848,7 @@ fn play_tick(s: &mut Shell, edges: u32, sim_held: u32) {
     // A level entered or left from inside the sim fades in from black.
     let now = mode();
     if mode_before != 0 && now != mode_before && s.fade.is_none() {
-        s.fade = Some(Fade { out: false, t: 0, then: Next::Map });
+        s.fade = Some(Fade { ramp: fx::Ramp::new(FADE_TICKS, false), then: Next::Map });
     }
     s.last_mode = now;
 
@@ -1103,8 +1103,7 @@ pub fn overlay(frame: &mut [u8], cam_px: (i32, i32)) {
         }
     }
     if let Some(f) = s.fade {
-        let steps = (f.t * 13 / FADE_TICKS).min(13) as u8;
-        ui::dim(frame, 0, 0, W as i32, H as i32, if f.out { steps } else { 13 - steps });
+        fx::fade(frame, f.ramp.steps());
     }
 }
 
