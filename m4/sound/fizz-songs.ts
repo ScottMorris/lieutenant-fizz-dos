@@ -579,6 +579,22 @@ export const SONGS: SongDef[] = [
 		],
 	},
 	{
+		id: 'ending',
+		trim: 0.8,
+		intro: 0,
+		noFill: true,
+		title: 'Ending Reprise',
+		...fromGame('ending', 'Ending Reprise'),
+		contrast: 5,
+		lift: 0,
+		arp: true,
+		devices: [
+			'a triumphant reprise of the title tune, in C',
+			'contrast section in the subdominant',
+			'octave doubling on the last time, back in the home key so the loop wraps cleanly',
+		],
+	},
+	{
 		id: 'aire',
 		trim: 0.9,
 		fill: 0,

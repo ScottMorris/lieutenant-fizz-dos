@@ -29,7 +29,8 @@ static const unsigned char *blob;
 static unsigned long blob_length;
 static unsigned n_songs, n_fx, n_captions, n_levels;
 static const unsigned char *song_table, *fx_table, *caption_table, *level_table;
-static int title_song, map_song, boss_song;
+static int title_song, map_song, boss_song, n_extra;
+static const unsigned char *extra_table;
 
 static volatile unsigned long tick_count, register_writes;
 static volatile int mode = SND_OFF;
@@ -203,6 +204,8 @@ int snd_init(const unsigned char *data, unsigned long length, int requested) {
   title_song = level_table[n_levels];
   map_song = level_table[n_levels + 1];
   boss_song = level_table[n_levels + 2];
+  n_extra = level_table[n_levels + 3];
+  extra_table = level_table + n_levels + 4;
   if (requested == SND_OFF) { mode = SND_OFF; return mode; }
   have_opl = requested != SND_SPEAKER && opl_detect();
   if (have_opl) { opl_silence(); opl_write(0x01, 0x20); }
@@ -262,6 +265,12 @@ void snd_music_for(int level, int boss) {
   else if ((unsigned)level < n_levels) song = level_table[level];
   else song = title_song;
   if (song != current_song) snd_music(song);
+}
+
+/* One of the extra songs the story screens ask for: 0 is the ending. */
+void snd_music_extra(int n) {
+  if (!blob || n < 0 || n >= n_extra) return;
+  if (extra_table[n] != current_song) snd_music(extra_table[n]);
 }
 
 void snd_fx(int effect) { if (mode != SND_OFF && effect >= 0) want_fx = effect; }

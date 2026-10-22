@@ -167,4 +167,13 @@ pub static TITLE_KICKER: &str = "Ben Blaze in";
 pub static TITLE_WORDS: &str = "Lieutenant Fizz";
 pub static TITLE_LINE: &str = "Episode 1 · The Cocoa Caper";
 pub static BOSS_INTRO: &[(&str, &str)] = &[("Mildred McMire", "Ben Blaze? Mortimer said Billy's little cousin might show up. Cute helmet."), ("Mildred McMire", "Every cocoa bean on Earth is going into my castle — the biggest chocolate castle in the galaxy! Colossus, squash him!"), ("Ben", "Not before I get Billy back."), ("Tip", "The Colossus's armour shrugs off fizz. Wait for its dome to pop open after a charge, then strike.")];
+/// The ending's panels: the place and the beats of each scene.
+pub static END: &[(&str, &[&str])] = &[("The security terminal", &["The gold USB drive slid into the security terminal with a satisfying click.", "Lines of green text raced up the screen.", "Mildred's security system blinked, sputtered, and gave up."]), ("Billy's cage", &["The cage door swung open.", "Billy stepped out, straightened his football helmet and grinned.", "“Took you long enough, Lieutenant Fizz.”"]), ("Somewhere above", &["Somewhere above, a hatch slammed.", "Mildred McMire's voice echoed down the chocolate halls:", "“This isn't over, Ben Blaze! Mortimer and I have plenty more castles to build!”"]), ("Homeward", &["The cousins raced back to the spaghetti with meatballs flying saucer,", "its hold stuffed with every cocoa bean the Zargs had taken.", "Earth's chocolate was safe — for now."])];
+pub static CREDITS_TITLE: &str = "Lieutenant Fizz";
+pub static CREDITS_SUBTITLE: &str = "Episode 1 · The Cocoa Caper";
+/// The credits roll's sections: a heading and its lines of role and name.
+pub static CREDITS: &[(&str, &[(&str, &str)])] = &[("Starring", &[("Neighbourhood tinkerer", "Ben “Lieutenant Fizz” Blaze"), ("Local genius", "Billy Blaze"), ("Chocolate castle architect", "Mildred McMire"), ("Hiding in the shadows somewhere", "Mortimer McMire"), ("Itself", "The Cocoa Colossus")]), ("Made by", &[("Game design, story, and code", "Scott Morris"), ("Studio", "Liminal HQ")]), ("Built with", &[("Engine", "Liminal Retro Engine"), ("Sound and music", "Undertone"), ("Rendering", "Three.js"), ("Interface", "Afterglow")])];
+pub static CREDITS_THANKS: &str = "Thanks for playing";
+pub static CREDITS_THANKS_LINE: &str = "Billy’s home and the cocoa’s back.";
+pub static CREDITS_RETURN: &str = "Lieutenant Fizz will return.";
 pub static BOSS_DEFEATED: &[(&str, &str)] = &[("Mildred McMire", "My Colossus! Fine, keep your silly cousin. I've got a castle to finish!"), ("Ben", "It dropped something… a gold USB drive. There's a security terminal back by the entrance.")];

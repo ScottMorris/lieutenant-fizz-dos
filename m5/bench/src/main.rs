@@ -19,6 +19,8 @@ mod preview;
 mod save;
 #[path = "../../../m2/dos-rt/src/shell.rs"]
 mod shell;
+#[path = "../../../m2/dos-rt/src/story.rs"]
+mod story;
 #[path = "../../../m2/dos-rt/src/ui.rs"]
 mod ui;
 #[path = "../../../m2/dos-rt/src/ui_data.rs"]

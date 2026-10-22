@@ -18,9 +18,10 @@ use lf_episode_1::{
 };
 
 use crate::save::{self, SLOTS};
+use crate::story::{self, Press};
 use crate::ui::{self, Buf};
 use crate::ui_data::{
-    BOSS_DEFEATED, BOSS_INTRO, CAPTIONS, LEVEL_BLURBS, LEVEL_CLEARED, LEVEL_NAMES, SIGNS, TITLE_KICKER, TITLE_LINE,
+    BOSS_DEFEATED, BOSS_INTRO, CAPTIONS, END, LEVEL_BLURBS, LEVEL_CLEARED, LEVEL_NAMES, SIGNS, TITLE_KICKER, TITLE_LINE,
     TITLE_WORDS, TOASTS,
 };
 use crate::video::{H, W};
@@ -102,6 +103,8 @@ enum Card {
     Cleared(u8),
     Died { lives: i32, level: u8 },
     GameOver(i32),
+    /// The end of the episode, with the score and the lives left.
+    End { score: i32, lives: i32 },
 }
 
 #[derive(Clone, Copy)]
@@ -121,6 +124,9 @@ enum Screen {
     Options(Back),
     Controls(Back),
     Slots(SlotKind, Back),
+    /// The ending's panels, then the credits roll.
+    Ending,
+    Credits,
 }
 
 /// Where Options and the slot lists go back to.
@@ -229,6 +235,8 @@ struct Shell {
     ben_wave: u32,
     /// The sheet ids of Ben's title poses (stand, jump, shoot, pogo, pogo2); `usize::MAX` for one the sheet lacks, which draws nothing.
     ben_ids: [usize; 5],
+    reel: story::Reel,
+    roll: story::Roll,
     tick: u32,
 }
 
@@ -256,6 +264,8 @@ static mut SHELL: Shell = Shell {
     ben_look: 0,
     ben_wave: 0,
     ben_ids: [usize::MAX; 5],
+    reel: story::Reel::empty(),
+    roll: story::Roll::new(),
     tick: 0,
 };
 
@@ -302,7 +312,7 @@ pub fn quit_requested() -> bool {
     sh().quit
 }
 
-/// A check: puts a screen up (1 pause, 2 options, 3 load list, 4 save list, 6 controls).
+/// A check: puts a screen up (1 pause, 2 options, 3 load list, 4 save list, 6 controls, 7 the ending, 8 the credits).
 pub fn show(n: u32) {
     let s = sh();
     s.cursor = 0;
@@ -313,6 +323,15 @@ pub fn show(n: u32) {
         3 => Screen::Slots(SlotKind::Load, Back::Pause),
         4 => Screen::Slots(SlotKind::Save, Back::Pause),
         6 => Screen::Controls(Back::Pause),
+        7 => {
+            start_ending(s);
+            return;
+        }
+        8 => {
+            s.roll.start();
+            s.screen = Screen::Credits;
+            return;
+        }
         n if n >= 10 => {
             // A check: load a slot straight away.
             perform(s, Next::Load((n - 10) as u8));
@@ -473,6 +492,8 @@ pub fn advance(held: u32) {
         Screen::Controls(back) => controls_tick(s, edges, back),
         Screen::Slots(kind, back) => slots_tick(s, edges, kind, back),
         Screen::Play => play_tick(s, edges, sim_held),
+        Screen::Ending => ending_tick(s, edges),
+        Screen::Credits => credits_tick(s, edges),
     }
     // Going back into the game from a menu: the key that chose it is still down, and must not be read as a press in the game.
     if !was_play && s.screen == Screen::Play {
@@ -737,6 +758,8 @@ fn play_tick(s: &mut Shell, edges: u32, sim_held: u32) {
         if edges & CONFIRM != 0 && s.card_age > CARD_ARM {
             if matches!(card, Card::GameOver(_)) {
                 fade_to(s, Next::NewGame);
+            } else if matches!(card, Card::End { .. }) {
+                fade_to(s, Next::Title);
             } else {
                 fade_to(s, Next::Map);
             }
@@ -815,6 +838,7 @@ fn events(s: &mut Shell) {
     const DIED: f32 = 5.0;
     const GAME_OVER: f32 = 6.0;
     const DIALOGUE: f32 = 7.0;
+    const ENDING: f32 = 9.0;
     const MAP_PROMPT: f32 = 10.0;
     const LEVEL_START: f32 = 11.0;
     let n = events_len() as usize;
@@ -839,6 +863,9 @@ fn events(s: &mut Shell) {
                 s.pending = Some((Card::GameOver(a as i32), GAME_OVER_WAIT));
             } else if e[0] == DIALOGUE {
                 s.dialogue = Some(Dialogue { id: a as u8, line: 0, typed: 0 });
+            } else if e[0] == ENDING {
+                start_ending(s);
+                break;
             } else if e[0] == MAP_PROMPT {
                 s.prompt = if a == 0.0 { None } else { Some((a as u8, b as i32, c as i32)) };
             } else if e[0] == LEVEL_START {
@@ -847,6 +874,57 @@ fn events(s: &mut Shell) {
         }
     }
     events_clear();
+}
+
+/// The sim has finished the episode: the closing panels, the credits, then the end card.
+fn start_ending(s: &mut Shell) {
+    reset();
+    s.fade = None;
+    s.reel.start(END);
+    s.screen = Screen::Ending;
+}
+
+fn ending_tick(s: &mut Shell, edges: u32) {
+    s.reel.tick();
+    if edges & (CONFIRM | JUMP | FIRE) != 0 {
+        match s.reel.press() {
+            Press::End => {
+                cue(FX_SELECT);
+                s.roll.start();
+                s.screen = Screen::Credits;
+            }
+            Press::Complete => {}
+            Press::Page | Press::Scene => cue(FX_MOVE),
+        }
+    }
+}
+
+fn credits_tick(s: &mut Shell, edges: u32) {
+    s.roll.tick();
+    let leave = if edges & MENU_KEY != 0 {
+        true
+    } else if edges & (CONFIRM | JUMP | FIRE) != 0 {
+        cue(FX_MOVE);
+        s.roll.press()
+    } else {
+        false
+    };
+    if leave {
+        cue(FX_SELECT);
+        // The end card sits over the last frame of the game, and a press of Enter takes it back to the title.
+        s.screen = Screen::Play;
+        s.card = Some(Card::End { score: state_get(SCORE) as i32, lives: state_get(LIVES) as i32 });
+        s.card_age = 0;
+    }
+}
+
+/// The song a story screen wants, so the C side can play it: 1 is the ending's, 0 leaves the choice to the game.
+pub fn music_key() -> u32 {
+    let s = sh();
+    match (s.screen, s.card) {
+        (Screen::Ending | Screen::Credits, _) | (_, Some(Card::End { .. })) => 1,
+        _ => 0,
+    }
 }
 
 /// Starts a floating word, unless the same one was shown a moment ago or it has no colour.
@@ -872,6 +950,8 @@ pub fn overlay(frame: &mut [u8], cam_px: (i32, i32)) {
     let m = mode();
     match s.screen {
         Screen::Title => title_screen(frame, s),
+        Screen::Ending => s.reel.draw(frame, s.tick, false),
+        Screen::Credits => s.roll.draw(frame),
         _ => {
             if m == 2 || m == 3 {
                 captions(frame, s, cam_px);
@@ -895,6 +975,7 @@ pub fn overlay(frame: &mut [u8], cam_px: (i32, i32)) {
                 Screen::Pause => pause_screen(frame, s),
                 Screen::Options(_) => options_screen(frame, s),
                 Screen::Controls(_) => controls_screen(frame),
+                Screen::Ending | Screen::Credits => {}
                 Screen::Slots(kind, _) => slots_screen(frame, s, kind),
                 _ => {}
             }
@@ -1351,6 +1432,15 @@ fn card_screen(frame: &mut [u8], card: Card) {
                 if lives == 1 { "life" } else { "lives" }
             );
             button = "Press Enter: back to the map";
+        }
+        Card::End { score, lives } => {
+            let _ = write!(title, "The end of Episode 1");
+            let _ = write!(
+                text,
+                "Billy's home, the cocoa's back, and you finished with {score} snack points and {lives} {} to spare. Mildred will be back.",
+                if lives == 1 { "life" } else { "lives" }
+            );
+            button = "Press Enter: back to the title";
         }
         Card::GameOver(score) => {
             let _ = write!(title, "Out of lives");

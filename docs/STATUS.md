@@ -6,6 +6,7 @@ Where the DOS port stands against the main game (`liminal-hq/lieutenant-fizz`, E
 
 - **The game:** the title with its attract loop, the overworld, every level in the simulation (0 to 15), the boss fights with their dialogue, lives, score, Fizz ammo and extra lives.
 - **The shell:** a start-up system check (video, input, sound and maths hardware, and a speed test of the real renderer), title, pause, options, load and save lists, a boxed HUD, map prompts, floating caption words, toasts and result cards, a controls screen (from the title and the pause menu) and a key hint under each menu, and Ben on the title wordmark (he bobs, leans, hops up and pogoes across it, turns to the menu and waves on a pick), with fades between screens.
+- **The ending:** after the last boss, four letterboxed panels typed out at the main game's speed, the credits roll (Enter speeds it up, Esc skips) with the ending's music, and an end card that returns to the title.
 - **Saves and options:** progress is written to `AUTO.SAV` on every map visit and to `SLOT1.SAV` to `SLOT4.SAV` from the pause menu. F5 and F9 quick-save and quick-load in `QUICK.SAV`, a slot of its own (the main game writes the newest manual slot instead). Saves are progress-only, which is also the main game's behaviour. The options are written to `FIZZ.CFG`, a separate file, and read at the next start.
 - **Sound:** AdLib (OPL2) music and effects, PC-speaker effects, or the music on AdLib with the effects on the speaker. The music and effects are converted from the main game's Undertone data.
 - **Speed options:** frame rate (auto, 60 Hz, 30 Hz) and detail (auto, high, low) in Options, with command-line overrides.
@@ -14,11 +15,13 @@ Where the DOS port stands against the main game (`liminal-hq/lieutenant-fizz`, E
 ## Not ported yet
 
 - The eight-scene opening cinematic, drawn in TypeScript in the main game and not part of the simulation.
-- The ending: the closing panels, the credits roll and the stinger. The port shows result cards but has no ending sequence.
 - Play samples and replays.
 
 ## Different on purpose
 
+- **No stinger.** Episode 1 does not ship the main game's post-credits stinger (it belongs after Episode 3), so the port has none.
+- **No play samples or replays.** Those are the web and app builds' telemetry and viewer, built on browser storage.
+- **The ending's panels sit over the dimmed last frame of the game**, and the credits roll is stacked (a role above its name) so the long roles fit 320 pixels.
 - **Lighting is brightness only.** The palette holds 16 EGA colours at 14 brightness levels, so a coloured light dims or brightens a pixel but cannot tint it. Sprite tints snap to the nearest EGA colour.
 - **The hints are the menu hint lines and the controls screen.** The main game has no separate in-level tutorial, so there is nothing more to port.
 - **No alpha blending.** A sprite is drawn or it is skipped.

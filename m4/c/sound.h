@@ -23,6 +23,7 @@ unsigned long snd_ticks(void);
 
 void snd_music(int song);        /* -1 stops */
 void snd_music_for(int level, int boss);
+void snd_music_extra(int n);      /* the story screens' songs: 0 is the ending */
 int snd_current_song(void);
 void snd_fx(int effect);
 void snd_caption(unsigned caption); /* the sim's caption id: plays its effect */

@@ -9,7 +9,8 @@ import { readFileSync, writeSync } from 'node:fs';
 
 const GAME = process.env.FIZZ_GAME ?? new URL('../../../liminal-hq/lieutenant-fizz', import.meta.url).pathname; // the main game's checkout; FIZZ_GAME overrides
 const { RAW, EXTRA } = await import(`${GAME}/packages/engine/src/font/fizz-glyphs.ts`);
-const { LEVELS, SIGNS, DIALOGUE } = await import(`${GAME}/episodes/episode-1/src/story.ts`);
+const { LEVELS, SIGNS, DIALOGUE, END } = await import(`${GAME}/episodes/episode-1/src/story.ts`);
+const { CREDITS } = await import(`${GAME}/episodes/episode-1/src/credits.ts`);
 const { EGA } = await import(`${GAME}/packages/engine/src/palette.ts`);
 const { TITLE_CARD } = await import(`${GAME}/episodes/episode-1/src/title-card.ts`);
 
@@ -96,6 +97,21 @@ out.push(`pub static TITLE_KICKER: &str = ${rs(TITLE_CARD.kicker)};`);
 out.push(`pub static TITLE_WORDS: &str = ${rs(TITLE_CARD.words.join(' '))};`);
 out.push(`pub static TITLE_LINE: &str = ${rs(TITLE_CARD.line)};`);
 out.push(`pub static BOSS_INTRO: &[(&str, &str)] = ${dialogue(DIALOGUE.bossIntro)};`);
+const scenes = (list: { place: string; beats: string[] }[]) =>
+  `&[${list.map((s) => `(${rs(s.place)}, &[${s.beats.map(rs).join(', ')}])`).join(', ')}]`;
+out.push('/// The ending\'s panels: the place and the beats of each scene.');
+out.push(`pub static END: &[(&str, &[&str])] = ${scenes(END)};`);
+out.push(`pub static CREDITS_TITLE: &str = ${rs(CREDITS.title)};`);
+out.push(`pub static CREDITS_SUBTITLE: &str = ${rs(CREDITS.subtitle)};`);
+out.push('/// The credits roll\'s sections: a heading and its lines of role and name.');
+out.push(
+  `pub static CREDITS: &[(&str, &[(&str, &str)])] = &[${CREDITS.sections
+    .map((s: { head: string; lines: { role: string; name: string }[] }) => `(${rs(s.head)}, &[${s.lines.map((l) => `(${rs(l.role)}, ${rs(l.name)})`).join(', ')}])`)
+    .join(', ')}];`,
+);
+out.push(`pub static CREDITS_THANKS: &str = ${rs(CREDITS.thanks)};`);
+out.push(`pub static CREDITS_THANKS_LINE: &str = ${rs(CREDITS.thanksLine)};`);
+out.push(`pub static CREDITS_RETURN: &str = ${rs(CREDITS.returnLine)};`);
 out.push(`pub static BOSS_DEFEATED: &[(&str, &str)] = ${dialogue(DIALOGUE.bossDefeated)};`);
 writeSync(1, out.join('\n') + '\n');
 console.error(`${glyphs.size} glyphs; ${levels.length} levels, ${captions.length} captions, ${toasts.length} toasts; characters the font lacks: ${[...missing].join(' ') || 'none'}`);

@@ -10,6 +10,7 @@ extern crate alloc;
 pub mod preview;
 pub mod save;
 pub mod shell;
+pub mod story;
 pub mod ui;
 pub mod ui_data;
 pub mod video;
@@ -250,6 +251,12 @@ pub extern "C" fn fizz_preview(frame: *mut u8, values: *const i32, cpu: *const u
 #[no_mangle]
 pub extern "C" fn fizz_quit() -> u32 {
     u32::from(shell::quit_requested())
+}
+
+/// The song a story screen wants (1 is the first of the extra songs), or 0 when the game chooses by itself.
+#[no_mangle]
+pub extern "C" fn fizz_music_key() -> u32 {
+    shell::music_key()
 }
 
 /// A check: shows a menu (1 pause, 2 options).
