@@ -957,7 +957,7 @@ fn heading(frame: &mut [u8], s: &str, y: i32) {
 
 /// Ben on the wordmark, as the main game's `benFrame` has him on a 14 second loop: he stands at the end of the logo with a bob, leans
 /// aside now and then, hops up and pogoes across the top and back, turns to face the menu when the cursor moves and waves when an
-/// item is picked. The lean is left out (there is no rotated blit here) and the sizes are those of a 16-pixel sprite at 1×. `left` and
+/// item is picked. The lean turns the sprite about its feet, and the sizes are those of a 16-pixel sprite at 1×. `left` and
 /// `logo_w` place the wordmark.
 fn title_ben(frame: &mut [u8], s: &Shell, left: i32, logo_w: i32) {
     // The curve sin(k·π) over 0..1, as a parabola.
@@ -971,34 +971,34 @@ fn title_ben(frame: &mut [u8], s: &Shell, left: i32, logo_w: i32) {
     let looking = s.ben_look > s.tick;
     // A wave is for when Ben is at home; while he is across the wordmark it waits, so he does not jump back and forth.
     let waving = s.ben_wave > s.tick && !(9.0..13.0).contains(&p);
-    // (pose index into `ben_ids`, x from the wordmark's left, feet above its bottom, faces left)
-    let (pose, x, y, flip) = if waving {
+    // (pose index into `ben_ids`, x from the wordmark's left, feet above its bottom, faces left, lean in radians)
+    let (pose, x, y, flip, lean) = if waving {
         let k = 1.0 - (s.ben_wave - s.tick) as f32 / BEN_WAVE as f32;
-        (2, home, arc(k) * bw * 0.4, true)
+        (2, home, arc(k) * bw * 0.4, true, 0.0)
     } else if (4.5..6.5).contains(&p) {
-        (0, home - bw / 6.0, 0.0, looking)
+        (0, home - bw / 6.0, 0.0, looking, -12.0 * 0.017_453_3)
     } else if (9.0..13.0).contains(&p) {
         let start = home - bw;
         if p < 9.4 {
             let k = (p - 9.0) / 0.4;
-            (1, home + (start - home) * k, top * k + arc(k) * bw * 0.5, true)
+            (1, home + (start - home) * k, top * k + arc(k) * bw * 0.5, true, 0.0)
         } else if p < 12.6 {
             let q = if p < 11.0 { (p - 9.4) / 1.6 } else { 1.0 - (p - 11.0) / 1.6 };
             let u = (p - 9.4) * 1.25;
             let hop = arc(u - (u as i32) as f32);
-            (if hop < 0.25 { 4 } else { 3 }, start * (1.0 - q), top + hop * bw * 0.3, p < 11.0)
+            (if hop < 0.25 { 4 } else { 3 }, start * (1.0 - q), top + hop * bw * 0.3, p < 11.0, 0.0)
         } else {
             let k = (p - 12.6) / 0.4;
-            (1, start + (home - start) * k, top * (1.0 - k) + arc(k) * bw * 0.4, false)
+            (1, start + (home - start) * k, top * (1.0 - k) + arc(k) * bw * 0.4, false, 0.0)
         }
     } else {
-        (0, home, if ((p * 1.5) as i32) % 2 == 1 { 1.0 } else { 0.0 }, looking)
+        (0, home, if ((p * 1.5) as i32) % 2 == 1 { 1.0 } else { 0.0 }, looking, 0.0)
     };
     let id = s.ben_ids[pose];
     let feet = TITLE_LOGO_Y + TITLE_LOGO_H - y.max(0.0) as i32;
     // Kept on the screen if a longer title pushes the wordmark's end out.
     let at = (left + x as i32).min(W as i32 - bw as i32);
-    crate::video::draw_sprite_ui_flip(frame, id, at, feet - crate::video::sprite_height(id), flip);
+    crate::video::draw_sprite_ui_lean(frame, id, at, feet - crate::video::sprite_height(id), flip, lean);
 }
 
 /// The title: the attract loop behind, dimmed, with the name and the menu.

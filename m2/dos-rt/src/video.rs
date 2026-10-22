@@ -992,3 +992,31 @@ pub fn draw_sprite_ui_flip(frame: &mut [u8], id: usize, x: i32, y: i32, flip: bo
         }
     }
 }
+
+/// `draw_sprite_ui_flip` leaning `rot` radians (small ones; negative leans to the left) about the middle of the sprite's foot.
+pub fn draw_sprite_ui_lean(frame: &mut [u8], id: usize, x: i32, y: i32, flip: bool, rot: f32) {
+    let Some(sp) = sprite(id) else {
+        return;
+    };
+    let (w, h) = (sp.w as i32, sp.h as i32);
+    // The sine and cosine as short series, as the cinematic does: they are accurate to a few thousandths up to about 0.4.
+    let (sn, cs) = (rot - rot * rot * rot / 6.0, 1.0 - rot * rot / 2.0);
+    let (cx, cy) = (x as f32 + w as f32 / 2.0, (y + h) as f32);
+    let reach = h + w;
+    for py in (y - reach / 4).max(0)..(y + h + 1).min(H as i32) {
+        for px in (x - reach / 2).max(0)..(x + w + reach / 2).min(W as i32) {
+            // Back from the screen pixel to the sprite's own, undoing the lean.
+            let (dx, dy) = (px as f32 + 0.5 - cx, py as f32 + 0.5 - cy);
+            let u = dx * cs + dy * sn + w as f32 / 2.0;
+            let v = -dx * sn + dy * cs + h as f32;
+            if u < 0.0 || v < 0.0 || u >= w as f32 || v >= h as f32 {
+                continue;
+            }
+            let col = if flip { w - 1 - u as i32 } else { u as i32 };
+            let c = sp.pix[v as usize * sp.w + col as usize];
+            if c != CLEAR_PIX {
+                frame[py as usize * W + px as usize] = crate::ui::FULL + (c & 15);
+            }
+        }
+    }
+}
