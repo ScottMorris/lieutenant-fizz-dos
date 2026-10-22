@@ -18,6 +18,7 @@ m2/sim, m2/game                       the simulation, buildable for a bare i486 
 m2/dos-rt                             the DOS runtime (a static library)
    video.rs     sprite blitter, light grid, shade pass, palette markers
    shell.rs     title, pause, options, load/save lists, HUD, cards, dialogue, fades
+   titles.rs    the opening titles, drawn whole from titles.bin in integers
    ui.rs        pixel font, panels, dimming, the two-tone logo lettering
    save.rs      the 48-byte save format
    preview.rs   the start-up system-check screen
@@ -44,6 +45,8 @@ The Rust side owns the game: simulation, drawing, screens, menus, saves and the 
 DJGPP's linker reads only `coff-go32`, and Rust emits PE-style COFF. `tools/coff2go32.py` adds `-(offset + 4)` to the in-place addend of every `REL32` relocation (go32's convention), folds the PE sections (`.text$x`, `.rdata`, …) into go32's `.text`, `.data` and `.bss`, and drops the `compiler_builtins` objects (DJGPP's libgcc and libc supply those helpers). `m4/c/chkstk.c` provides the `_alloca` helper the stack probes would need.
 
 `m3/export-sprites.ts`, `m4/export-sound.ts` and `m4/export-ui.ts` read the main game and write `m3/assets/sprites.bin` (253 sprites as 8-bit indexed images), `m4/assets/sound.bin` (the converted music and effects, the opening titles' song among them) and `m2/dos-rt/src/ui_data.rs` (the pixel font and the strings). They are committed, so a build needs neither Bun nor the main game. To regenerate them, the exporters find the main game at `../../../liminal-hq/lieutenant-fizz` from the repository (override with `FIZZ_GAME`; `tools/setup.sh` clones it there). The sound exporter converts with the code in `m4/sound`: the Undertone-to-OPL2 and PC-speaker converters in `fizz-dos/`, the song planner, and the game's voice data in `fizz-game/`, which need the `@liminal-hq/undertone` package from the root `package.json`.
+
+`m4/export-titles.ts` writes `m4/assets/titles.bin`, the opening titles' data (the Liminal HQ mark, per-tick tracks for everything the design works out with sines or its small simulation of the shots, the fade's steps, and the fixed-point constants the runtime's drifts start from). It needs only the repository: it runs the oracle `m4/titles/mock.ts`, a port of the design's `draw()` that reads the committed sprite sheet, `ui_data.rs` and `m4/assets/liminal-mark.txt`. `m4/check-titles.ts` compares frames with the oracle byte for byte: all 768 ticks of a loop from the bench (`TITLES_DUMP=<file>`, then `--dump <file>`), or one frame from DOS (`FIZZ.EXE 255 N shot nosync nosound noinput titles`, then `--raw m4/c/FRAME.RAW --tick N`).
 
 ### The build image
 

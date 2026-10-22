@@ -9,7 +9,7 @@ How `FIZZ.EXE` runs on the machine: the process and memory model, start-up and s
 | Region | What lives there | Source |
 |---|---|---|
 | `.text` | C code, the Rust runtime and simulation | `m4/c/*.c`, `m2/dos_rt_go32.a` |
-| `.data` | initialised data, including Rust's `.rdata`: the sprite sheet (`m3/assets/sprites.bin`, about 87 KB, `include_bytes!` in `m2/dos-rt/src/video.rs`) and the sound data (`m4/assets/sound.bin`, about 279 KB, `include_bytes!` in `m2/dos-rt/src/sound_data.rs`) | `tools/coff2go32.py` folds `.rdata`, `.xdata`, `.pdata` and the like into `.data` |
+| `.data` | initialised data, including Rust's `.rdata`: the sprite sheet (`m3/assets/sprites.bin`, about 87 KB, `include_bytes!` in `m2/dos-rt/src/video.rs`) the sound data (`m4/assets/sound.bin`, about 279 KB, `include_bytes!` in `m2/dos-rt/src/sound_data.rs`) and the opening titles' data (`m4/assets/titles.bin`, about 54 KB, `include_bytes!` in `m2/dos-rt/src/titles.rs`) | `tools/coff2go32.py` folds `.rdata`, `.xdata`, `.pdata` and the like into `.data` |
 | `.bss` | zero-initialised statics: the C frame buffer (`static unsigned char frame[64000]`, `m4/c/main.c`), the kept scene `STILL` (a 64,000-byte frame, 2,048 × 20 instance words and a 146-word header, about 228 KB), the bake cache `BAKES` (256 slots of 16 × 16 bytes plus a `u64` key each, about 66 KB), the sprite table, the falloff and shade tables, the key arrays | `m2/dos-rt/src/video.rs`, `m4/c/kbd.c` |
 | heap | everything the simulation allocates (`alloc`: vectors, boxed state) | DJGPP `malloc` |
 | stack | DJGPP's default stack; neither `_stklen` nor `stubedit` changes it | — |
@@ -150,6 +150,7 @@ The clock's resolution is 1/560 s (about 1.8 ms), and `uclock()` is finer; a scr
 
 - `m2/dos-rt/src/video.rs` — `build` (the simulation's `render` with culling and night flags), `paint` (the camera snapped to whole pixels, `light_levels` for the 40 × 25 grid of 8 × 8 cells with integer falloff from a table, the clear to slot 255, `blit` and `blit_turned` per instance, the uniform-light shortcut, `shade` four pixels at a time with a 2 × 2 dither), `TintCache`, `BakeCache` and the kept scene `Still`.
 - `m2/dos-rt/src/shell.rs` — the screens over the frame (title, pause, options, load and save lists, HUD, cards, dialogue, toasts, caption words) and fades: a fade is 12 ticks of `ui::dim` over the whole screen.
+- `m2/dos-rt/src/titles.rs` — the opening titles, which draw every pixel of the frame themselves (so `build` and `paint` skip the sim's scene while they are up): per-tick tracks from `titles.bin`, `fx::Tween` in Q30 for the tweens and Q32 for the drifts, the fade by `ui::dim` and the flash as a white fill.
 - `m2/dos-rt/src/ui.rs` — the pixel font (glyphs in the generated `ui_data.rs`), panels, word wrap, and `dim`, which lowers the level nibble of each byte four at a time (slot 255 dims to black, slot 16).
 - `m2/dos-rt/src/preview.rs` — the system-check screen.
 
@@ -271,7 +272,7 @@ All calls are plain `extern "C"` with 32-bit integers, `f32` and raw pointers; t
 | `fizz_press(mode)` | a check: steer the scripted walk to a map marker and press, or not |
 | `fizz_preview(frame, values, cpu)` | draws the system-check screen from the probe values |
 | `fizz_quit()` | whether the player chose Quit from a menu |
-| `fizz_show(n)` | a check: opens a menu or screen directly |
+| `fizz_show(n)` | a check: opens a menu or screen directly (`FIZZ.EXE`'s `pause`, `options`, `ending`, `cineN`, `titles` and the like; 200 is the opening titles from their first tick) |
 
 **Called by Rust, provided by C:**
 
