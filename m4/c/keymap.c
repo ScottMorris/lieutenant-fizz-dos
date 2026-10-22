@@ -17,5 +17,7 @@ unsigned keymap_bits(const volatile unsigned char *k) {
   if (k[SC_SPACE] || k[SC_C]) b |= IN_FIRE;
   if (k[SC_ENTER]) b |= IN_CONFIRM;
   if (k[SC_ESC]) b |= IN_MENU;
+  if (k[SC_F5]) b |= IN_QSAVE;
+  if (k[SC_F9]) b |= IN_QLOAD;
   return b;
 }

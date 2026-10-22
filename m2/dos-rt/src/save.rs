@@ -24,8 +24,10 @@ extern "C" {
 const MAGIC: &[u8; 4] = b"FZSV";
 const VERSION: u8 = 1;
 const LEN: usize = 48;
-/// Slot 0 is the autosave; 1 to 4 are the player's.
-pub const SLOTS: usize = 5;
+/// Slot 0 is the autosave; 1 to 4 are the player's; 5 is the quick-save, which F5 writes and F9 loads.
+pub const SLOTS: usize = 6;
+/// The quick-save slot.
+pub const QUICK: usize = 5;
 /// The bits of the cleared mask that are levels (the 16th is the secret).
 const LEVEL_BITS: u32 = 0x7FFF;
 

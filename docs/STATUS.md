@@ -6,7 +6,7 @@ Where the DOS port stands against the main game (`liminal-hq/lieutenant-fizz`, E
 
 - **The game:** the title with its attract loop, the overworld, every level in the simulation (0 to 15), the boss fights with their dialogue, lives, score, Fizz ammo and extra lives.
 - **The shell:** a start-up system check (video, input, sound and maths hardware, and a speed test of the real renderer), title, pause, options, load and save lists, a boxed HUD, map prompts, floating caption words, toasts and result cards, with fades between screens.
-- **Saves and options:** progress is written to `AUTO.SAV` on every map visit and to `SLOT1.SAV` to `SLOT4.SAV` from the pause menu. The options are written to `FIZZ.CFG`, a separate file, and read at the next start.
+- **Saves and options:** progress is written to `AUTO.SAV` on every map visit and to `SLOT1.SAV` to `SLOT4.SAV` from the pause menu. F5 and F9 quick-save and quick-load in `QUICK.SAV`, a slot of its own (the main game writes the newest manual slot instead). Saves are progress-only, which is also the main game's behaviour. The options are written to `FIZZ.CFG`, a separate file, and read at the next start.
 - **Sound:** AdLib (OPL2) music and effects, PC-speaker effects, or the music on AdLib with the effects on the speaker. The music and effects are converted from the main game's Undertone data.
 - **Speed options:** frame rate (auto, 60 Hz, 30 Hz) and detail (auto, high, low) in Options, with command-line overrides.
 - **Releases:** each tagged release carries a 1.44 MB floppy image (label `FIZZ EP1`, serial number `FE01-0010` for 0.1.0: the game, then the version), the same files as a zip, a DOSBox demo zip, the browser bundle and `SHA256SUMS`. The image's file system is checked and the game runs from it in DOSBox; no image has been booted or written to a real floppy.
@@ -17,7 +17,6 @@ Where the DOS port stands against the main game (`liminal-hq/lieutenant-fizz`, E
 - The ending: the closing panels, the credits roll and the stinger. The port shows result cards but has no ending sequence.
 - The controls screen and the in-game hints.
 - Ben standing on the title wordmark and pogoing across it.
-- Quick-save in a level (F5 and F9). Saves are progress-only at map granularity, which is also the main game's behaviour.
 - Play samples and replays.
 
 ## Different on purpose

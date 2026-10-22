@@ -57,6 +57,9 @@ const FX_DENY: i32 = 9;
 
 /// Input bit for Escape, which the C side adds.
 const MENU_KEY: u32 = 256;
+/// Input bits for F5 (quick-save) and F9 (quick-load), which the C side adds.
+const QSAVE: u32 = 512;
+const QLOAD: u32 = 1024;
 const UP: u32 = 4;
 const DOWN: u32 = 8;
 const LEFT: u32 = 1;
@@ -72,6 +75,8 @@ const SAUCER: f32 = 15.0;
 const CLEARED_WAIT: u32 = 90;
 const DIED_WAIT: u32 = 70;
 const GAME_OVER_WAIT: u32 = 100;
+/// How long the quick-save message stays, in ticks.
+const QUICK_TICKS: u32 = 120;
 /// How long a toast stays, and how long a caption word floats, in ticks.
 const TOAST_TICKS: u32 = 200;
 const CAPTION_TICKS: u32 = 45;
@@ -196,6 +201,8 @@ struct Shell {
     saves: [Option<save::Info>; SLOTS],
     /// A short message under the menus: 1 saved (the slot in `note_arg`), 2 could not save.
     note: Option<(u8, u8, u32)>,
+    /// A short message over the game after F5 or F9: 1 quick-saved, 2 could not save, 3 nothing to load.
+    quick: Option<(u8, u32)>,
     played: u32,
     prev_held: u32,
     /// Keys that a menu or a line of dialogue took as its own press and that are still down: the sim does not see them until they are let go.
@@ -220,6 +227,7 @@ static mut SHELL: Shell = Shell {
     dialogue: None,
     saves: [None; SLOTS],
     note: None,
+    quick: None,
     played: 0,
     prev_held: 0,
     swallow: 0,
@@ -404,6 +412,12 @@ pub fn advance(held: u32) {
     if let Some((k, a, left)) = s.note {
         s.note = if left <= 1 { None } else { Some((k, a, left - 1)) };
     }
+    if let Some((k, left)) = s.quick {
+        s.quick = if left <= 1 { None } else { Some((k, left - 1)) };
+    }
+    if matches!(s.screen, Screen::Play | Screen::Pause) && s.fade.is_none() {
+        quick_keys(s, edges);
+    }
 
     // A fade out holds everything still until it is black; a fade in lets the screen run.
     if let Some(mut f) = s.fade {
@@ -436,6 +450,26 @@ pub fn advance(held: u32) {
     // Going back into the game from a menu: the key that chose it is still down, and must not be read as a press in the game.
     if !was_play && s.screen == Screen::Play {
         s.swallow = held & (CONFIRM | JUMP | FIRE);
+    }
+}
+
+/// F5 writes the quick-save slot and F9 loads it, in a level, on the map or in the pause menu. The slot is its own: the
+/// four the player picks in the pause menu are never touched.
+fn quick_keys(s: &mut Shell, edges: u32) {
+    if edges & QSAVE != 0 {
+        let ok = save::write(save::QUICK as i32, seconds(s));
+        refresh_saves(s);
+        cue(if ok { FX_SELECT } else { FX_DENY });
+        s.quick = Some((if ok { 1 } else { 2 }, QUICK_TICKS));
+    } else if edges & QLOAD != 0 {
+        if s.saves[save::QUICK].is_some() {
+            cue(FX_SELECT);
+            s.screen = Screen::Play;
+            fade_to(s, Next::Load(save::QUICK as u8));
+        } else {
+            cue(FX_DENY);
+            s.quick = Some((3, QUICK_TICKS));
+        }
     }
 }
 
@@ -606,7 +640,7 @@ fn slot_rows(kind: SlotKind) -> (usize, usize) {
     if kind == SlotKind::Load {
         (0, SLOTS)
     } else {
-        (1, SLOTS - 1)
+        (1, save::QUICK - 1)
     }
 }
 
@@ -804,6 +838,16 @@ pub fn overlay(frame: &mut [u8], cam_px: (i32, i32)) {
             if let Some(card) = s.card {
                 card_screen(frame, card);
             }
+            if let Some((kind, _)) = s.quick {
+                let (text, ink) = match kind {
+                    1 => ("Quick-saved", ui::GREEN),
+                    2 => ("Could not write QUICK.SAV", ui::RED),
+                    _ => ("No quick-save yet: F5 makes one", ui::RED),
+                };
+                let w = ui::text_width(text) + 14;
+                ui::dim(frame, (W as i32 - w) / 2, 178, w, 14, 11);
+                ui::text_centred(frame, W as i32 / 2, 182, text, ink);
+            }
             if let Some(d) = s.dialogue {
                 dialogue_box(frame, d, s.tick);
             }
@@ -942,12 +986,14 @@ fn slots_screen(frame: &mut [u8], s: &Shell, kind: SlotKind) {
     ui::dim(frame, 0, 0, W as i32, H as i32, 7);
     heading(frame, if kind == SlotKind::Load { "Load game" } else { "Save game" }, 12);
     let (first, count) = slot_rows(kind);
-    let mut labels: [Buf; 6] = core::array::from_fn(|_| Buf::new());
-    let mut values: [Buf; 6] = core::array::from_fn(|_| Buf::new());
+    let mut labels: [Buf; SLOTS] = core::array::from_fn(|_| Buf::new());
+    let mut values: [Buf; SLOTS] = core::array::from_fn(|_| Buf::new());
     for i in 0..count {
         let slot = first + i;
         if slot == 0 {
             let _ = write!(labels[i], "Autosave");
+        } else if slot == save::QUICK {
+            let _ = write!(labels[i], "Quick save");
         } else {
             let _ = write!(labels[i], "Slot {slot}");
         }
@@ -961,7 +1007,7 @@ fn slots_screen(frame: &mut [u8], s: &Shell, kind: SlotKind) {
             }
         }
     }
-    let mut rows: [(&str, &str); 6] = [("", ""); 6];
+    let mut rows: [(&str, &str); SLOTS + 1] = [("", ""); SLOTS + 1];
     for i in 0..count {
         rows[i] = (labels[i].as_str(), values[i].as_str());
     }

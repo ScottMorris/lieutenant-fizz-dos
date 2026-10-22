@@ -5,8 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
 (function () {
-  // The game's saves are AUTO.SAV and SLOT1.SAV to SLOT4.SAV in the drive's root (m4/c/save.c); FIZZ.CFG, the options, is not a save.
-  var NAME = /^(AUTO|SLOT[1-4])\.SAV$/;
+  // The game's saves are AUTO.SAV, QUICK.SAV and SLOT1.SAV to SLOT4.SAV in the drive's root (m4/c/save.c); FIZZ.CFG, the options, is not a save.
+  var NAME = /^(AUTO|QUICK|SLOT[1-4])\.SAV$/;
   // m2/dos-rt/src/save.rs reads a file only if it is 48 bytes long and starts with "FZSV" and a version byte of 1.
   var LENGTH = 48;
   var VERSION = 1;
@@ -39,7 +39,7 @@
 
   // Why a save would not be read by the game, or '' if it would be.
   function problem(name, bytes) {
-    if (!isSaveName(name)) return 'not one of the game’s save names (AUTO.SAV, SLOT1.SAV to SLOT4.SAV)';
+    if (!isSaveName(name)) return 'not one of the game’s save names (AUTO.SAV, QUICK.SAV, SLOT1.SAV to SLOT4.SAV)';
     if (bytes.length !== LENGTH) return 'the wrong size (' + bytes.length + ' bytes, not ' + LENGTH + ')';
     if (bytes[0] !== 0x46 || bytes[1] !== 0x5a || bytes[2] !== 0x53 || bytes[3] !== 0x56) return 'not a Lieutenant Fizz save';
     if (bytes[4] !== VERSION) return 'from a different version of the game';

@@ -17,7 +17,7 @@
 
 ## Play it
 
-**In a browser:** [scottmorris.github.io/lieutenant-fizz-dos](https://scottmorris.github.io/lieutenant-fizz-dos/). Click Play (browsers need a click before they will make sound) and use the keyboard. The page uses js-dos's `fast` OPL (AdLib) emulator; `?opl=default` or `?opl=compat` in the address loads the game with another, to compare the sound (`compat` plays the music wrongly). To check the sound itself, choose Quit from the title and type `TONETEST` at the DOS prompt: it plays an A (440 Hz) on the AdLib and then on the PC speaker (Restart starts the game again). Restart also starts without your saves, so **Download saves** under the emulator takes the game's saves (`AUTO.SAV`, `SLOT1.SAV` to `SLOT4.SAV`) as a zip, and **Upload saves** puts them back: a zip from Download saves, or loose `.SAV` files.
+**In a browser:** [scottmorris.github.io/lieutenant-fizz-dos](https://scottmorris.github.io/lieutenant-fizz-dos/). Click Play (browsers need a click before they will make sound) and use the keyboard. The page uses js-dos's `fast` OPL (AdLib) emulator; `?opl=default` or `?opl=compat` in the address loads the game with another, to compare the sound (`compat` plays the music wrongly). To check the sound itself, choose Quit from the title and type `TONETEST` at the DOS prompt: it plays an A (440 Hz) on the AdLib and then on the PC speaker (Restart starts the game again). Restart also starts without your saves, so **Download saves** under the emulator takes the game's saves (`AUTO.SAV`, `QUICK.SAV`, `SLOT1.SAV` to `SLOT4.SAV`) as a zip, and **Upload saves** puts them back: a zip from Download saves, or loose `.SAV` files.
 
 **From a release:** [the releases page](https://github.com/ScottMorris/lieutenant-fizz-dos/releases) has a 1.44 MB floppy image (`-floppy.img`, volume label `FIZZ EP1`), the same files as a zip for copying to a real disk or folder (`-disk.zip`), the DOSBox demo (`-dosbox.zip`), the browser bundle (`-browser.jsdos`, for any js-dos 8 player) and `SHA256SUMS`. `CHANGELOG.md` lists what changed. `tools/make-release.sh <version>` builds them.
 
@@ -31,11 +31,12 @@
 | Space or C | Fire |
 | Enter | Confirm: enter a level marker, dismiss a card |
 | Esc | Pause menu, and back in a menu |
+| F5 / F9 | Quick-save and quick-load, in `QUICK.SAV`, a slot of its own |
 | Backspace | Back to the overworld map |
 | PgUp / PgDn | Previous or next level |
 | R, N, M, E | Restart the level; night mode; music on or off; effects on or off |
 
-The Options screen has music, effects, which chip plays the effects, **frame rate** (auto, 60 Hz or 30 Hz), **detail** (auto, high or low, which drops the backdrop layers on slow machines) and night. Options are kept in `FIZZ.CFG` and game saves in `AUTO.SAV` and `SLOT1.SAV` to `SLOT4.SAV`, all beside the game. `FIZZ.EXE [level|map]` starts in a level or on the map; `nopreview` skips the system check.
+The Options screen has music, effects, which chip plays the effects, **frame rate** (auto, 60 Hz or 30 Hz), **detail** (auto, high or low, which drops the backdrop layers on slow machines) and night. Options are kept in `FIZZ.CFG` and game saves in `AUTO.SAV`, `QUICK.SAV` and `SLOT1.SAV` to `SLOT4.SAV`, all beside the game. `FIZZ.EXE [level|map]` starts in a level or on the map; `nopreview` skips the system check.
 
 ## Build it
 

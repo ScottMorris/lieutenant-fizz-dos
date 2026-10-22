@@ -204,6 +204,7 @@ All files are in the current directory, through `m4/c/save.c` (`fopen`, `fread`,
 | −1 | `FIZZ.CFG` | 12 bytes | after each change on the Options screen, when the system check is left with Enter, and by `FIZZ savecfg` |
 | 0 | `AUTO.SAV` | 48 bytes | on every visit to the map (`autosave` in `shell.rs`), as the web build does |
 | 1–4 | `SLOT1.SAV` … `SLOT4.SAV` | 48 bytes | from the Save list |
+| 5 | `QUICK.SAV` | 48 bytes | F5 in a level, on the map or in the pause menu; F9 loads it (`quick_keys` in `shell.rs`) |
 
 Names are 8.3, upper case. `save_stamp` is `time(NULL)`; dates in the load list are shown as UTC (`save::date`), since a DOS clock has no time zone.
 
