@@ -18,6 +18,7 @@
 #define IN_MENU 256 /* Escape: pauses, and goes back in a menu */
 #define IN_QSAVE 512 /* F5: quick-save */
 #define IN_QLOAD 1024 /* F9: quick-load */
+#define IN_ANY 2048 /* any key pressed since the last tick (a tap, never a held key): what skips the opening titles */
 /* Scancodes (set 1, the low 7 bits of what port 0x60 gives; the 0xE0 prefix is ignored, so the grey arrows and the numpad arrows are the same). */
 enum {
   SC_ESC = 0x01, SC_ENTER = 0x1C, SC_W = 0x11, SC_R = 0x13, SC_CTRL = 0x1D, SC_A = 0x1E, SC_S = 0x1F, SC_D = 0x20,

@@ -245,7 +245,7 @@ int main(int argc, char **argv) {
     snd_fx(0);
     start = snd_ticks();
     while (snd_ticks() - start < 560UL * 3 && waited < 2000000000UL) waited++;
-    printf("ticks %lu, register writes %lu\n", snd_ticks() - start, snd_register_writes());
+    printf("ticks %lu, register writes %lu, music clock %ld\n", snd_ticks() - start, snd_register_writes(), snd_music_clock());
     snd_shutdown();
     return 0;
   }

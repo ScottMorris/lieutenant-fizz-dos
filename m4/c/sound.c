@@ -38,6 +38,8 @@ static volatile int music_enabled = 1, fx_enabled = 1;
 static volatile int have_opl, fx_dev = FXDEV_OFF, music_dev;
 static volatile int want_music = -2, want_fx = -1; /* requests from the game, taken up by the handler */
 static volatile int current_song = -1;
+static volatile unsigned long music_t0; /* tick_count when the music stream last started */
+static volatile int music_playing = -1; /* the song of that stream, -1 when none plays */
 static Stream music, fx;
 static const unsigned short *spk_data;
 static volatile unsigned spk_pos, spk_frames;
@@ -107,9 +109,11 @@ static void take_requests(void) {
     if (have_opl) {
       opl_silence();
       music.on = 0;
+      music_playing = -1;
       if (m >= 0 && (unsigned)m < n_songs && music_enabled && music_dev) {
         const unsigned char *e = song_table + m * 8;
         stream_start(&music, blob + rd32(e), 1);
+        if (music.on) { music_playing = m; music_t0 = tick_count; }
       }
     }
   }
@@ -222,6 +226,7 @@ int snd_init(const unsigned char *data, unsigned long length, int requested) {
   _go32_dpmi_lock_data((void *)&fx, sizeof fx);
   _go32_dpmi_lock_data((void *)blob, blob_length);
   _go32_dpmi_lock_data((void *)&tick_count, sizeof tick_count);
+  _go32_dpmi_lock_data((void *)&music_t0, sizeof music_t0);
   _go32_dpmi_get_protected_mode_interrupt_vector(8, &old_isr);
   new_isr.pm_offset = (unsigned long)timer_isr;
   new_isr.pm_selector = _go32_my_cs();
@@ -250,6 +255,17 @@ int snd_mode(void) { return mode; }
 unsigned long snd_ticks(void) { return tick_count; }
 unsigned long snd_register_writes(void) { return register_writes; }
 int snd_current_song(void) { return current_song; }
+
+/* 560 Hz ticks since the playing song began, counting on through its loops; -1 while nothing plays on the OPL2 or a change of song is
+   still waiting for the handler. The screens that follow the music (the opening titles) read it. */
+long snd_music_clock(void) {
+  long t = -1;
+  if (!installed) return -1;
+  disable();
+  if (want_music == -2 && music.on && music_playing >= 0 && music_playing == current_song) t = (long)(tick_count - music_t0);
+  enable();
+  return t;
+}
 
 void snd_music(int song) {
   current_song = song;

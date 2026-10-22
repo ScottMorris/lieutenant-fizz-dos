@@ -16,6 +16,7 @@
 
 static volatile unsigned char keys[128];
 static volatile unsigned char latch[128];
+static volatile unsigned char any_press;
 static _go32_dpmi_seginfo old_isr, new_isr;
 static int installed;
 
@@ -27,7 +28,7 @@ static void isr(void) {
     if (sc & 0x80) {
       keys[code] = 0;
     } else {
-      if (!keys[code]) latch[code] = 1;
+      if (!keys[code]) { latch[code] = 1; any_press = 1; }
       keys[code] = 1;
     }
   }
@@ -39,8 +40,9 @@ int kbd_install(void) {
   if (installed) return 0;
   memset((void *)keys, 0, sizeof keys);
   memset((void *)latch, 0, sizeof latch);
+  any_press = 0;
   /* The handler and what it touches must never be paged out, or the first key during a page fault would hang. */
-  if (_go32_dpmi_lock_data((void *)keys, sizeof keys) || _go32_dpmi_lock_data((void *)latch, sizeof latch) ||
+  if (_go32_dpmi_lock_data((void *)keys, sizeof keys) || _go32_dpmi_lock_data((void *)latch, sizeof latch) || _go32_dpmi_lock_data((void *)&any_press, sizeof any_press) ||
       _go32_dpmi_lock_code((void *)isr, (unsigned long)isr_end - (unsigned long)isr))
     return 1;
   _go32_dpmi_get_protected_mode_interrupt_vector(9, &old_isr);
@@ -73,7 +75,10 @@ unsigned kbd_tick_bits(void) {
     taps[game_keys[i]] = latch[game_keys[i]];
     latch[game_keys[i]] = 0;
   }
-  return keymap_bits(keys) | keymap_bits(taps);
+  /* Any key at all, from the latch of presses (a held key makes no new press), for the screens that wait for one. */
+  i = any_press ? IN_ANY : 0;
+  any_press = 0;
+  return keymap_bits(keys) | keymap_bits(taps) | i;
 }
 int kbd_down(int sc) { return keys[sc & 0x7F]; }
 int kbd_pressed(int sc) {
