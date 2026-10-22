@@ -764,14 +764,19 @@ fn controls_tick(s: &mut Shell, edges: u32, back: Back) {
 }
 
 fn option_items() -> ([OptionItem; 7], usize) {
-    // The device row only makes sense with sound running and an AdLib to choose against the speaker.
-    let both = unsafe { snd_have_opl() != 0 && snd_fx_device() != 0 };
+    // Only what can apply is offered. The effects need sound running (a device to play them on); the music plays on the
+    // AdLib alone, and the device row chooses between the AdLib and the speaker, so both need the AdLib.
+    let (running, adlib) = unsafe { (snd_fx_device() != 0, snd_fx_device() != 0 && snd_have_opl() != 0) };
     use OptionItem::*;
-    if both {
-        ([Music, Effects, Device, Rate, Detail, Night, Back], 7)
-    } else {
-        ([Music, Effects, Rate, Detail, Night, Back, Back], 6)
+    let mut items = [Back; 7];
+    let mut n = 0;
+    for (shown, item) in [(adlib, Music), (running, Effects), (adlib, Device), (true, Rate), (true, Detail), (true, Night), (true, Back)] {
+        if shown {
+            items[n] = item;
+            n += 1;
+        }
     }
+    (items, n)
 }
 
 fn options_tick(s: &mut Shell, edges: u32, back: Back) {

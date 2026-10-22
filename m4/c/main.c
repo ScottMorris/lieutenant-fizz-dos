@@ -121,13 +121,19 @@ static void settings_load(void) {
   if (detail) detail_low = detail == 2;
 }
 
-/* Called by the options screen with the night setting, which lives in the game. */
+/* Called by the options screen with the night setting, which lives in the game. A sound setting that cannot apply on this run
+   (no sound running, or no AdLib for the music and the device) keeps what was kept, so a run without the hardware does not
+   overwrite the choice made on one with it. */
 void settings_save(int night) {
   unsigned char b[12] = {'F', 'Z', 'C', 1};
+  int running = snd_mode() != SND_OFF, adlib = running && snd_have_opl();
   night_pref = night;
-  b[4] = (unsigned char)snd_music_enabled();
-  b[5] = (unsigned char)snd_fx_enabled();
-  b[6] = (unsigned char)(snd_fx_device() ? snd_fx_device() : dev_pref); /* with the sound off there is no device to read */
+  if (adlib) music_pref = snd_music_enabled();
+  if (running) fx_pref = snd_fx_enabled();
+  if (adlib) dev_pref = snd_fx_device();
+  b[4] = (unsigned char)music_pref;
+  b[5] = (unsigned char)fx_pref;
+  b[6] = (unsigned char)dev_pref;
   b[7] = (unsigned char)rate;
   b[8] = (unsigned char)detail;
   b[9] = (unsigned char)night;
@@ -348,8 +354,10 @@ int main(int argc, char **argv) {
       if (kbd_pressed(SC_R)) fizz_goto(fizz_level());
       if (kbd_pressed(SC_BACKSPACE)) fizz_goto_map();
       if (kbd_pressed(SC_N)) { night = !night; fizz_night(night); }
-      if (kbd_pressed(SC_M)) snd_set_music(!snd_music_enabled());
-      if (kbd_pressed(SC_E)) snd_set_fx(!snd_fx_enabled());
+      /* M and E are the Options screen's Music and Effects rows, and like them only act when they can apply, and are kept (with the
+         night that was last kept: N is not). */
+      if (kbd_pressed(SC_M) && snd_mode() != SND_OFF && snd_have_opl()) { snd_set_music(!snd_music_enabled()); settings_save(night_pref); }
+      if (kbd_pressed(SC_E) && snd_mode() != SND_OFF) { snd_set_fx(!snd_fx_enabled()); settings_save(night_pref); }
       if (owed > done + 6) { base = clock560(); done = 0; owed = 0; } /* after a stall, do not rush to catch up */
       if (owed > done) {
         /* The first tick of a frame also gets any quick taps; the rest of a catch-up see what is held. */

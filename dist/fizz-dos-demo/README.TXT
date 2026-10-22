@@ -34,8 +34,8 @@ Keys
 
 Notes
   - Saves are small files next to FIZZ.EXE: AUTO.SAV (written every time you reach the map), QUICK.SAV (F5) and SLOT1.SAV to SLOT4.SAV (Pause, Save game).
-  - Options (music, effects, the effects' device, frame rate, detail and night) are kept in FIZZ.CFG, apart from the saves. Delete it to start fresh.
-  - Options (title or pause menu): music, effects, which chip plays the effects, frame rate (auto, 60 or 30 Hz), detail (auto, high or low; low drops the backdrop layers on slow machines) and night.
+  - Options (music, effects, the effects' device, frame rate, detail and night), and the M and E keys' changes, are kept in FIZZ.CFG, apart from the saves. Delete it to start fresh.
+  - Options (title or pause menu): music and which chip plays the effects (both only with an AdLib), effects, frame rate (auto, 60 or 30 Hz), detail (auto, high or low; low drops the backdrop layers on slow machines) and night.
   - New game plays the opening story (Enter moves on, Esc skips it); beating the last boss plays the ending and the credits. Controls, on the title and pause menus, lists the keys.
   - The boss fight now starts with its dialogue: Enter finishes a line and moves on.
   - If it runs slowly with sound on, the OPL emulator is the cost: DOSBOX.CONF uses 'oplemu = compat' (light). Nuked is

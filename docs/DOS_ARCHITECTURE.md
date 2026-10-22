@@ -76,7 +76,7 @@ Reading the state (main program side):
 
 - `kbd_held()` — the game's input bits from what is held now, through `keymap_bits` (`m4/c/keymap.c`): arrows or WASD move, Ctrl or Z jump, Alt or X pogo, Space or C fire, Enter confirm, Esc menu. The bits are the sim's (`IN_*` in `keymap.h`).
 - `kbd_tick_bits()` — what is held **or** latched, for the 16 game keys, and clears those latches. A key pressed and released between two ticks has `keys` clear but `latch` set, so the tick still sees it: a tap shorter than a tick (1/60 s) is never lost. It also carries `IN_ANY` (bit 2048) for a key of any kind pressed since the last call: the ISR sets a flag on each new press (never on a repeat, so a key already down does not count), and this clears it. Only the opening titles read it.
-- `kbd_pressed(sc)` — one latched press of a key, cleared on read; used by the main loop for its own keys (PgUp/PgDn change level, R restarts, Backspace goes to the map, N night, M music, E effects) and by the system check.
+- `kbd_pressed(sc)` — one latched press of a key, cleared on read; used by the main loop for its own keys (PgUp/PgDn change level, R restarts, Backspace goes to the map, N night, M music, E effects; M and E are kept in `FIZZ.CFG`, N is not) and by the system check.
 - `kbd_down(sc)` — the held state of one key.
 
 The shell (`m2/dos-rt/src/shell.rs`, `advance`) turns held bits into edges for its menus and holds a key a menu consumed back from the simulation until it is released (`swallow`).
@@ -201,7 +201,7 @@ The music stream loops; an effect stream plays once. Music is chosen by `choose_
 | Speaker (2) | none | speaker | speaker effects (no OPL2 detection) |
 | Off (3) | none | none | — |
 
-`snd_init` returns the mode actually in use. The Options screen can toggle music and effects and switch the effects between OPL2 and speaker (`snd_set_fx_device`, which falls back to the speaker when there is no OPL2). The Sound Blaster probe is shown on the system check only; there is no digitised sound.
+`snd_init` returns the mode actually in use. Auto (the default; the command line's `adlib`, `speaker`, `mixed` and `nosound` override it for a run) takes the OPL2 for music and effects when `opl_detect` finds one, else the speaker for the effects alone. The Options screen offers only what can apply (`option_items` in `shell.rs`): Music and "Effects play on" (`snd_set_fx_device`) when the OPL2 is in use, since the music plays on it alone, and Effects whenever sound is running; with `nosound` there are no sound rows. The main loop's M and E keys follow the same rules and are kept like an Options change. `settings_save` keeps the stored music and device when there is no OPL2 and the stored effects when sound is off, so a run without the hardware does not overwrite them. The Sound Blaster probe is shown on the system check only; there is no digitised sound, so it is not a setting.
 
 ## Files
 
