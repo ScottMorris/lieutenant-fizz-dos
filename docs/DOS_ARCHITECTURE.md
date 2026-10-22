@@ -210,6 +210,8 @@ All files are in the current directory, through `m4/c/save.c` (`fopen`, `fread`,
 | 1–4 | `SLOT1.SAV` … `SLOT4.SAV` | 48 bytes | from the Save list |
 | 5 | `QUICK.SAV` | 48 bytes | F5 in a level, on the map or in the pause menu; F9 loads it (`quick_keys` in `shell.rs`) |
 
+On a 1.44 MB floppy a file takes whole 512-byte clusters, so the six saves and `FIZZ.CFG` take 3,584 bytes, and `FIZZ.TMP`, which a save is written to before it replaces the old file, needs one more cluster: 4,096 bytes at most. `tools/make-release.sh` fails if the image would have less than 8,192 bytes free.
+
 Names are 8.3, upper case. `save_stamp` is `time(NULL)`; dates in the load list are shown as UTC (`save::date`), since a DOS clock has no time zone.
 
 **Save (`m2/dos-rt/src/save.rs`).** Little endian; a file that is not exactly 48 bytes with the magic and version is treated as empty.

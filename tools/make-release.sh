@@ -28,6 +28,10 @@ NAME="fizz-dos-$VERSION"
 # FAT volume labels are 11 characters at most; the label says which episode the disk holds.
 LABEL="FIZZ EP1"
 FLOPPY_BYTES=1474560
+# Space the image keeps free for what the game writes beside itself: a file takes whole 512-byte clusters on a 1.44 MB floppy, so the
+# six 48-byte saves (AUTO, SLOT1 to SLOT4, QUICK), FIZZ.CFG and the FIZZ.TMP a save is written to first take 8 clusters, 4,096 bytes.
+# The release fails if it would leave less than twice that.
+SAVE_RESERVE_BYTES=8192
 
 # The volume serial number holds the game and the version: FE01 (Fizz, episode 01), then the major version as one hex digit, the
 # minor as two and the patch as one, so 0.1.0 is FE01-0010 and 1.112.3 is FE01-1703. A suffix such as -test is ignored.
@@ -170,6 +174,11 @@ for f in "${FILES[@]}"; do
   mtype -i "$IMG" "::$f" | cmp -s - "$DISK/$f" || { echo "make-release.sh: $f differs on the image" >&2; exit 1; }
 done
 mdir -i "$IMG" -a ::
+FREE=$(mdir -i "$IMG" :: | grep 'bytes free' | tr -dc '0-9')
+[ -n "$FREE" ] || { echo "make-release.sh: could not read the image's free space" >&2; exit 1; }
+[ "$FREE" -ge "$SAVE_RESERVE_BYTES" ] \
+  || { echo "make-release.sh: the image has $FREE bytes free, under the $SAVE_RESERVE_BYTES kept for saves and options" >&2; exit 1; }
+echo "the image has $FREE bytes free, $SAVE_RESERVE_BYTES of them kept for saves and options"
 
 # The image's creation time (the volume label's entry in the root directory) and every file's times are the one time, SOURCE_DATE_EPOCH.
 python3 -I - "$IMG" "$EPOCH" <<'PY'

@@ -4,6 +4,10 @@ What changed in each release of Lieutenant Fizz for DOS. A release is a tag `vX.
 
 ## Unreleased
 
+### Changed
+
+- The release build checks that the floppy image keeps at least 8,192 bytes free for what the game writes beside itself: the six saves, `FIZZ.CFG` and the temporary file a save goes through take 4,096 bytes in 512-byte clusters.
+
 ## 0.2.1 — 2026-10-22
 
 The game is the same as 0.2.0, 24% smaller. Nothing has run on real hardware yet; see `docs/STATUS.md`.
