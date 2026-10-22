@@ -11,7 +11,7 @@
 static void name_of(int slot, char name[16]) {
   if (slot < 0) sprintf(name, "FIZZ.CFG");
   else if (slot == 0) sprintf(name, "AUTO.SAV");
-  else if (slot == 5) sprintf(name, "QUICK.SAV");
+  else if (slot == 5) sprintf(name, "QUICK.SAV"); /* save.rs: QUICK */
   else sprintf(name, "SLOT%d.SAV", slot);
 }
 
@@ -20,11 +20,18 @@ int save_write(int slot, const unsigned char *data, int length) {
   FILE *f;
   int ok;
   name_of(slot, name);
-  f = fopen(name, "wb");
+  /* Written beside the file and moved over it, so a write that fails (a full or protected disk) leaves the earlier save as it was. */
+  f = fopen("FIZZ.TMP", "wb");
   if (!f) return 0;
   ok = fwrite(data, 1, (size_t)length, f) == (size_t)length;
-  fclose(f);
-  return ok;
+  if (fclose(f) != 0) ok = 0;
+  if (!ok) {
+    remove("FIZZ.TMP");
+    return 0;
+  }
+  remove(name); /* DOS's rename will not replace a file */
+  if (rename("FIZZ.TMP", name) != 0) return 0;
+  return 1;
 }
 
 int save_read(int slot, unsigned char *data, int length) {

@@ -34,8 +34,8 @@ KEYS
   R, N, M, E       restart the level; night mode; music; effects
 
 SAVES AND OPTIONS
-  Saves are AUTO.SAV (written each time you reach the map) and SLOT1.SAV to
-  SLOT4.SAV (Pause, Save game). Options are in FIZZ.CFG. All of them are
+  Saves are AUTO.SAV (written each time you reach the map), QUICK.SAV (F5
+  saves, F9 loads) and SLOT1.SAV to SLOT4.SAV (Pause, Save game). Options are in FIZZ.CFG. All of them are
   written beside FIZZ.EXE, so the disk must not be write-protected.
 
 SOUND TEST

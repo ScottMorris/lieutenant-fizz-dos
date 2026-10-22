@@ -415,7 +415,8 @@ pub fn advance(held: u32) {
     if let Some((k, left)) = s.quick {
         s.quick = if left <= 1 { None } else { Some((k, left - 1)) };
     }
-    if matches!(s.screen, Screen::Play | Screen::Pause) && s.fade.is_none() {
+    // Not over a card, a line of dialogue or a result on its way: a save then would hold the state of a lost or finished run.
+    if matches!(s.screen, Screen::Play | Screen::Pause) && s.fade.is_none() && s.card.is_none() && s.pending.is_none() && s.dialogue.is_none() {
         quick_keys(s, edges);
     }
 
@@ -838,16 +839,6 @@ pub fn overlay(frame: &mut [u8], cam_px: (i32, i32)) {
             if let Some(card) = s.card {
                 card_screen(frame, card);
             }
-            if let Some((kind, _)) = s.quick {
-                let (text, ink) = match kind {
-                    1 => ("Quick-saved", ui::GREEN),
-                    2 => ("Could not write QUICK.SAV", ui::RED),
-                    _ => ("No quick-save yet: F5 makes one", ui::RED),
-                };
-                let w = ui::text_width(text) + 14;
-                ui::dim(frame, (W as i32 - w) / 2, 178, w, 14, 11);
-                ui::text_centred(frame, W as i32 / 2, 182, text, ink);
-            }
             if let Some(d) = s.dialogue {
                 dialogue_box(frame, d, s.tick);
             }
@@ -856,6 +847,17 @@ pub fn overlay(frame: &mut [u8], cam_px: (i32, i32)) {
                 Screen::Options(_) => options_screen(frame, s),
                 Screen::Slots(kind, _) => slots_screen(frame, s, kind),
                 _ => {}
+            }
+            // After the menus, so the pause screen's dim does not reach it, and above its hint line.
+            if let (Screen::Play | Screen::Pause, Some((kind, _))) = (s.screen, s.quick) {
+                let (text, ink) = match kind {
+                    1 => ("Quick-saved", ui::GREEN),
+                    2 => ("Could not write QUICK.SAV", ui::RED),
+                    _ => ("No quick-save yet: F5 makes one", ui::RED),
+                };
+                let w = ui::text_width(text) + 14;
+                ui::dim(frame, (W as i32 - w) / 2, 164, w, 14, 11);
+                ui::text_centred(frame, W as i32 / 2, 168, text, ink);
             }
         }
     }

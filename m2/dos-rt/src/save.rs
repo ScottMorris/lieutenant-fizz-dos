@@ -101,11 +101,11 @@ pub fn load(slot: i32) -> Option<u32> {
     Some(get(&b, 44))
 }
 
-/// The slot with the newest save, the autosave included.
+/// The slot with the newest save, the autosave included. The clock ticks in whole seconds, so of two saves with one stamp the lower slot wins: a quick-save is not taken over the map's autosave by chance.
 pub fn newest(saves: &[Option<Info>; SLOTS]) -> Option<usize> {
     (0..SLOTS)
         .filter_map(|i| saves[i].map(|s| (i, s.stamp)))
-        .max_by_key(|&(_, stamp)| stamp)
+        .max_by(|a, b| a.1.cmp(&b.1).then(b.0.cmp(&a.0)))
         .map(|(i, _)| i)
 }
 
