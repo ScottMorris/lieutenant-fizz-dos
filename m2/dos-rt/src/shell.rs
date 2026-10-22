@@ -75,13 +75,18 @@ const SAUCER: f32 = 15.0;
 const CLEARED_WAIT: u32 = 90;
 const DIED_WAIT: u32 = 70;
 const GAME_OVER_WAIT: u32 = 100;
-/// Ticks Ben on the title keeps facing the menu after the cursor moves, and waves after a pick; and the loop's length in ticks.
-const BEN_LOOK: u32 = 96;
-const BEN_WAVE: u32 = 54;
-const BEN_CYCLE: u32 = 14 * 60;
-/// Where the title's wordmark is, so Ben can stand on it (it is drawn three pixels to a glyph pixel from `TITLE_LOGO_Y`).
+/// Ticks a second: the game's sim and the shell's timers run at 60 Hz whatever the screen's rate.
+const TICKS_PER_SEC: u32 = 60;
+/// Ticks Ben on the title keeps facing the menu after the cursor moves (1.6 s) and waves after a pick (0.9 s), and the length of his
+/// loop (14 s).
+const BEN_LOOK: u32 = TICKS_PER_SEC * 8 / 5;
+const BEN_WAVE: u32 = TICKS_PER_SEC * 9 / 10;
+const BEN_CYCLE: u32 = 14 * TICKS_PER_SEC;
+/// The title's wordmark: its top, the size of a glyph pixel and the height of its eight rows. Ben stands on it, and `title_screen`
+/// draws it from the same numbers.
 const TITLE_LOGO_Y: i32 = 24;
-const TITLE_LOGO_H: i32 = 24;
+const TITLE_LOGO_SCALE: i32 = 3;
+const TITLE_LOGO_H: i32 = 8 * TITLE_LOGO_SCALE;
 /// How long the quick-save message stays, in ticks.
 const QUICK_TICKS: u32 = 120;
 /// How long a toast stays, and how long a caption word floats, in ticks.
@@ -222,6 +227,8 @@ struct Shell {
     /// The tick up to which Ben on the title faces the menu (after the cursor moves) and waves (after a pick).
     ben_look: u32,
     ben_wave: u32,
+    /// The sheet ids of Ben's title poses (stand, jump, shoot, pogo, pogo2); `usize::MAX` for one the sheet lacks, which draws nothing.
+    ben_ids: [usize; 5],
     tick: u32,
 }
 
@@ -248,6 +255,7 @@ static mut SHELL: Shell = Shell {
     attract: 0,
     ben_look: 0,
     ben_wave: 0,
+    ben_ids: [usize::MAX; 5],
     tick: 0,
 };
 
@@ -284,6 +292,7 @@ pub fn start_title() {
     s.screen = Screen::Title;
     s.cursor = 0;
     s.attract = 0;
+    s.ben_ids = ["ben_stand", "ben_jump", "ben_shoot", "ben_pogo", "ben_pogo2"].map(|n| crate::video::sprite_by_name(n).unwrap_or(usize::MAX));
     s.fade = Some(Fade { out: false, t: 0, then: Next::Title });
     load_attract(0, 0);
 }
@@ -938,7 +947,7 @@ fn plate_rows(frame: &mut [u8], x: i32, y: i32, w: i32, rows: &[(&str, &str)], c
 
 /// The sprite the menus use for their cursor.
 fn soda_id() -> usize {
-    lf_episode_1::sprites::SPRITE_NAMES.iter().position(|n| *n == "soda").unwrap_or(0)
+    crate::video::sprite_by_name("soda").unwrap_or(0)
 }
 
 fn heading(frame: &mut [u8], s: &str, y: i32) {
@@ -955,46 +964,48 @@ fn title_ben(frame: &mut [u8], s: &Shell, left: i32, logo_w: i32) {
     fn arc(k: f32) -> f32 {
         4.0 * k * (1.0 - k)
     }
-    let names = lf_episode_1::sprites::SPRITE_NAMES;
-    let id = |name: &str| names.iter().position(|n| *n == name).unwrap_or(0);
     let bw = 16.0f32;
     let home = (logo_w + 6) as f32;
     let top = TITLE_LOGO_H as f32 * 0.5;
-    let p = (s.tick % BEN_CYCLE) as f32 / 60.0;
+    let p = (s.tick % BEN_CYCLE) as f32 / TICKS_PER_SEC as f32;
     let looking = s.ben_look > s.tick;
-    // (pose, x from the wordmark's left, feet above its bottom, faces left)
-    let (pose, x, y, flip) = if s.ben_wave > s.tick {
+    // A wave is for when Ben is at home; while he is across the wordmark it waits, so he does not jump back and forth.
+    let waving = s.ben_wave > s.tick && !(9.0..13.0).contains(&p);
+    // (pose index into `ben_ids`, x from the wordmark's left, feet above its bottom, faces left)
+    let (pose, x, y, flip) = if waving {
         let k = 1.0 - (s.ben_wave - s.tick) as f32 / BEN_WAVE as f32;
-        ("ben_shoot", home, arc(k) * bw * 0.4, true)
+        (2, home, arc(k) * bw * 0.4, true)
     } else if (4.5..6.5).contains(&p) {
-        ("ben_stand", home - bw / 6.0, 0.0, looking)
+        (0, home - bw / 6.0, 0.0, looking)
     } else if (9.0..13.0).contains(&p) {
         let start = home - bw;
         if p < 9.4 {
             let k = (p - 9.0) / 0.4;
-            ("ben_jump", home + (start - home) * k, top * k + arc(k) * bw * 0.5, true)
+            (1, home + (start - home) * k, top * k + arc(k) * bw * 0.5, true)
         } else if p < 12.6 {
             let q = if p < 11.0 { (p - 9.4) / 1.6 } else { 1.0 - (p - 11.0) / 1.6 };
             let u = (p - 9.4) * 1.25;
             let hop = arc(u - (u as i32) as f32);
-            (if hop < 0.25 { "ben_pogo2" } else { "ben_pogo" }, start * (1.0 - q), top + hop * bw * 0.3, p < 11.0)
+            (if hop < 0.25 { 4 } else { 3 }, start * (1.0 - q), top + hop * bw * 0.3, p < 11.0)
         } else {
             let k = (p - 12.6) / 0.4;
-            ("ben_jump", start + (home - start) * k, top * (1.0 - k) + arc(k) * bw * 0.4, false)
+            (1, start + (home - start) * k, top * (1.0 - k) + arc(k) * bw * 0.4, false)
         }
     } else {
-        ("ben_stand", home, if ((p * 1.5) as i32) % 2 == 1 { 1.0 } else { 0.0 }, looking)
+        (0, home, if ((p * 1.5) as i32) % 2 == 1 { 1.0 } else { 0.0 }, looking)
     };
-    let id = id(pose);
+    let id = s.ben_ids[pose];
     let feet = TITLE_LOGO_Y + TITLE_LOGO_H - y.max(0.0) as i32;
-    crate::video::draw_sprite_ui_flip(frame, id, left + x as i32, feet - crate::video::sprite_height(id), flip);
+    // Kept on the screen if a longer title pushes the wordmark's end out.
+    let at = (left + x as i32).min(W as i32 - bw as i32);
+    crate::video::draw_sprite_ui_flip(frame, id, at, feet - crate::video::sprite_height(id), flip);
 }
 
 /// The title: the attract loop behind, dimmed, with the name and the menu.
 fn title_screen(frame: &mut [u8], s: &Shell) {
     ui::dim(frame, 0, 0, W as i32, H as i32, 5);
-    let w = ui::text_width(TITLE_WORDS) * 3;
-    ui::text_logo(frame, (W as i32 - w) / 2, 24, TITLE_WORDS, ui::WHITE, ui::RED, 3);
+    let w = ui::text_width(TITLE_WORDS) * TITLE_LOGO_SCALE;
+    ui::text_logo(frame, (W as i32 - w) / 2, TITLE_LOGO_Y, TITLE_WORDS, ui::WHITE, ui::RED, TITLE_LOGO_SCALE);
     // Ben is drawn under the kicker, so his pogo stick goes behind the words as he crosses them.
     title_ben(frame, s, (W as i32 - w) / 2, w);
     ui::text_centred(frame, W as i32 / 2, 12, TITLE_KICKER, ui::YELLOW);

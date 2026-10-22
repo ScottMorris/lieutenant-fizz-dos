@@ -965,6 +965,11 @@ pub fn draw_sprite_ui(frame: &mut [u8], id: usize, x: i32, y: i32) {
     draw_sprite_ui_flip(frame, id, x, y, false);
 }
 
+/// The sheet's id for a sprite name the sim draws, if there is one.
+pub fn sprite_by_name(name: &str) -> Option<usize> {
+    lf_episode_1::sprites::SPRITE_NAMES.iter().position(|n| *n == name)
+}
+
 /// The height of sprite `id` in pixels (0 if there is none).
 pub fn sprite_height(id: usize) -> i32 {
     sprite(id).map_or(0, |sp| sp.h as i32)
@@ -975,10 +980,11 @@ pub fn draw_sprite_ui_flip(frame: &mut [u8], id: usize, x: i32, y: i32, flip: bo
     let Some(sp) = sprite(id) else {
         return;
     };
+    // The column to read for the first pixel of a row, and the step along it.
+    let (first, step) = if flip { (sp.w as i32 - 1, -1) } else { (0, 1) };
     for row in 0..sp.h as i32 {
         for col in 0..sp.w as i32 {
-            let src = if flip { sp.w as i32 - 1 - col } else { col };
-            let c = sp.pix[row as usize * sp.w + src as usize];
+            let c = sp.pix[row as usize * sp.w + (first + step * col) as usize];
             let (px, py) = (x + col, y + row);
             if c != CLEAR_PIX && px >= 0 && py >= 0 && (px as usize) < W && (py as usize) < H {
                 frame[py as usize * W + px as usize] = crate::ui::FULL + (c & 15);
