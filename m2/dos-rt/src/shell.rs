@@ -1375,16 +1375,36 @@ const CONTROLS: [(&str, &str); 8] = [
     ("Quick-save, load (in play)", "F5, F9"),
 ];
 
+/// The keys for play itself, shorter, in two columns under the rest (the words of the readme's key table).
+const PLAY_KEYS: [(&str, &str); 8] = [
+    ("Restart the level", "R"),
+    ("Night mode", "N"),
+    ("Music on or off", "M"),
+    ("Effects on or off", "E"),
+    ("Previous level", "PgUp"),
+    ("Next level", "PgDn"),
+    ("Overworld map", "Backspace"),
+    ("", ""),
+];
+
 fn controls_screen(frame: &mut [u8]) {
     ui::dim(frame, 0, 0, W as i32, H as i32, 11);
-    heading(frame, "Controls", 14);
+    heading(frame, "Controls", 12);
     let (x, w) = (20, W as i32 - 40);
+    // A line of text a row (`ui::LINE`), so the menu keys and the play keys fit above the tip.
+    let (top, line) = (36, ui::LINE);
     for (i, (action, keys)) in CONTROLS.iter().enumerate() {
-        let y = 44 + i as i32 * 13;
+        let y = top + i as i32 * line;
         ui::text(frame, x, y, action, ui::WHITE);
         ui::text(frame, x + w - ui::text_width(keys), y, keys, ui::CYAN);
     }
-    ui::paragraph(frame, x, 44 + CONTROLS.len() as i32 * 13 + 6, w, "Hold jump while pogoing for a high bounce. Aim Fizz up with Up, or down with Down in the air.", ui::GREY);
+    let (col, gap) = ((w - 12) / 2, 12);
+    for (i, (action, keys)) in PLAY_KEYS.iter().enumerate() {
+        let (cx, y) = (x + (i as i32 / 4) * (col + gap), top + 8 * line + 4 + (i as i32 % 4) * line);
+        ui::text(frame, cx, y, action, ui::WHITE);
+        ui::text(frame, cx + col - ui::text_width(keys), y, keys, ui::CYAN);
+    }
+    ui::paragraph(frame, x, top + 12 * line + 8, w, "Hold jump while pogoing for a high bounce. Aim Fizz up with Up, or down with Down in the air.", ui::GREY);
     ui::text_centred(frame, W as i32 / 2, 188, "Enter or Esc goes back", ui::GREY);
 }
 

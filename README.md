@@ -34,7 +34,7 @@
 | F5 / F9 | Quick-save and quick-load, in `QUICK.SAV`, a slot of its own |
 | Backspace | Back to the overworld map |
 | PgUp / PgDn | Previous or next level |
-| R, N, M, E | Restart the level; night mode; music on or off; effects on or off |
+| R, N, M, E | Restart the level; night mode (for the run); music on or off (with an AdLib); effects on or off |
 
 The Options screen has music and which chip plays the effects (both only with an AdLib, as the music plays on it alone), effects (when sound is running), **frame rate** (auto, 60 Hz or 30 Hz), **detail** (auto, high or low, which drops the backdrop layers on slow machines) and night. Options, and the M and E keys' changes, are kept in `FIZZ.CFG` and read at the next start (a sound setting that cannot apply on a run, such as the music without an AdLib, keeps what was kept) and game saves in `AUTO.SAV`, `QUICK.SAV` and `SLOT1.SAV` to `SLOT4.SAV`, all beside the game. `FIZZ.EXE [level|map]` starts in a level or on the map; `nopreview` skips the system check.
 

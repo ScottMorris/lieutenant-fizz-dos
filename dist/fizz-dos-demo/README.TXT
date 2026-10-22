@@ -28,7 +28,7 @@ Keys
   PgUp / PgDn      previous / next level (0-15)
   R                restart the level
   N                night mode (darker ambient light; lamps and glowing things stand out)
-  M                music on/off
+  M                music on/off (with an AdLib)
   E                sound effects on/off
   Esc              pause menu (and back, in a menu); Quit to title, then Quit, leaves the game
 
