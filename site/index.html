@@ -40,7 +40,7 @@
           <button id="play" type="button">Play</button>
         </div>
       </div>
-      <p class="hint">A click starts the game and the sound. A keyboard is needed: this page has no touch controls. The game starts at a system check; press <kbd>Enter</kbd> to continue to the title. If you leave the game and the emulator stops, Restart starts it again. Click the game before pressing F5 to quick-save, or the browser may reload the page instead. Download saves takes the game’s saves as a zip, and Upload saves puts them back (a zip from Download saves, or loose <code>.SAV</code> files).</p>
+      <p class="hint">A click starts the game and the sound. A keyboard is needed: this page has no touch controls. The game starts at a system check; press <kbd>Enter</kbd> to continue to the opening titles (any key skips them) and then the title. If you leave the game and the emulator stops, Restart starts it again. Click the game before pressing F5 to quick-save, or the browser may reload the page instead. Download saves takes the game’s saves as a zip, and Upload saves puts them back (a zip from Download saves, or loose <code>.SAV</code> files).</p>
       <p class="actions"><button id="mute" type="button" aria-pressed="false">Sound on</button> <button id="full" type="button">Fullscreen</button> <button id="restart" type="button" disabled>Restart</button></p>
       <p class="actions"><button id="download" type="button" disabled>Download saves</button> <button id="upload" type="button" disabled>Upload saves</button> <input id="saves-file" type="file" accept=".sav,.zip,application/zip" multiple hidden></p>
       <p id="saves-status" class="hint" role="status" aria-live="polite"></p>
@@ -59,6 +59,7 @@
           <tr><th scope="row"><kbd>Backspace</kbd></th><td>Back to the overworld map</td></tr>
           <tr><th scope="row"><kbd>PgUp</kbd> <kbd>PgDn</kbd></th><td>Previous or next level</td></tr>
           <tr><th scope="row"><kbd>R</kbd> <kbd>N</kbd> <kbd>M</kbd> <kbd>E</kbd></th><td>Restart the level; night mode; music on or off; effects on or off</td></tr>
+          <tr><th scope="row"><kbd>F5</kbd> <kbd>F9</kbd></th><td>Quick-save, quick-load (in play)</td></tr>
         </tbody>
       </table>
       <p>On the system check, <kbd>A</kbd> plays everything on AdLib, <kbd>M</kbd> puts the music on AdLib and the effects on the PC speaker, <kbd>P</kbd> uses the PC speaker alone and <kbd>O</kbd> turns sound off. Options has frame rate and detail settings if it runs slowly. In the browser, saves and options last until the page is reloaded.</p>
@@ -67,7 +68,7 @@
     <section aria-labelledby="about-title">
       <h2 id="about-title">What this is</h2>
       <p><em>Lieutenant Fizz — Episode 1: The Cocoa Caper</em> for MS-DOS. The game's own Rust simulation, from <a href="https://github.com/liminal-hq/lieutenant-fizz">liminal-hq/lieutenant-fizz</a>, runs as a 32-bit DOS program in VGA mode 13h (320 × 200, 256 colours) with AdLib music and effects, or PC-speaker effects. The page runs it in an emulated DOSBox through <a href="https://js-dos.com">js-dos</a>. The program is under 1 MB, so it fits a 1.44 MB floppy with room to spare.</p>
-      <p>It matches the web build's simulation exactly (800 checked state hashes), so the levels, enemies and bosses behave the same. It is not finished: the opening cinematic, the ending and credits, and the controls screen are not in yet, and it has not run on real hardware. <a href="https://github.com/ScottMorris/lieutenant-fizz-dos/blob/main/docs/STATUS.md">The status page</a> has the full list.</p>
+      <p>It matches the web build's simulation exactly (800 checked state hashes), so the levels, enemies and bosses behave the same. Episode 1 is all there, from the opening titles and the opening story to the ending and credits, though it has not run on real hardware. <a href="https://github.com/ScottMorris/lieutenant-fizz-dos/blob/main/docs/STATUS.md">The status page</a> has the full list.</p>
     </section>
 
     <section aria-labelledby="shots-title">
