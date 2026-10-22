@@ -21,6 +21,7 @@ Where the DOS port stands against the main game (`liminal-hq/lieutenant-fizz`, E
 ## Different on purpose
 
 - **Lighting is brightness only.** The palette holds 16 EGA colours at 14 brightness levels, so a coloured light dims or brightens a pixel but cannot tint it. Sprite tints snap to the nearest EGA colour.
+- **The hints are the menu hint lines and the controls screen.** The main game has no separate in-level tutorial, so there is nothing more to port.
 - **No alpha blending.** A sprite is drawn or it is skipped.
 - **The view is 20 × 12.5 tiles** on a 320 × 200 screen; the web build shows about 13 tiles of height.
 - **Sound is converted, not re-synthesised.** The OPL2 and PC-speaker versions are approximations of the Undertone music and effects.

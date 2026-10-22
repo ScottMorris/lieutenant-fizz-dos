@@ -584,16 +584,21 @@ fn pause_tick(s: &mut Shell, edges: u32) {
     }
 }
 
+/// Goes back from a sub-screen to the title or the pause menu, with the cursor on the row that opened it.
+fn return_to(s: &mut Shell, back: Back, title: TitleItem, pause: PauseItem) {
+    cue(FX_BACK);
+    if back == Back::Title {
+        s.screen = Screen::Title;
+        s.cursor = title_items(s).0.iter().position(|i| *i == title).unwrap_or(0);
+    } else {
+        s.screen = Screen::Pause;
+        s.cursor = pause_items().0.iter().position(|i| *i == pause).unwrap_or(0);
+    }
+}
+
 fn controls_tick(s: &mut Shell, edges: u32, back: Back) {
-    if edges & (MENU_KEY | CONFIRM | JUMP | FIRE) != 0 {
-        cue(FX_BACK);
-        if back == Back::Title {
-            s.screen = Screen::Title;
-            s.cursor = title_items(s).0.iter().position(|i| *i == TitleItem::Controls).unwrap_or(0);
-        } else {
-            s.screen = Screen::Pause;
-            s.cursor = pause_items().0.iter().position(|i| *i == PauseItem::Controls).unwrap_or(0);
-        }
+    if edges & (MENU_KEY | CONFIRM) != 0 {
+        return_to(s, back, TitleItem::Controls, PauseItem::Controls);
     }
 }
 
@@ -610,11 +615,7 @@ fn option_items() -> ([OptionItem; 7], usize) {
 
 fn options_tick(s: &mut Shell, edges: u32, back: Back) {
     let (items, n) = option_items();
-    let leave = |s: &mut Shell| {
-        cue(FX_BACK);
-        s.screen = if back == Back::Title { Screen::Title } else { Screen::Pause };
-        s.cursor = if back == Back::Title { 2 } else { 2 };
-    };
+    let leave = |s: &mut Shell| return_to(s, back, TitleItem::Options, PauseItem::Options);
     match menu_keys(s, edges, n) {
         Pick::Back => leave(s),
         Pick::Chosen | Pick::Left | Pick::Right => match items[s.cursor] {
@@ -674,11 +675,7 @@ fn slot_rows(kind: SlotKind) -> (usize, usize) {
 
 fn slots_tick(s: &mut Shell, edges: u32, kind: SlotKind, back: Back) {
     let (first, count) = slot_rows(kind);
-    let leave = |s: &mut Shell| {
-        cue(FX_BACK);
-        s.screen = if back == Back::Title { Screen::Title } else { Screen::Pause };
-        s.cursor = if back == Back::Title { 1 } else { 1 };
-    };
+    let leave = |s: &mut Shell| return_to(s, back, TitleItem::Load, PauseItem::Save);
     match menu_keys(s, edges, count + 1) {
         Pick::Back => leave(s),
         Pick::Chosen => {
@@ -990,7 +987,7 @@ const CONTROLS: [(&str, &str); 8] = [
     ("Fizz", "Space or C"),
     ("Menu, and back", "Esc"),
     ("Choose in a menu", "Enter"),
-    ("Quick-save, quick-load", "F5, F9"),
+    ("Quick-save, load (in play)", "F5, F9"),
 ];
 
 fn controls_screen(frame: &mut [u8]) {
@@ -998,11 +995,11 @@ fn controls_screen(frame: &mut [u8]) {
     heading(frame, "Controls", 14);
     let (x, w) = (20, W as i32 - 40);
     for (i, (action, keys)) in CONTROLS.iter().enumerate() {
-        let y = 44 + i as i32 * 14;
+        let y = 44 + i as i32 * 13;
         ui::text(frame, x, y, action, ui::WHITE);
         ui::text(frame, x + w - ui::text_width(keys), y, keys, ui::CYAN);
     }
-    ui::paragraph(frame, x, 44 + CONTROLS.len() as i32 * 14 + 8, w, "Hold jump while pogoing for a high bounce. Aim Fizz up with Up, or down with Down in the air.", ui::GREY);
+    ui::paragraph(frame, x, 44 + CONTROLS.len() as i32 * 13 + 6, w, "Hold jump while pogoing for a high bounce. Aim Fizz up with Up, or down with Down in the air.", ui::GREY);
     ui::text_centred(frame, W as i32 / 2, 188, "Enter or Esc goes back", ui::GREY);
 }
 
