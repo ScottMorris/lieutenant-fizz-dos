@@ -118,7 +118,7 @@ Add labels to every PR when it is created and keep them accurate as scope change
 - **Focused commits:** when work splits naturally into implementation, validation and docs, use separate contextual commits.
 - **Stage explicitly:** use `git add <specific paths>`, never `git add -A` or `git commit -a`. Retry on an `index.lock` collision rather than deleting the lock.
 - Do not commit scratch files, build outputs (`*.exe`, `out/`, `target/`, `vendor/`) or large source archives.
-- **Releases:** add the version's section to `CHANGELOG.md` in a PR and merge it; the tag `vX.Y.Z` is then pushed on the merge commit (only when the user asks), and `.github/workflows/release.yml` checks the tree, runs `tools/make-release.sh` and publishes the files with that section as the notes, followed by the pull requests since the last release grouped by their labels (`.github/release.yml`, the same file the other Liminal HQ products use; `skip-changelog` and `internal` leave a PR out), so every PR needs its category label. A 0.x release is a pre-release.
+- **Releases:** add the version's section to `CHANGELOG.md` in a PR and merge it; the tag `vX.Y.Z` is then pushed on the merge commit (only when the user asks), and `.github/workflows/release.yml` checks the tree, runs `tools/make-release.sh` and publishes the files with that section as the notes, followed by the pull requests since the last release grouped by their labels (`.github/release.yml`, the same file the other Liminal HQ products use; `skip-changelog` and `internal` leave a PR out), so every PR needs its category label. A 0.x release is a pre-release. The release then updates the live page (`.github/workflows/pages.yml`): the page serves the release's browser bundle and shows its version in the footer, and a push to `main` that changes `site/` publishes the page again with the newest release's game. The game bundles in `site/` are never committed, so the page shows a game change only once a release carries it.
 - **The build image:** the CI and the release run in `ghcr.io/liminal-hq/ci-dos`, the DOS tier of the shared images defined in `liminal-hq/.github` (`docker/ci/Dockerfile`), named by digest in `ci.yml` and `release.yml`. A tool or Rust version change is made there; moving to a newer image is a pull request here that changes the digest, so its checks run in the new image. `tools/setup.sh` links the image's toolchain as `vendor/` when `DOS_TOOLCHAIN` is set; developers' machines are unchanged.
 - **GitHub tooling:** prefer the `gh` CLI for repository, pull request, label, review and Actions work.
 
@@ -136,7 +136,7 @@ tools/sync-sim.sh [--check]          # regenerate (or check) m2/sim and m2/game 
 tools/dosrun.sh <dir> "<command>"    # run a DOS program headless in DOSBox
 tools/make-dist.sh                   # pack dist/fizz-dos-demo.zip
 tools/make-release.sh <version>      # build a release's files into dist/release/: floppy image, zips, browser bundle, SHA256SUMS
-tools/make-site.sh                   # build the GitHub Pages bundle in site/
+tools/make-site.sh                   # build the GitHub Pages bundles in site/ for local use (not committed; the live page serves a release's bundle)
 tools/make-share.sh                  # build the link-preview picture site/img/share.png
 ```
 
