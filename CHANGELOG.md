@@ -4,6 +4,10 @@ What changed in each release of Lieutenant Fizz for DOS. A release is a tag `vX.
 
 ## Unreleased
 
+## 0.2.1 — 2026-10-22
+
+The game is the same as 0.2.0, 24% smaller. Nothing has run on real hardware yet; see `docs/STATUS.md`.
+
 ### Added
 
 - A debug zip with each release (`-debug.zip`), holding the unstripped `FIZZ.EXE` for reading a crash's traceback.
@@ -11,7 +15,6 @@ What changed in each release of Lieutenant Fizz for DOS. A release is a tag `vX.
 ### Changed
 
 - The game in a release and in the browser bundle is stripped of its symbols and debugging sections: `FIZZ.EXE` is 853,504 bytes, 24% smaller than 1,123,051, and the floppy has 396,288 bytes free instead of 126,464. The program is the same: its code and data bytes are unchanged, and in DOSBox it draws the same frames and drives the sound the same way. The checks and `tools/dosrun.sh` still run the unstripped build.
-
 - A release updates the page: it serves the release's browser bundle and shows the release's version in its footer, and the game bundles are no longer committed.
 - The floppy image's creation time is the time its files carry. It was fixed at a constant in 2015 by `mkfs.fat --invariant`, while the files were stamped with the build's time. The files, the zips, the image and the browser bundle now all carry the one time (the last commit's, or `SOURCE_DATE_EPOCH`, in UTC), so a build gives the same files in any time zone.
 
