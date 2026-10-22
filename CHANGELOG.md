@@ -2,13 +2,29 @@
 
 What changed in each release of Lieutenant Fizz for DOS. A release is a tag `vX.Y.Z`; `tools/make-release.sh` builds its files and `.github/workflows/release.yml` publishes them. The simulation is the main game's and does not change between releases.
 
-## Unreleased
+## 0.2.0 — 2026-10-22
+
+Everything the main game has in Episode 1 is in: the opening titles, the opening story, the ending and credits, the controls screen, quick-save and Ben on the title. Nothing has run on real hardware yet, and the sound has been listened to only in DOSBox and the browser; see `docs/STATUS.md`.
 
 ### Added
 
-- Opening titles: Liminal HQ presents, the *Lieutenant Fizz* wordmark and a chase, with a new score. They play when the game starts, any key skips them, and they come back for two loops when the title menu has sat untouched for two loops of its song.
+- Opening titles: Liminal HQ presents, the *Lieutenant Fizz* wordmark and a chase with Ben stunning the Zargs, over a score of its own, 12.8 s in mode 13h. They play when the game starts and any key skips them. When the title menu has sat untouched for two loops of its song (about two minutes) they play again for two loops, then the menu returns. Every frame is checked byte for byte against a port of the design's drawing routine.
+- The opening story from New Game: eight letterboxed scenes (the backyard, the lab, the liftoff, the flight and the landing) with the typed text and each scene's music, then the map with a word about where to start. Enter moves on and Esc skips it.
+- The ending: four letterboxed panels after the last boss, the credits roll (Enter speeds it up, Esc skips) with the ending's music, and an end card that returns to the title.
+- Ben on the title wordmark: he bobs, leans, hops up and pogoes across it, turns to the menu when the cursor moves and waves on a pick.
+- A Controls screen on the title and the pause menu, and a key hint under each menu.
+- Quick-save and quick-load on F5 and F9, in a slot of their own (`QUICK.SAV`) so the four slots picked from the pause menu are never overwritten. The main game quick-saves into the newest manual slot; the proposal to change that is liminal-hq/lieutenant-fizz#220.
 - `fx`, a small module of screen effects (fades, a flash, easings and tweens in fixed point, a cue timeline) that the titles use and the shell's fades now run on.
 - A music clock in the sound driver, an any-key input bit, and `FIZZ.EXE soundtestN` to play any extra song headless.
+- A release's notes now list the pull requests merged since the last release, grouped by label.
+
+### Changed
+
+- A save is written to a temporary file and then renamed, so a failed write keeps the old save.
+
+### Fixed
+
+- The disk's `README.TXT` and `README.RTF` no longer list the opening, the ending, the credits and the controls screen as missing.
 
 ## 0.1.0 — 2026-10-21
 
