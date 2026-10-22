@@ -261,6 +261,12 @@ pub extern "C" fn fizz_music_key() -> u32 {
     shell::music_key()
 }
 
+/// The game's start: the opening titles, then the title menu.
+#[no_mangle]
+pub extern "C" fn fizz_titles() {
+    shell::boot_titles();
+}
+
 /// A check: shows a menu (1 pause, 2 options).
 #[no_mangle]
 pub extern "C" fn fizz_show(n: u32) {

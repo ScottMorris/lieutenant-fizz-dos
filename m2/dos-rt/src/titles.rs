@@ -134,16 +134,23 @@ fn span(frame: &mut [u8], x0: i32, x1: i32, y: i32, colour: u8, level: u8) {
 
 /// The opening titles, playing `loops` times.
 pub struct Titles {
+    /// Ticks since the first, counting on through the loops.
+    elapsed: u32,
+    /// The tick of the loop on the screen.
     t: u32,
     loops: u8,
     ben: usize,
     enemies: [[usize; 2]; 7],
 }
 
+/// A tick of the game is 560 / 60 ticks of the music's clock.
+const MUSIC_PER_TICK_NUM: i64 = 28;
+const MUSIC_PER_TICK_DEN: i64 = 3;
+
 impl Titles {
     pub fn new(loops: u8) -> Titles {
         let id = |n: &str| video::sprite_by_name(n).unwrap_or(usize::MAX);
-        Titles { t: 0, loops: loops.max(1), ben: id("ben_shoot"), enemies: ENEMY_NAMES.map(|[a, b]| [id(a), id(b)]) }
+        Titles { elapsed: 0, t: 0, loops: loops.max(1), ben: id("ben_shoot"), enemies: ENEMY_NAMES.map(|[a, b]| [id(a), id(b)]) }
     }
 
     /// The tick of the loop on the screen.
@@ -151,19 +158,23 @@ impl Titles {
         self.t
     }
 
-    /// One tick; false once the last loop has run out. `music` is the titles' song's clock, which the screen will follow to stay in time
-    /// with the music; for now the picture keeps its own clock and it is not read.
+    /// One tick; false once the last loop has run out. `music` is the clock of the titles' song in 560 Hz ticks (or -1 when it is not
+    /// playing, as with sound off), which the picture follows so that it stays in time with the music: it never goes back, and a stall
+    /// that left it behind the music is made up by jumping ahead to the music's tick. Both run from the same 560 Hz count, so they agree
+    /// to a tick or so until the main loop gives up catching up after a stall.
     pub fn tick(&mut self, music: i32) -> bool {
-        let _ = music;
-        self.t += 1;
-        if self.t >= LOOP {
-            self.loops -= 1;
-            if self.loops == 0 {
-                self.t = LOOP - 1;
-                return false;
-            }
-            self.t = 0;
+        let mut next = i64::from(self.elapsed) + 1;
+        if music >= 0 {
+            next = next.max(i64::from(music) * MUSIC_PER_TICK_DEN / MUSIC_PER_TICK_NUM);
         }
+        let end = i64::from(self.loops) * i64::from(LOOP);
+        if next >= end {
+            self.elapsed = end as u32 - 1;
+            self.t = LOOP - 1;
+            return false;
+        }
+        self.elapsed = next as u32;
+        self.t = self.elapsed % LOOP;
         true
     }
 

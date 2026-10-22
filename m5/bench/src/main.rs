@@ -61,6 +61,14 @@ pub extern "C" fn snd_have_opl() -> i32 {
     1
 }
 #[no_mangle]
+pub extern "C" fn snd_current_song() -> i32 {
+    -1
+}
+#[no_mangle]
+pub extern "C" fn snd_music_clock() -> i32 {
+    -1
+}
+#[no_mangle]
 pub extern "C" fn rate_mode() -> i32 {
     0
 }
@@ -292,6 +300,74 @@ fn pause_resume_test() {
     println!("pause, Resume with Enter held: mode {} (2 is right; 3 is the bug)", lf_episode_1::mode());
 }
 
+/// The titles' flow: the opening at the start, a key skipping it, and the long wait on the title menu bringing it back.
+fn flow_test() {
+    let mut bad = 0;
+    let mut check = |what: &str, ok: bool| {
+        println!("flow: {what}: {}", if ok { "yes" } else { "NO" });
+        if !ok {
+            bad += 1;
+        }
+    };
+    const ANY: u32 = 2048;
+    let run = |n: u32| {
+        for _ in 0..n {
+            shell::advance(0);
+        }
+    };
+
+    // The start: the titles play out their one loop (768 ticks) and the menu follows.
+    video::start(video::TITLE);
+    shell::boot_titles();
+    run(767);
+    check("the titles are up for their whole loop", shell::on_titles());
+    run(1);
+    check("the menu follows the loop", shell::on_title());
+
+    // A key skips: a fade of 12 ticks, then the menu.
+    video::start(video::TITLE);
+    shell::boot_titles();
+    run(100);
+    shell::advance(ANY);
+    run(11);
+    check("a key's fade is still running 11 ticks on", shell::on_titles());
+    run(2);
+    check("the menu is up 13 ticks after a key", shell::on_title());
+
+    // A key held from before the titles began does not skip them: only a new press does.
+    video::start(video::TITLE);
+    shell::boot_titles();
+    shell::advance(0);
+    run(30);
+    check("the titles run while nothing is pressed", shell::on_titles());
+
+    // The wait: four loops of the title's song, 14800 ticks of the menu without music (the tick that ends its fade-in does not count), then a fade and the titles for two loops.
+    video::start(video::TITLE);
+    run(14798);
+    check("the menu waits 14798 ticks", shell::on_title());
+    run(1 + 14);
+    check("the titles are back once the wait and the fade are over", shell::on_titles());
+    run(1535);
+    check("the titles play their two loops", shell::on_titles());
+    run(1);
+    check("the menu follows the second loop", shell::on_title());
+
+    // A key on the menu starts the wait again.
+    video::start(video::TITLE);
+    run(14000);
+    shell::advance(ANY);
+    run(14000);
+    check("a key 14000 ticks in sets the wait back", shell::on_title());
+    run(1000);
+    check("and the titles come 14800 ticks after it", shell::on_titles());
+
+    if bad == 0 {
+        println!("flow ok");
+    } else {
+        std::process::exit(1);
+    }
+}
+
 fn main() {
     // The opening cinematic's sprite names must all be in the sheet (a name that drifts from the export would draw nothing).
     assert_eq!(cine::missing_sprites(), 0, "a sprite of the cinematic is not in the sheet");
@@ -299,6 +375,10 @@ fn main() {
     assert!(fx::self_check(), "an easing or a tween is off");
     if std::env::var("PAUSETEST").is_ok() {
         pause_resume_test();
+        return;
+    }
+    if std::env::var("FLOWTEST").is_ok() {
+        flow_test();
         return;
     }
     if let Ok(file) = std::env::var("TITLES_DUMP") {

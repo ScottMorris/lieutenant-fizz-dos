@@ -24,6 +24,7 @@
 #include "vga.h"
 
 extern void fizz_start(unsigned level, int use53);
+extern void fizz_titles(void);
 extern unsigned fizz_scripted(unsigned tick);
 extern void fizz_tick(unsigned held);
 extern void fizz_goto(unsigned level);
@@ -293,6 +294,8 @@ int main(int argc, char **argv) {
     }
     if ((ticks || bench) && !quiet) snd_music(0);
   }
+
+  if (!previewshot && ticks == 0 && !bench && level == 255 && !screen) fizz_titles(); /* the game opens with the titles, then the menu */
 
   if (previewshot) {
     /* Nothing more to run: the frame is the screenshot. */
