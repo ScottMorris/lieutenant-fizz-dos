@@ -26,7 +26,7 @@ tools/dosrun.sh <dir> "<command>"    # run a DOS program headless in DOSBox
 tools/make-dist.sh                   # pack dist/fizz-dos-demo.zip
 tools/make-release.sh <version>      # build a release's files into dist/release/: floppy image, zips, browser bundle, SHA256SUMS
 tools/sync-sim.sh [--check]          # m2/sim and m2/game from the main game plus m2/patches
-tools/make-site.sh                   # build the GitHub Pages bundle
+tools/make-site.sh                   # build the GitHub Pages bundles for local use
 tools/make-share.sh                  # build the link-preview picture site/img/share.png
 ```
 
@@ -50,7 +50,7 @@ The scripts are the source of truth. Run `tools/check.sh` before a PR (the CI ru
 - **Authoring voice**: comments and docs state facts directly; no "this PR", "we tried" or reviewer references.
 - **Git**: never push (especially force-push) unless explicitly asked; prefer the `gh` CLI for GitHub work.
 - **Build image**: the CI and the release run in `ghcr.io/liminal-hq/ci-dos` (the shared DOS tier, defined in `liminal-hq/.github`), named by digest in `ci.yml` and `release.yml`; a tool or Rust version change is made there, and moving to a newer image is a PR here that changes the digest; `tools/setup.sh` links it as `vendor/` when `DOS_TOOLCHAIN` is set.
-- **Releases**: the version's section goes in `CHANGELOG.md` in a PR; the user's tag `vX.Y.Z` on main then makes `release.yml` build and publish the files (`tools/make-release.sh`), with the changelog section and then the PRs since the last release (grouped by label, `.github/release.yml`); a 0.x release is a pre-release.
+- **Releases**: the version's section goes in `CHANGELOG.md` in a PR; the user's tag `vX.Y.Z` on main then makes `release.yml` build and publish the files (`tools/make-release.sh`), with the changelog section and then the PRs since the last release (grouped by label, `.github/release.yml`); a 0.x release is a pre-release. The release then updates the live page (`pages.yml`): it serves the release's browser bundle with its version in the footer, and the bundles in `site/` are never committed.
 - **Verification**: say what was and was not run. Nothing here has run on real hardware, and audio cannot be checked headless.
 
 Keep this file and `AGENTS.md` in sync: when a convention changes there, update the summary here in the same PR.

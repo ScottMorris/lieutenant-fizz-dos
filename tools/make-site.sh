@@ -1,6 +1,7 @@
 #!/bin/bash
-# Builds the GitHub Pages site: packs FIZZ.EXE into site/game.jsdos (a zip with the DOSBox settings in .jsdos/) and copies the
-# hero banner and the screenshots the page shows.
+# Builds the GitHub Pages site for local use and for a release's files: packs FIZZ.EXE into site/game.jsdos (a zip with the DOSBox settings in
+# .jsdos/) and copies the hero banner and the screenshots the page shows. The bundles are not committed: the live page serves a release's
+# browser bundle (tools/stage-site.sh, run by .github/workflows/pages.yml), and the footer says "development build" here.
 #
 # (c) Copyright 2026 Liminal HQ, Scott Morris
 # SPDX-License-Identifier: Apache-2.0 OR MIT
