@@ -5,13 +5,17 @@
  */
 
 /* Episode 1 on a VGA mode 13h screen, with sound.
-   usage: FIZZ [level|map] [ticks] [shot] [nosync] [night] [nosound] [adlib] [mixed] [speaker] [soundtest[N]]
+   usage: FIZZ [text] [level|map] [ticks] [shot] [nosync] [night] [nosound] [adlib] [mixed] [speaker] [soundtest[N]] [text]
+   "text" (in any case, first or among the words after the ticks) shows the start-up check on the 80x25 text screen instead of
+   the picture; a machine without a VGA always gets the text screen, and the game starts only on a VGA. "nopreview" skips the
+   check. "preview" draws the picture check into FRAME.RAW (with "shot") and stops; "previewtext" shows the text check, writes
+   its cells to CELLS.RAW and what video memory then holds to VMEM.RAW (4000 bytes each: character, attribute), prints its
+   characters and stops.
    With no ticks (or 0) it is interactive: arrows or WASD move, Ctrl or Z jump, Alt or X pogo, Space or C fire,
    PgUp and PgDn change level, R restarts it, Backspace goes back to the map, N toggles night, M music, E effects, Esc pauses
    (and goes back in a menu; Quit to title, then Quit, leaves).
    With ticks it runs a scripted walk for that many ticks and, with "shot", writes FRAME.RAW (64000 bytes) and PAL.RAW
    (256 x RGB, 6-bit) at the end; "titles" puts the opening titles up first, so FRAME.RAW after N ticks is their tick N. "soundtest" plays the title song for a few seconds headless and reports what the driver did; "soundtestN" plays extra song N (0 is the ending, 5 the opening titles). */
-#include <conio.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -21,6 +25,7 @@
 #include "keymap.h"
 #include "save.h"
 #include "sound.h"
+#include "textmode.h"
 #include "vga.h"
 
 extern void fizz_start(unsigned level, int use53);
@@ -42,7 +47,7 @@ extern unsigned fizz_build(float alpha);
 extern unsigned fizz_paint(unsigned char *frame, unsigned count);
 extern void fizz_preview(unsigned char *frame, const int *values, const char *cpu);
 extern int fizz_preview_ready(const int *values);
-extern unsigned fizz_preview_text(const int *values, const char *cpu, unsigned char *out, unsigned cap);
+extern void fizz_preview_cells(const int *values, const char *cpu, unsigned short *out);
 extern const unsigned char *fizz_sound_data(void);
 extern unsigned long fizz_sound_len(void);
 
@@ -161,20 +166,60 @@ static int speed_test(void) {
   return us ? (int)(30ULL * 1000000ULL / us) : 0;
 }
 
-/* The start-up screen as text, for a machine whose adapter cannot show mode 13h: on the text screen in colour, or plainly to
-   standard output (for a headless check). Bytes below 8 set the colour of what follows (see preview.rs). */
-static void print_check(const int *probe, const char *cpu, int plain) {
-  static const int colour[8] = {LIGHTGRAY, WHITE, LIGHTGRAY, LIGHTRED, LIGHTGREEN, YELLOW, LIGHTGRAY, LIGHTGRAY};
-  static unsigned char text[2048];
-  unsigned n = fizz_preview_text(probe, cpu, text, sizeof text), i;
-  if (!plain) clrscr();
-  for (i = 0; i < n; i++) {
-    if (text[i] < 8) { if (!plain) textcolor(colour[text[i]]); }
-    else if (plain) putchar(text[i]);
-    else if (text[i] == '\n') cputs("\r\n");
-    else putch(text[i]);
+/* Frames a second in the C_FPS slot while the speed test runs (FPS_RUNNING in preview.rs). */
+#define FPS_RUNNING (-1)
+
+/* Prints the characters of a screen of text cells, a line for each row, for a headless check. */
+static void print_cells(const unsigned short *cells) {
+  int x, y;
+  for (y = 0; y < 25; y++) {
+    for (x = 0; x < 80; x++) putchar(cells[y * 80 + x] & 0xFF);
+    putchar('\n');
   }
-  if (!plain) normvideo();
+}
+
+static void write_file(const char *name, const void *data, unsigned size) {
+  FILE *f = fopen(name, "wb");
+  if (f) { fwrite(data, 1, size, f); fclose(f); }
+}
+
+/* The start-up check on the 80x25 text screen, which every adapter has: the screen goes up at once, the speed test runs
+   (it draws into memory only) and the footer then shows its result. Returns 1 when Enter or Space went on to the game, which
+   it allows only when the game can start, and 0 when Esc left (the text mode set again, so the cursor is back) or, with
+   `dump`, once the screen is written to CELLS.RAW and VMEM.RAW. */
+static int text_check(int *probe, const char *cpu, int ready, int dump) {
+  static unsigned short cells[TEXT_CELLS], seen[TEXT_CELLS];
+  text_open();
+  if (ready) {
+    probe[C_FPS] = FPS_RUNNING;
+    fizz_preview_cells(probe, cpu, cells);
+    text_show(cells);
+    probe[C_FPS] = speed_test();
+  }
+  fizz_preview_cells(probe, cpu, cells);
+  text_show(cells);
+  if (dump) {
+    int mode = text_mode();
+    unsigned long base = text_base();
+    text_read(seen);
+    text_close();
+    write_file("CELLS.RAW", cells, sizeof cells);
+    write_file("VMEM.RAW", seen, sizeof seen);
+    print_cells(cells);
+    printf("text mode %d, cells at %05lX, video memory %s\n", mode, base, memcmp(cells, seen, sizeof cells) ? "differs" : "matches");
+    printf("values %d,%d,%d,%d,%d,%d,%d,%d,%s\n", probe[0], probe[1], probe[2], probe[3], probe[4], probe[5], probe[6], probe[7], cpu);
+    return 0;
+  }
+  if (kbd_install()) { text_close(); printf("could not hook the keyboard\n"); return 0; }
+  for (;;) {
+    if (ready && (kbd_pressed(SC_ENTER) || kbd_pressed(SC_SPACE))) return 1;
+    if (kbd_pressed(SC_ESC)) {
+      kbd_remove();
+      text_close();
+      printf("Thanks for playing Lieutenant Fizz. Type FIZZ to play again.\n");
+      return 0;
+    }
+  }
 }
 
 static void choose_music(void) {
@@ -200,18 +245,20 @@ static void choose_music(void) {
 }
 
 int main(int argc, char **argv) {
-  /* The first argument is a level number, or "map" for the overworld (254 to the game), or nothing for the title (255). */
-  unsigned level = argc < 2 ? 255 : !strcmp(argv[1], "map") ? 254 : (unsigned)atoi(argv[1]);
-  unsigned ticks = argc > 2 ? (unsigned)atoi(argv[2]) : 0;
+  /* "text" may come first (FIZZ TEXT); then a level number, or "map" for the overworld (254 to the game), or nothing for the
+     title (255); then the ticks and the other words. */
+  int first = argc > 1 && !strcasecmp(argv[1], "text") ? 2 : 1;
+  unsigned level = argc <= first ? 255 : !strcmp(argv[first], "map") ? 254 : (unsigned)atoi(argv[first]);
+  unsigned ticks = argc > first + 1 ? (unsigned)atoi(argv[first + 1]) : 0;
   int shot = 0, nosync = 0, i, paused = 0, night = 0, sound_mode = SND_AUTO, soundtest = 0, extra = -1, with_sound = 0, quiet = 0, bench = 0, preview = 1, previewshot = 0, screen = 0, savecfg = 0;
-  int check, ready = 1, have_vga;
+  int check, ready = 1, have_vga, text = first == 2, previewtext = 0;
   int probe[C_COUNT];
   char cpu[16];
   unsigned t, clear = 0;
   unsigned char pal[768];
   settings_load();
   night = night_pref;
-  for (i = 3; i < argc; i++) {
+  for (i = first + 2; i < argc; i++) {
     if (!strcmp(argv[i], "shot")) shot = 1;
     if (!strcmp(argv[i], "nosync")) nosync = 1;
     if (!strcmp(argv[i], "night")) night = 1;
@@ -240,6 +287,8 @@ int main(int argc, char **argv) {
     if (!strcmp(argv[i], "titles")) screen = 200; /* the opening titles from their first tick; with "noinput" for a check */
     if (!strncmp(argv[i], "loadslot", 8)) screen = 10 + atoi(argv[i] + 8);
     if (!strcmp(argv[i], "preview")) previewshot = 1;
+    if (!strcasecmp(argv[i], "text")) text = 1;
+    if (!strcasecmp(argv[i], "previewtext")) previewtext = 1;
     if (!strcmp(argv[i], "fps60")) rate_set(1);
     if (!strcmp(argv[i], "fps30")) rate_set(2);
     if (!strcmp(argv[i], "fpsauto")) rate_set(0);
@@ -251,7 +300,7 @@ int main(int argc, char **argv) {
   if (savecfg) { settings_save(night); printf("saved FIZZ.CFG\n"); return 0; }
   /* The start-up check looks at the hardware before the game takes its memory, so the free memory it shows is what the game can
      have; when something the game needs is missing, the game is not started at all. */
-  check = ((ticks == 0 && !bench && preview) || previewshot) && !soundtest;
+  check = ((ticks == 0 && !bench && preview) || previewshot || previewtext) && !soundtest;
   if (check) {
     compat_probe(probe, cpu);
     ready = fizz_preview_ready(probe);
@@ -277,19 +326,23 @@ int main(int argc, char **argv) {
     return 0;
   }
 
-  /* Mode 13h is only set on a VGA. Without one the start-up screen is shown on the text screen instead, and Esc leaves; with
-     "preview" it is still drawn into the frame (for FRAME.RAW) and the text goes to standard output. */
+  /* Mode 13h is only set on a VGA, and only once the start-up check (if any) is over. The check is on the text screen without
+     a VGA, with "text" and with "previewtext"; Enter there goes on to the game only when it can start, so without a VGA only
+     Esc leaves. With "preview" and no VGA the picture is still drawn into the frame (for FRAME.RAW) and the text screen's
+     characters go to standard output. */
   have_vga = (check ? probe[C_VIDEO] : compat_video()) >= VIDEO_VGA_MONO;
-  if (!have_vga && !previewshot) {
-    if (check) {
-      print_check(probe, cpu, 0);
-      while (getch() != 27) {}
-    } else {
-      printf("Lieutenant Fizz needs a VGA (320x200, 256 colours).\n");
-    }
+  if (check && !previewshot && (text || previewtext || !have_vga)) {
+    if (!text_check(probe, cpu, ready, previewtext)) return previewtext || ready ? 0 : 1;
+    check = 0; /* done: the picture's loop below is skipped */
+  } else if (!have_vga && !previewshot) {
+    printf("Lieutenant Fizz needs a VGA (320x200, 256 colours).\n");
     return 1;
   }
-  if (!have_vga) print_check(probe, cpu, 1);
+  if (!have_vga) {
+    static unsigned short cells[TEXT_CELLS];
+    fizz_preview_cells(probe, cpu, cells);
+    print_cells(cells);
+  }
 
   if (ticks == 0 && !bench) {
     if (kbd_install()) { printf("could not hook the keyboard\n"); snd_shutdown(); return 1; }

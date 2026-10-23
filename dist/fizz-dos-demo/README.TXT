@@ -41,7 +41,7 @@ Notes
   - If it runs slowly with sound on, the OPL emulator is the cost: DOSBOX.CONF uses 'oplemu = compat' (light). Nuked is
     more exact but needs a fast machine.
   - Finishing a level, falling or running out of lives takes you back to the map after a moment (a card says what happened; Enter dismisses it).
-  - Command line: 'nopreview' skips the system check; 'fps30', 'fps60', 'lowdetail', 'highdetail' override those options for one run.
+  - Command line: 'nopreview' skips the system check; 'FIZZ TEXT' shows it on the text screen, as a machine without a VGA does; 'fps30', 'fps60', 'lowdetail', 'highdetail' override those options for one run.
   - 'FIZZ.EXE' starts at the title, 'FIZZ.EXE map' on the overworld and 'FIZZ.EXE 3' in level 3.
   - CWSDPMI.EXE must stay next to FIZZ.EXE (it is the DOS extender). Its licence is in CWSDPMI.DOC.
   - Source and build scripts: https://github.com/ScottMorris/lieutenant-fizz-dos

@@ -19,11 +19,13 @@ RUN IT
   FIZZ.EXE starts with a system check (what it found and a speed test),
   then Enter goes on to the opening titles (any key skips them) and the
   title menu. If the machine lacks a VGA, an x87 or enough memory, the
-  check says so and Esc leaves. The sound is set on the Options screen,
-  which offers music and the effects' chip only with an AdLib.
+  check says so and Esc leaves. Without a VGA the check is shown on the
+  text screen; 'FIZZ TEXT' shows it that way on any machine. The sound
+  is set on the Options screen, which offers music and the effects'
+  chip only with an AdLib.
   CWSDPMI.EXE, the DOS extender, must stay beside FIZZ.EXE.
 
-  FIZZ.EXE [level|map] [nopreview] [adlib|speaker|nosound]
+  FIZZ.EXE [text] [level|map] [nopreview] [adlib|speaker|nosound]
                       [fps30|fps60] [lowdetail|highdetail]
   'FIZZ 3' starts in level 3 and 'FIZZ map' on the overworld.
 
