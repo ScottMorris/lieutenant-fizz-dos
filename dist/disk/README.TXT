@@ -58,7 +58,7 @@ WHAT IS IN IT
 
 OTHER FILES
   README.RTF   this text with formatting
-  CHANGES.TXT  what is in this release
+  CHANGES.TXT  what changed, version by version
   LICENSE.TXT  the licences, and the notice for CWSDPMI
   CWSDPMI.DOC  the extender's own terms
 
