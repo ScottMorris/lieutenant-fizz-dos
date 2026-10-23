@@ -9,7 +9,9 @@
 // Environment: NOCOUNT=1 runs without the instruction counter, SCENE=<word> runs only the scenes whose name holds it, TICKONLY=1
 // steps the sim without drawing, DUMP=<dir> writes each scene's last frame, LOW=1 draws at low detail, HIST=1 lists the sprites
 // that cover the most pixels, TITLES_DUMP=<file> writes every tick of one pass of the opening titles (768 frames) for
-// `bun m4/check-titles.ts --dump <file>`. Where the counter is not allowed (a virtual machine), `valgrind --tool=callgrind` counts the
+// `bun m4/check-titles.ts --dump <file>`. STARTUPTEST=1 prints the text start-up screen's cells for a set of machines, which
+// tools/check.sh compares with m5/bench/expected-startup-cells.txt; STARTUPVALUES=<the eight numbers>,<processor> (as `FIZZ
+// previewtext` prints them) writes that screen's 4000 bytes, as CELLS.RAW holds them, to standard output. Where the counter is not allowed (a virtual machine), `valgrind --tool=callgrind` counts the
 // instructions instead; see docs/PERFORMANCE.md.
 
 #![allow(dead_code)]
@@ -361,10 +363,86 @@ fn flow_test() {
     run(1000);
     check("and the titles come 7394 ticks after it", shell::on_titles());
 
+    // Night: the Options row and the N key share one flag, so N after Options turned night on turns it off.
+    const RIGHT: u32 = 2;
+    const DOWN: u32 = 8;
+    video::start(video::TITLE);
+    video::set_night(false);
+    shell::show(2);
+    for _ in 0..5 {
+        shell::advance(DOWN); // Music, Effects, Effects play on, Frame rate, Detail, then Night
+        shell::advance(0);
+    }
+    shell::advance(RIGHT);
+    shell::advance(0);
+    check("the Options row turns night on", video::night());
+    video::toggle_night();
+    check("N then turns it off", !video::night());
+    video::toggle_night();
+    check("and N again back on", video::night());
+    video::set_night(false);
+
     if bad == 0 {
         println!("flow ok");
     } else {
         std::process::exit(1);
+    }
+}
+
+/// The text start-up screen for a set of machines: for each, its name, the 25 rows of characters (code page 437 shown as
+/// Unicode) and the 25 rows of attributes as two hex digits a cell.
+fn startup_cells() {
+    use preview::*;
+    // name, video, mouse, joystick, AdLib, Sound Blaster, x87, free KB, frames a second, processor
+    let machines: [(&str, i32, i32, i32, i32, i32, i32, i32, i32, &str); 12] = [
+        ("i486, colour VGA, AdLib, mouse, 13 MB, 71 fps (fine)", VIDEO_VGA, 1, 0, 1, 0, 1, 13 * 1024, 71, "i486"),
+        ("i386, no x87, mono VGA, mouse, 4 MB, 25 fps", VIDEO_VGA_MONO, 1, 0, 0, 0, 0, 4 * 1024, 25, "i386"),
+        ("EGA, i486, AdLib, mouse, 8 MB", VIDEO_EGA, 1, 0, 1, 0, 1, 8 * 1024, 45, "i486"),
+        ("CGA, i486, AdLib, mouse, 8 MB", VIDEO_CGA, 1, 0, 1, 0, 1, 8 * 1024, 45, "i486"),
+        ("Hercules or MDA, i486, AdLib, mouse, 8 MB", VIDEO_MDA, 1, 0, 1, 0, 1, 8 * 1024, 45, "i486"),
+        ("Under 1 MB free, colour VGA, i486", VIDEO_VGA, 1, 0, 1, 0, 1, 512, 70, "i486"),
+        ("No VGA, no x87, under 1 MB", VIDEO_EGA, 0, 0, 0, 0, 0, 512, 0, "i386"),
+        ("i586 with everything, 16 MB, 95 fps (smooth)", VIDEO_VGA, 1, 1, 1, 1, 1, 16 * 1024, 95, "i586"),
+        ("i486, colour VGA, 16 MB, 45 fps (borderline)", VIDEO_VGA, 1, 0, 1, 0, 1, 16 * 1024, 45, "i486"),
+        ("i486, colour VGA, 16 MB, 25 fps (too slow)", VIDEO_VGA, 1, 0, 1, 0, 1, 16 * 1024, 25, "i486"),
+        ("i486, colour VGA, 4 MB, 71 fps (warning, can start)", VIDEO_VGA, 1, 0, 1, 0, 1, 4 * 1024, 71, "i486"),
+        ("i686, colour VGA, 13 MB, speed test running", VIDEO_VGA, 1, 0, 1, 0, 1, 13 * 1024, FPS_RUNNING, "i686"),
+    ];
+    let cp437 = |b: u8| -> char {
+        match b {
+            0x1E => '\u{25B2}',
+            0xB0 => '\u{2591}',
+            0xB2 => '\u{2593}',
+            0xBA => '\u{2551}',
+            0xBB => '\u{2557}',
+            0xBC => '\u{255D}',
+            0xC8 => '\u{255A}',
+            0xC9 => '\u{2554}',
+            0xCD => '\u{2550}',
+            0xFB => '\u{221A}',
+            0x20..=0x7E => b as char,
+            _ => '?',
+        }
+    };
+    for (name, video, mouse, joy, adlib, blaster, fpu, kb, fps, cpu) in machines {
+        let mut v = [0i32; COUNT];
+        v[VIDEO] = video;
+        v[MOUSE] = mouse;
+        v[JOYSTICK] = joy;
+        v[ADLIB] = adlib;
+        v[BLASTER] = blaster;
+        v[FPU] = fpu;
+        v[MEMORY_KB] = kb;
+        v[FPS] = fps;
+        let mut out = [0u16; CELLS];
+        cells(&mut out, &v, cpu);
+        println!("== {name}");
+        for row in out.chunks(COLS) {
+            println!("{}", row.iter().map(|&c| cp437(c as u8)).collect::<String>());
+        }
+        for row in out.chunks(COLS) {
+            println!("{}", row.iter().map(|&c| format!("{:02x}", c >> 8)).collect::<String>());
+        }
     }
 }
 
@@ -379,6 +457,22 @@ fn main() {
     }
     if std::env::var("FLOWTEST").is_ok() {
         flow_test();
+        return;
+    }
+    if let Ok(list) = std::env::var("STARTUPVALUES") {
+        let parts: Vec<&str> = list.split(',').collect();
+        let mut v = [0i32; preview::COUNT];
+        for (slot, part) in v.iter_mut().zip(&parts) {
+            *slot = part.trim().parse().expect("a number");
+        }
+        let mut out = [0u16; preview::CELLS];
+        preview::cells(&mut out, &v, parts.get(preview::COUNT).copied().unwrap_or("x86"));
+        let bytes: Vec<u8> = out.iter().flat_map(|c| c.to_le_bytes()).collect();
+        std::io::Write::write_all(&mut std::io::stdout(), &bytes).unwrap();
+        return;
+    }
+    if std::env::var("STARTUPTEST").is_ok() {
+        startup_cells();
         return;
     }
     if let Ok(file) = std::env::var("TITLES_DUMP") {

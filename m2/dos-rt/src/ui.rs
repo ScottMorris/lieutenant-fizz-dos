@@ -156,6 +156,19 @@ pub fn cross_mark(frame: &mut [u8], x: i32, y: i32, colour: u8) {
     }
 }
 
+/// A warning triangle, 7 pixels wide and as tall as a capital, with an exclamation mark cut out of it.
+pub fn warn_mark(frame: &mut [u8], x: i32, y: i32, colour: u8) {
+    // Each row's half-width, from the apex down.
+    for (dy, half) in [0, 1, 1, 2, 2, 3, 3].into_iter().enumerate() {
+        for dx in -half..=half {
+            let mark = dx == 0 && (dy == 2 || dy == 3 || dy == 5);
+            if !mark {
+                put(frame, x + 3 + dx, y + dy as i32, colour);
+            }
+        }
+    }
+}
+
 /// Draws `s` but no wider than `max` pixels: a label that would run on is cut short with two dots, so text never reaches a border.
 pub fn text_fit(frame: &mut [u8], x: i32, y: i32, s: &str, colour: u8, max: i32) -> i32 {
     if text_width(s) <= max {

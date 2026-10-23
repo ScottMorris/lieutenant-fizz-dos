@@ -1,6 +1,6 @@
 #!/bin/bash
 # Everything the CI runs: licence headers, the simulation copies against the main game, the determinism check against the web
-# build, a build of the playable game, the key map, and the bench's frame checksums and menu test. Stops at the first failure.
+# build, a build of the playable game, the key map, and the bench's frame checksums, menu test and text start-up screen. Stops at the first failure.
 #
 # (c) Copyright 2026 Liminal HQ, Scott Morris
 # SPDX-License-Identifier: Apache-2.0 OR MIT
@@ -9,6 +9,7 @@
 #
 # Needs what tools/setup.sh installs. If a drawing or simulation change is meant to alter the picture, run
 #   NOCOUNT=1 m5/bench/target/i586-unknown-linux-gnu/release/render-bench 300 | grep 'frame checksum' > m5/bench/expected-checksums.txt
+# (and, for a change to the text start-up screen, STARTUPTEST=1 ...render-bench > m5/bench/expected-startup-cells.txt)
 # and say why in the commit.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -37,7 +38,7 @@ gcc -o "$CC_BIN" m4/c/keymap_test.c m4/c/keymap.c
 "$CC_BIN"
 rm -f "$CC_BIN"
 
-step "Bench: frame checksums and the pause menu"
+step "Bench: frame checksums, the pause menu and the text start-up screen"
 (cd m5/bench && cargo build --release --target i586-unknown-linux-gnu)
 BENCH=m5/bench/target/i586-unknown-linux-gnu/release/render-bench
 NOCOUNT=1 "$BENCH" 300 | grep 'frame checksum' > "${TMPDIR:-/tmp}/fizz-checksums.txt"
@@ -48,5 +49,8 @@ grep -q '^control, a fresh Enter on the marker: mode 3' "${TMPDIR:-/tmp}/fizz-pa
 grep -q '^pause, Resume with Enter held: mode 2' "${TMPDIR:-/tmp}/fizz-pause.txt"
 FLOWTEST=1 "$BENCH" | tee "${TMPDIR:-/tmp}/fizz-flow.txt"
 grep -q '^flow ok$' "${TMPDIR:-/tmp}/fizz-flow.txt"
+STARTUPTEST=1 "$BENCH" > "${TMPDIR:-/tmp}/fizz-startup-cells.txt"
+diff -u m5/bench/expected-startup-cells.txt "${TMPDIR:-/tmp}/fizz-startup-cells.txt"
+echo "text start-up screen matches"
 
 printf '\nAll checks passed.\n'

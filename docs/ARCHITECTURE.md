@@ -31,6 +31,7 @@ m4/c                                  the C layer, built with DJGPP
    kbd.c        IRQ 1 handler, scancode state, press latches
    sound.c      IRQ 0 handler at 560 Hz: OPL2 music, OPL2 and PC-speaker effects
    compat.c     the system check's probes (CPU, FPU, video, sound hardware)
+   textmode.c   the 80x25 text screen for the system check: mode 3, cells to 0xB8000
    save.c       files in the current directory
         ▼
 FIZZ.EXE  (about 0.9 MB, a 32-bit protected-mode program; CWSDPMI.EXE is its DOS extender)

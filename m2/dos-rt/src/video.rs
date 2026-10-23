@@ -212,6 +212,12 @@ pub fn night() -> bool {
     NIGHT.load(Ordering::Relaxed) != 0
 }
 
+/// Night the other way round from what it is now: the N key's toggle, on the one flag the Options screen's Night row also
+/// sets.
+pub fn toggle_night() {
+    set_night(!night());
+}
+
 /// Enters `level` (wrapping round the table).
 pub fn goto(level: u32) {
     crate::shell::set_play();

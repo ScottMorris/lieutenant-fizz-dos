@@ -29,15 +29,19 @@ The two big caches are deliberately all-zero at start (`BakeCache`'s keys use bi
 `main` in `m4/c/main.c`, interactive path (no tick count on the command line):
 
 ```
-settings_load()                 FIZZ.CFG → sound, music, effects, device, frame rate, detail, night
-parse argv[3..]                 overrides for this run (nosound, adlib, mixed, speaker, fps30, lowdetail, night, ...)
-fizz_start(level, 1)            Rust: fldcw 0x027F (53-bit precision), new game, title/map/level, sprite size table
+settings_load()                 FIZZ.CFG → music, effects, device, frame rate, detail, night
+parse argv                      "text" may come first; the level, the ticks, then overrides for this run (nosound, fps30, text, ...)
+compat_probe()                  the system check's hardware probes, before the game takes its memory
+fizz_start(level, 1)            only when the machine has what the game needs (fizz_preview_ready)
+                                Rust: fldcw 0x027F (53-bit precision), new game, title/map/level, sprite size table
 fizz_night(night)
+no VGA, or text?                the check on the text screen (text_check): mode 3, cells to 0xB8000, speed test,
+                                footer redrawn; Enter/Space go on when the game can start, Esc exits
 kbd_install()                   IRQ 1 handler (interrupt 9)
 vga_open()                      near pointers on, INT 10h AX=0013h
 palette slots 0..254            from the 16 EGA colours × 15 levels (slot 255 is set every frame)
-compat_probe() + speed_test()   the system check: hardware probes, then 3 + 30 trial frames timed with uclock()
-system-check loop               fizz_preview → vsync → present; A/M/P/O pick the sound, Enter/Space go on, Esc leaves
+speed_test()                    3 + 30 trial frames timed with uclock(), when the game can start (the picture check)
+system-check loop               fizz_preview → vsync → present; Enter/Space go on when the game can start, Esc leaves
 wait for Enter/Space release    and clear their latches, so the title menu does not take the same press
 snd_init(sound.bin, mode)       detect the OPL2, lock memory, IRQ 0 handler (interrupt 8), PIT to 560 Hz
 snd_set_music/fx/fx_device      from FIZZ.CFG
@@ -47,10 +51,12 @@ kbd_remove()                    old interrupt 9 vector back
 snd_shutdown()                  old interrupt 8 vector back, PIT to 18.2 Hz, OPL2 and speaker silent
 ```
 
-- The level argument is a number, `map` (254 to the game) or nothing (255, the title screen). A second argument (ticks) selects a scripted run: no keyboard hook, no system check, one tick a frame (`fizz_scripted` supplies the input), and with `shot` the frame and palette are written to `FRAME.RAW` and `PAL.RAW` at the end. `bench`, `soundtest`, `savecfg`, `preview` and the screen names (`pause`, `options`, `load`, `save`, `dialogue`, `loadslotN`) are check modes listed in the comment at the top of `main.c`.
+- The level argument is a number, `map` (254 to the game) or nothing (255, the title screen). A second argument (ticks) selects a scripted run: no keyboard hook, no system check, one tick a frame (`fizz_scripted` supplies the input), and with `shot` the frame and palette are written to `FRAME.RAW` and `PAL.RAW` at the end. `text` (in any case, and also as the first argument, `FIZZ TEXT`) shows the system check on the text screen. `bench`, `soundtest`, `savecfg`, `preview`, `previewtext` and the screen names (`pause`, `options`, `load`, `save`, `dialogue`, `loadslotN`) are check modes listed in the comment at the top of `main.c`.
 - The precision control is set inside `fizz_start`, before the simulation's first tick (`fpu_53` in `m2/dos-rt/src/lib.rs`); see [ARCHITECTURE.md](ARCHITECTURE.md#keeping-the-simulation-identical) for why.
-- **The system check** runs before the sound handler takes the timer, so `uclock()` (which reads the PIT and the BIOS tick count) is still trustworthy. `compat_probe` (`m4/c/compat.c`) asks the video BIOS for the display combination (INT 10h AX=1A00h: VGA is BL 7 or 8) and EGA information (INT 10h AH=12h BL=10h), the mouse driver (INT 33h AX=0), the game port (port `0x201` not `0xFF`), the OPL2 (`snd_detect_opl`), a Sound Blaster DSP reset at `0x226`/`0x22A`/`0x22E` answering `0xAA` (`snd_detect_blaster`), an x87 (after `fninit`, `fnstcw` must read back the default control word's bits), free physical memory (`_go32_dpmi_remaining_physical_memory`) and the processor name (`uname`). `speed_test` renders three warm-up frames, then times 30 frames of `fizz_build` + `fizz_paint` (no present) and reports frames a second. The slots are the `C_*` enum in `m4/c/compat.h`, mirrored by the constants in `m2/dos-rt/src/preview.rs`, which draws the screen and grades the speed: 90 or more smooth, 62 or more fine, 40 or more borderline, below that too slow.
-- Leaving the system check with Enter or Space saves the sound choice to `FIZZ.CFG`; Esc restores text mode and the keyboard and exits before any sound is set up.
+- **The system check** runs before the sound handler takes the timer, so `uclock()` (which reads the PIT and the BIOS tick count) is still trustworthy, and before `fizz_start`, so the free memory it reads is what the game can have. `compat_probe` (`m4/c/compat.c`) classifies the video adapter with `compat_video`: the display combination (INT 10h AX=1A00h: BL 8 is a colour VGA, 7 a monochrome one; the MCGA codes are not taken as a VGA), then EGA information (INT 10h AH=12h BL=10h: BL changes on an EGA), then the BIOS equipment word (INT 11h bits 4-5: 01 or 10 a CGA, 11 an MDA or Hercules). It also asks the mouse driver (INT 33h AX=0), the game port (port `0x201` not `0xFF`), the OPL2 (`snd_detect_opl`), a Sound Blaster DSP reset at `0x226`/`0x22A`/`0x22E` answering `0xAA` (`snd_detect_blaster`), an x87 (after `fninit`, `fnstcw` must read back the default control word's bits), free physical memory (`_go32_dpmi_remaining_physical_memory`) and the processor name (`uname`). `speed_test` renders three warm-up frames, then times 30 frames of `fizz_build` + `fizz_paint` (no present) and reports frames a second. The slots are the `C_*` enum in `m4/c/compat.h` (and the adapter classes its `VIDEO_*` enum), mirrored by the constants in `m2/dos-rt/src/preview.rs`, which draws the screen and grades the speed: 90 or more smooth, 62 or more fine, 40 or more borderline, below that too slow.
+- **What the game needs** is a VGA (mode 13h), an x87 and 1 MB of free memory (`MEMORY_FLOOR_KB` in `preview.rs`). Starting the game takes about 9.4 MB at once, nearly all of it the simulation's instance buffer (120,000 instances of 20 floats, written whole), so 10 MB (`MEMORY_BEST_KB`) runs it from memory; between the two the memory row is a yellow warning triangle and the game starts, with CWSDPMI paging to its swap file on disk (slow, and impossible without a writable drive). In DOSBox, with sound, the game ran that way with `memsize = 4` (1.3 MB free); with `memsize = 2` the sound handler met a paged-out page and DOSBox stopped ("Pagefault didn't correct page"), and with `memsize = 1` the program ended without its report. Both of those read under 1 MB, so the floor refuses exactly them. When the program does not fit in memory itself, `_go32_dpmi_remaining_physical_memory` wraps round to a huge count, so `compat_probe` takes a figure larger than the machine's physical memory as none. When one is missing `fizz_preview_ready` says no, `fizz_start` is not called, the speed test is not run, and the screen's footer names what is missing; only Esc leaves. Mode 13h is set only on a VGA, and only once the check is over: without a VGA the check is the text screen (below) and only Esc leaves. With `preview` the picture is drawn into the frame for `FRAME.RAW` (and, without a VGA, the text screen's characters go to standard output); with `previewtext` the text screen is shown, its cells are written to `CELLS.RAW` and what video memory holds then to `VMEM.RAW`, and the characters, whether the two match and the probe values are printed, so each case can be checked headless (DOSBox's `machine = ega`, `cga` or `hercules`, or a small `memsize`).
+- **The text screen.** Without a VGA, or with `text`, the check is an 80 × 25 text screen, the way Keen drew its own: every adapter has one, so an EGA, CGA, MDA or Hercules machine gets the full check in place of a refusal. `m2/dos-rt/src/preview.rs` builds it (`cells`, exported as `fizz_preview_cells`) from the same rows and rules as the picture: 2,000 16-bit cells, the character (code page 437) in the low byte and the attribute in the high byte (foreground in bits 0..3, background in bits 4..6, bit 7 always clear), which is the layout of text-mode video memory. `m4/c/textmode.c` sets mode 3 (or keeps to mode 7 with its cells at `0xB0000` when the adapter is already in the monochrome mode, as an MDA or Hercules is, since it has no mode 3), hides the cursor (INT 10h AH=01h, CX=2000h), turns blinking off (INT 10h AX=1003h BL=0, which an older adapter ignores; the cells never set bit 7 anyway) and copies the cells with `dosmemput`. The screen goes up before the speed test with "Speed test: running" in the footer (`FPS_RUNNING` in the speed slot); the test then renders into memory only and the footer is redrawn with its result. On a monochrome adapter the attributes come out as normal, bright and inverse text rather than colours. Esc sets the text mode again, which brings the cursor and blinking back.
+- The system check is read-only: Esc restores text mode and the keyboard and exits before any sound is set up, and Enter or Space go on. The sound mode is auto unless the command line names one; the music, effects and effects' device come from `FIZZ.CFG` (the Options screen).
 - **Restoring the machine.** Both hooks also register their remove function with `atexit`, and both remove functions are idempotent (an `installed` flag), so the vectors come back on any normal exit path, including `exit()` from the C library. A crash inside protected mode (a page fault, a panic's endless loop) does not run `atexit` handlers.
 
 ## Interrupts
@@ -72,7 +78,7 @@ Reading the state (main program side):
 
 - `kbd_held()` — the game's input bits from what is held now, through `keymap_bits` (`m4/c/keymap.c`): arrows or WASD move, Ctrl or Z jump, Alt or X pogo, Space or C fire, Enter confirm, Esc menu. The bits are the sim's (`IN_*` in `keymap.h`).
 - `kbd_tick_bits()` — what is held **or** latched, for the 16 game keys, and clears those latches. A key pressed and released between two ticks has `keys` clear but `latch` set, so the tick still sees it: a tap shorter than a tick (1/60 s) is never lost. It also carries `IN_ANY` (bit 2048) for a key of any kind pressed since the last call: the ISR sets a flag on each new press (never on a repeat, so a key already down does not count), and this clears it. Only the opening titles read it.
-- `kbd_pressed(sc)` — one latched press of a key, cleared on read; used by the main loop for its own keys (PgUp/PgDn change level, R restarts, Backspace goes to the map, N night, M music, E effects) and by the system check.
+- `kbd_pressed(sc)` — one latched press of a key, cleared on read; used by the main loop for its own keys (PgUp/PgDn change level, R restarts, Backspace goes to the map, N night, M music, E effects; M and E are kept in `FIZZ.CFG`; N turns the game's own night flag, the one the Options screen's Night row sets, with `fizz_toggle_night`, for the run only) and by the system check.
 - `kbd_down(sc)` — the held state of one key.
 
 The shell (`m2/dos-rt/src/shell.rs`, `advance`) turns held bits into edges for its menus and holds a key a menu consumed back from the simulation until it is released (`swallow`).
@@ -154,7 +160,7 @@ The clock's resolution is 1/560 s (about 1.8 ms), and `uclock()` is finer; a scr
 - `m2/dos-rt/src/shell.rs` — the screens over the frame (title, pause, options, load and save lists, HUD, cards, dialogue, toasts, caption words) and fades: a fade is 12 ticks of `ui::dim` over the whole screen.
 - `m2/dos-rt/src/titles.rs` — the opening titles, which draw every pixel of the frame themselves (so `build` and `paint` skip the sim's scene while they are up): per-tick tracks from `titles.bin`, `fx::Tween` in Q30 for the tweens and Q32 for the drifts, the fade by `ui::dim` and the flash as a white fill.
 - `m2/dos-rt/src/ui.rs` — the pixel font (glyphs in the generated `ui_data.rs`), panels, word wrap, and `dim`, which lowers the level nibble of each byte four at a time (slot 255 dims to black, slot 16).
-- `m2/dos-rt/src/preview.rs` — the system-check screen.
+- `m2/dos-rt/src/preview.rs` — the system-check screen, as a picture (`draw`) and as text cells (`cells`).
 
 ## Sound
 
@@ -197,7 +203,7 @@ The music stream loops; an effect stream plays once. Music is chosen by `choose_
 | Speaker (2) | none | speaker | speaker effects (no OPL2 detection) |
 | Off (3) | none | none | — |
 
-`snd_init` returns the mode actually in use, and `sound_using` in `main.c` predicts it for the system-check screen from the probe's OPL2 result. The Options screen can toggle music and effects and switch the effects between OPL2 and speaker (`snd_set_fx_device`, which falls back to the speaker when there is no OPL2). The Sound Blaster probe is shown on the system check only; there is no digitised sound.
+`snd_init` returns the mode actually in use. Auto (the default; the command line's `adlib`, `speaker`, `mixed` and `nosound` override it for a run) takes the OPL2 for music and effects when `opl_detect` finds one, else the speaker for the effects alone. The Options screen offers only what can apply (`option_items` in `shell.rs`): Music and "Effects play on" (`snd_set_fx_device`) when the OPL2 is in use, since the music plays on it alone, and Effects whenever sound is running; with `nosound` there are no sound rows. The main loop's M and E keys follow the same rules and are kept like an Options change. `settings_save` keeps the stored music and device when there is no OPL2 and the stored effects when sound is off, so a run without the hardware does not overwrite them. The Sound Blaster probe is shown on the system check only; there is no digitised sound, so it is not a setting.
 
 ## Files
 
@@ -205,7 +211,7 @@ All files are in the current directory, through `m4/c/save.c` (`fopen`, `fread`,
 
 | Slot | File | Size | Written |
 |---|---|---|---|
-| −1 | `FIZZ.CFG` | 12 bytes | after each change on the Options screen, when the system check is left with Enter, and by `FIZZ savecfg` |
+| −1 | `FIZZ.CFG` | 12 bytes | after each change on the Options screen and by `FIZZ savecfg` |
 | 0 | `AUTO.SAV` | 48 bytes | on every visit to the map (`autosave` in `shell.rs`), as the web build does |
 | 1–4 | `SLOT1.SAV` … `SLOT4.SAV` | 48 bytes | from the Save list |
 | 5 | `QUICK.SAV` | 48 bytes | F5 in a level, on the map or in the pause menu; F9 loads it (`quick_keys` in `shell.rs`) |
@@ -244,7 +250,7 @@ Loading starts a new game and sets these through the simulation's `state_set`; t
 | 7 | frame rate (0 auto, 1 60 Hz, 2 30 Hz) |
 | 8 | detail (0 auto, 1 high, 2 low) |
 | 9 | night |
-| 10 | sound choice (`SND_*`) |
+| 10 | sound choice: written as 0 (auto) and not read, as the start-up screen no longer offers one |
 | 11 | spare |
 
 Out-of-range values fall back to auto. Command-line arguments override the file for that run only.
@@ -275,6 +281,8 @@ All calls are plain `extern "C"` with 32-bit integers, `f32` and raw pointers; t
 | `fizz_goto_map()` | back to the overworld |
 | `fizz_press(mode)` | a check: steer the scripted walk to a map marker and press, or not |
 | `fizz_preview(frame, values, cpu)` | draws the system-check screen from the probe values |
+| `fizz_preview_ready(values)` | whether the machine has what the game needs: a VGA, an x87 and enough memory |
+| `fizz_preview_cells(values, cpu, out)` | builds the system-check screen as 2,000 text-mode cells (character, then attribute) |
 | `fizz_quit()` | whether the player chose Quit from a menu |
 | `fizz_show(n)` | a check: opens a menu or screen directly (`FIZZ.EXE`'s `pause`, `options`, `ending`, `cineN`, `titles` and the like; 200 is the opening titles from their first tick) |
 
