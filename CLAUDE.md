@@ -25,7 +25,7 @@ m4/build.sh --no-run                 # build the playable m4/c/fizz.exe
 tools/dosrun.sh <dir> "<command>"    # run a DOS program headless in DOSBox
 tools/make-dist.sh                   # pack dist/fizz-dos-demo.zip
 tools/strip-exe.sh <in> <out>        # a stripped, checked copy of a DJGPP executable (releases and the browser bundle carry it)
-tools/make-release.sh <version>      # build a release's files into dist/release/: floppy image, zips, browser bundle, SHA256SUMS
+tools/make-release.sh <version>      # build a release's files into dist/release/: floppy image, bootable FreeDOS floppy image, zips, browser bundle, SHA256SUMS
 tools/sync-sim.sh [--check]          # m2/sim and m2/game from the main game plus m2/patches
 tools/make-site.sh                   # build the GitHub Pages bundles for local use
 tools/make-share.sh                  # build the link-preview picture site/img/share.png

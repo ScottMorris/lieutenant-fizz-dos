@@ -16,6 +16,11 @@ CWSDPMI (dist/fizz-dos-demo/CWSDPMI.EXE, with its notes in CWSDPMI.DOC)
   distribution may be redistributed unmodified, with CWSDPMI.DOC, under the terms in that file.
   FIZZ.EXE needs it beside it to start.
 
+FreeDOS 1.4 (KERNEL.SYS, COMMAND.COM and the boot code on the -floppy-freedos.img image of a release)
+  GPL-2.0. https://www.freedos.org; the image carries FREEDOS.TXT, with the licence and where the source is.
+  tools/make-freedos-floppy.sh downloads the 1.4 Floppy Edition, checks it against a pinned SHA-256 and
+  copies those files in. The game disk and zips do not carry them.
+
 DJGPP (linked into FIZZ.EXE)
   The cross-compiler and its C library and runtime come from https://www.delorie.com/djgpp/ and
   are downloaded by tools/fetch-tools.sh into vendor/, which is not committed. Their licence
