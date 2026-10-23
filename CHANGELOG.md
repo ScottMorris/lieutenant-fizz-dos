@@ -15,6 +15,7 @@ What changed in each release of Lieutenant Fizz for DOS. A release is a tag `vX.
 - The title plate no longer carries the "work in progress" legend.
 - The Controls screen also lists the play keys the readme lists: R, N, M, E, PgUp, PgDn and Backspace.
 - The Options screen offers only the sound settings that can apply: Music and "Effects play on" only with an AdLib (the music plays on it alone), Effects only when sound is running. The M and E keys follow the same rules and their changes are kept in `FIZZ.CFG`.
+- The release build checks that the floppy image keeps at least 8,192 bytes free for what the game writes beside itself: the six saves, `FIZZ.CFG` and the temporary file a save goes through take 4,096 bytes in 512-byte clusters.
 
 ### Fixed
 
