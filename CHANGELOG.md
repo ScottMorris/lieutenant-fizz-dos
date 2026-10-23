@@ -4,6 +4,10 @@ What changed in each release of Lieutenant Fizz for DOS. A release is a tag `vX.
 
 ## Unreleased
 
+### Changed
+
+- `CHANGES.TXT` on the disk is a running log: it holds every version's changes, newest first, so a player can see what changed from one version to the next. It held only the release's own section.
+
 ## 0.3.0 — 2026-10-23
 
 The game opens on a read-only system check, as a picture on a VGA and as an 80 × 25 text screen on a machine without one. Nothing has run on real hardware yet; see `docs/STATUS.md`.

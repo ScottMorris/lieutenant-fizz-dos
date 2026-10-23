@@ -79,9 +79,9 @@ def put(name, text):
 for name in ("README.TXT", "COCOA.TXT"):
     put(name, open(f"dist/disk/{name}", encoding="utf-8").read())
 
-# CHANGES.TXT: this version's section of CHANGELOG.md, with the markdown taken out.
+# CHANGES.TXT: CHANGELOG.md from this version's section down, newest first, with the markdown taken out.
 log = open("CHANGELOG.md", encoding="utf-8").read()
-m = re.search(rf"^## {re.escape(version)} .*?(?=^## |\Z)", log, re.S | re.M)
+m = re.search(rf"^## {re.escape(version)} .*", log, re.S | re.M)
 if not m:
     sys.exit(f"CHANGELOG.md has no section for {version}")
 lines = []
