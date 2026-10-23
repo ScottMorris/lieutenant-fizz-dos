@@ -6,7 +6,7 @@ What changed in each release of Lieutenant Fizz for DOS. A release is a tag `vX.
 
 ### Added
 
-- A second floppy image with each release, `-floppy-freedos.img`: the game disk made bootable with FreeDOS 1.4's kernel and command interpreter, so a machine or emulator with no DOS of its own starts at an `A:\>` prompt with the game on the disk (type `FIZZ`). `-floppy.img` is unchanged, for a machine that already has DOS. The FreeDOS parts are under the GPL; the image carries `FREEDOS.TXT` with the licence and where the source is.
+- A second floppy image with each release, `-floppy-freedos.img`: the game disk made bootable with FreeDOS 1.4's kernel and command interpreter, so a machine or emulator with no DOS of its own starts at an `A:\>` prompt with the game on the disk (type `FIZZ`). `-floppy.img` is unchanged, for a machine that already has DOS. The game saves to the disk it runs from (`AUTO.SAV` and the others on `A:\`), so a write-protected floppy may fail or complain when it saves; this has not been tried on real hardware. The image keeps at least 64 KB free for saves and the build fails under that, and neither image ever ships with a save in it. The FreeDOS parts are under the GPL; the image carries `FREEDOS.TXT` with the licence and where the source is.
 
 ### Changed
 

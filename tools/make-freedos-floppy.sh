@@ -7,6 +7,8 @@
 #
 # usage: tools/make-freedos-floppy.sh <game floppy image> <output image>
 #
+# The result is checked: 1.44 MB, a boot signature, the files, no saves, 64 KB free for saves and a boot in QEMU when it is installed.
+#
 # Needs curl, sha256sum, unzip, mtools (mcopy, mdir, mtype), dd and python3; qemu-system-i386 is used to boot the result when it is
 # installed. The FreeDOS 1.4 Floppy Edition is downloaded once into vendor/freedos/ and checked against a pinned SHA-256. Only mtools and
 # dd touch the images: no root and no loop mounts. The same inputs give the same image: the FreeDOS files keep their own times and the
@@ -27,8 +29,9 @@ FD_URL="https://download.freedos.org/1.4/FD14-FloppyEdition.zip"
 FD_SHA256="45b1fa7c52dd996c3bfa5e352ffcd410781b952a6ad629f15a4c9ec4bbaefc5a"
 FD_DIR="vendor/freedos"
 FLOPPY_BYTES=1474560
-# The same space the game disk keeps free for saves and options (tools/make-release.sh).
-SAVE_RESERVE_BYTES=8192
+# Space the image keeps free for what the game writes to the disk it runs from (AUTO.SAV, the slots, FIZZ.CFG), well above the 8,192
+# bytes the game disk keeps (tools/make-release.sh): the image fails the build before it fills to the last cluster.
+SAVE_RESERVE_BYTES=65536
 
 die() { echo "make-freedos-floppy.sh: $*" >&2; exit 1; }
 for tool in curl sha256sum unzip mcopy mdir mtype dd python3; do
@@ -107,6 +110,12 @@ for f in KERNEL.SYS COMMAND.COM FDCONFIG.SYS AUTOEXEC.BAT FREEDOS.TXT FIZZ.EXE C
   mdir -i "$OUT" "::$f" >/dev/null 2>&1 || die "$f is missing from the image's root"
 done
 mtype -i "$OUT" ::FIZZ.EXE | cmp -s - <(mtype -i "$GAME" ::FIZZ.EXE) || die "FIZZ.EXE differs from the game disk's"
+# A run of the game writes AUTO.SAV, the slots, FIZZ.CFG and FIZZ.TMP beside itself; neither image may ship with any of them.
+for image in "$GAME" "$OUT"; do
+  if mdir -i "$image" :: | grep -Eq '^(AUTO|SLOT[0-9]|QUICK|FIZZ) +(SAV|CFG|TMP) '; then
+    die "$image holds a save, options or temporary file; the images are built fresh from the build output"
+  fi
+done
 FREE=$(mdir -i "$OUT" :: | grep 'bytes free' | tr -dc '0-9')
 [ -n "$FREE" ] || die "could not read the image's free space"
 [ "$FREE" -ge "$SAVE_RESERVE_BYTES" ] || die "the image has $FREE bytes free, under the $SAVE_RESERVE_BYTES kept for saves and options"
