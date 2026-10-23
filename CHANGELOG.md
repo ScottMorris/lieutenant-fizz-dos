@@ -4,6 +4,10 @@ What changed in each release of Lieutenant Fizz for DOS. A release is a tag `vX.
 
 ## Unreleased
 
+## 0.3.0 — 2026-10-23
+
+The game opens on a read-only system check, as a picture on a VGA and as an 80 × 25 text screen on a machine without one. Nothing has run on real hardware yet; see `docs/STATUS.md`.
+
 ### Added
 
 - The start-up system check as an 80 × 25 text screen, the way Keen drew its own: brown, yellow and white over a field of dark shade, with double-line boxes and shadows. A machine without a VGA (EGA, CGA, Hercules) shows it in place of plain lines of text, and `FIZZ TEXT` shows it on any machine; on a VGA the picture stays the default, and Enter on the text screen goes on to the game as on the picture. It says "Speed test: running" while the speed test runs.
