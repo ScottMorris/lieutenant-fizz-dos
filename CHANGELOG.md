@@ -4,6 +4,19 @@ What changed in each release of Lieutenant Fizz for DOS. A release is a tag `vX.
 
 ## Unreleased
 
+### Changed
+
+- The start-up system check is read-only and shows what the game needs. Video lists the VGA adapter, the 320 × 200 × 256 mode (or, without a VGA, the best mode the machine has: EGA, CGA or monochrome text) and the 14 lighting shades; Input the keyboard, mouse and joystick; Sound the PC speaker, AdLib and Sound Blaster; Machine the processor, the x87 and free memory. Without a VGA, an x87 or 1 MB of free memory the speed test is not run, the footer names what is missing and only Esc leaves; from 1 MB to just under 10 MB the memory row is a yellow warning and the game still starts, paging to disk. The A, M, P and O sound keys are gone; the sound is set on the Options screen, and the sound choice kept in `FIZZ.CFG` is no longer read.
+- The game no longer sets VGA mode 13h on a machine without a VGA: the system check is written on the text screen instead.
+- The title plate no longer carries the "work in progress" legend.
+- The Controls screen also lists the play keys the readme lists: R, N, M, E, PgUp, PgDn and Backspace.
+- The Options screen offers only the sound settings that can apply: Music and "Effects play on" only with an AdLib (the music plays on it alone), Effects only when sound is running. The M and E keys follow the same rules and their changes are kept in `FIZZ.CFG`.
+
+### Fixed
+
+- The N key toggles night from what it is now: after Night was changed on the Options screen, the next N press could leave it as it was. N still changes night for the run only; the Options row keeps it.
+- Saving the options on a run without an AdLib, or with the sound off, no longer overwrites the music and effects-device choices made on a run with one.
+
 ## 0.2.1 — 2026-10-22
 
 The game is the same as 0.2.0, 24% smaller. Nothing has run on real hardware yet; see `docs/STATUS.md`.

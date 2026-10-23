@@ -37,9 +37,12 @@ extern void fizz_show(unsigned n);
 extern unsigned fizz_music_key(void);
 extern void fizz_goto_map(void);
 extern void fizz_night(int on);
+extern void fizz_toggle_night(void);
 extern unsigned fizz_build(float alpha);
 extern unsigned fizz_paint(unsigned char *frame, unsigned count);
 extern void fizz_preview(unsigned char *frame, const int *values, const char *cpu);
+extern int fizz_preview_ready(const int *values);
+extern unsigned fizz_preview_text(const int *values, const char *cpu, unsigned char *out, unsigned cap);
 extern const unsigned char *fizz_sound_data(void);
 extern unsigned long fizz_sound_len(void);
 
@@ -100,9 +103,11 @@ static void detail_apply(int low) { detail_low = low; fizz_detail(low); }
 void detail_set(int mode) { detail = mode; if (mode) detail_apply(mode == 2); }
 
 /* The options, kept in FIZZ.CFG beside the game: twelve bytes, "FZC", a version, then music, effects, the effects' device, frame rate,
-   detail, night, the sound choice and a spare. The options screen saves after each change; the start-up screen saves the sound
-   choice. Arguments on the command line override what was kept, for that run. */
-static int sound_pref = SND_AUTO, night_pref = 0, music_pref = 1, fx_pref = 1, dev_pref = 0;
+   detail, night, the sound choice and a spare. The options screen saves after each change. The sound choice byte is written as
+   auto and not read: the start-up screen no longer offers it (the Options screen's music, effects and device cover the same
+   ground), and a choice of "off" kept from before could not be undone. Arguments on the command line override what was kept,
+   for that run. */
+static int night_pref = 0, music_pref = 1, fx_pref = 1, dev_pref = 0;
 
 static void settings_load(void) {
   unsigned char b[12];
@@ -113,22 +118,27 @@ static void settings_load(void) {
   rate = b[7] > 2 ? 0 : b[7];
   detail = b[8] > 2 ? 0 : b[8];
   night_pref = b[9] != 0;
-  sound_pref = b[10] > SND_MIXED ? SND_AUTO : b[10];
   if (rate) rate_now = rate == 2 ? 30 : 60;
   if (detail) detail_low = detail == 2;
 }
 
-/* Called by the options screen with the night setting, which lives in the game. */
+/* Called by the options screen with the night setting, which lives in the game. A sound setting that cannot apply on this run
+   (no sound running, or no AdLib for the music and the device) keeps what was kept, so a run without the hardware does not
+   overwrite the choice made on one with it. */
 void settings_save(int night) {
   unsigned char b[12] = {'F', 'Z', 'C', 1};
+  int running = snd_mode() != SND_OFF, adlib = running && snd_have_opl();
   night_pref = night;
-  b[4] = (unsigned char)snd_music_enabled();
-  b[5] = (unsigned char)snd_fx_enabled();
-  b[6] = (unsigned char)(snd_fx_device() ? snd_fx_device() : dev_pref); /* with the sound off there is no device to read */
+  if (adlib) music_pref = snd_music_enabled();
+  if (running) fx_pref = snd_fx_enabled();
+  if (adlib) dev_pref = snd_fx_device();
+  b[4] = (unsigned char)music_pref;
+  b[5] = (unsigned char)fx_pref;
+  b[6] = (unsigned char)dev_pref;
   b[7] = (unsigned char)rate;
   b[8] = (unsigned char)detail;
   b[9] = (unsigned char)night;
-  b[10] = (unsigned char)sound_pref;
+  b[10] = (unsigned char)SND_AUTO;
   save_write(-1, b, 12);
 }
 
@@ -151,13 +161,20 @@ static int speed_test(void) {
   return us ? (int)(30ULL * 1000000ULL / us) : 0;
 }
 
-/* What the sound option will really be on this machine. */
-static int sound_using(int choice, int adlib) {
-  if (choice == SND_OFF) return 3;
-  if (choice == SND_SPEAKER) return 2;
-  if (choice == SND_MIXED) return adlib ? 4 : 2;
-  if (adlib) return 1;
-  return choice == SND_AUTO ? 2 : 3;
+/* The start-up screen as text, for a machine whose adapter cannot show mode 13h: on the text screen in colour, or plainly to
+   standard output (for a headless check). Bytes below 8 set the colour of what follows (see preview.rs). */
+static void print_check(const int *probe, const char *cpu, int plain) {
+  static const int colour[8] = {LIGHTGRAY, WHITE, LIGHTGRAY, LIGHTRED, LIGHTGREEN, YELLOW, LIGHTGRAY, LIGHTGRAY};
+  static unsigned char text[2048];
+  unsigned n = fizz_preview_text(probe, cpu, text, sizeof text), i;
+  if (!plain) clrscr();
+  for (i = 0; i < n; i++) {
+    if (text[i] < 8) { if (!plain) textcolor(colour[text[i]]); }
+    else if (plain) putchar(text[i]);
+    else if (text[i] == '\n') cputs("\r\n");
+    else putch(text[i]);
+  }
+  if (!plain) normvideo();
 }
 
 static void choose_music(void) {
@@ -187,12 +204,12 @@ int main(int argc, char **argv) {
   unsigned level = argc < 2 ? 255 : !strcmp(argv[1], "map") ? 254 : (unsigned)atoi(argv[1]);
   unsigned ticks = argc > 2 ? (unsigned)atoi(argv[2]) : 0;
   int shot = 0, nosync = 0, i, paused = 0, night = 0, sound_mode = SND_AUTO, soundtest = 0, extra = -1, with_sound = 0, quiet = 0, bench = 0, preview = 1, previewshot = 0, screen = 0, savecfg = 0;
+  int check, ready = 1, have_vga;
   int probe[C_COUNT];
   char cpu[16];
   unsigned t, clear = 0;
   unsigned char pal[768];
   settings_load();
-  sound_mode = sound_pref;
   night = night_pref;
   for (i = 3; i < argc; i++) {
     if (!strcmp(argv[i], "shot")) shot = 1;
@@ -232,9 +249,18 @@ int main(int argc, char **argv) {
     if (!strcmp(argv[i], "savecfg")) savecfg = 1;
   }
   if (savecfg) { settings_save(night); printf("saved FIZZ.CFG\n"); return 0; }
-  fizz_start(level, 1);
-  fizz_night(night);
-  if (screen) fizz_show(screen);
+  /* The start-up check looks at the hardware before the game takes its memory, so the free memory it shows is what the game can
+     have; when something the game needs is missing, the game is not started at all. */
+  check = ((ticks == 0 && !bench && preview) || previewshot) && !soundtest;
+  if (check) {
+    compat_probe(probe, cpu);
+    ready = fizz_preview_ready(probe);
+  }
+  if (ready) {
+    fizz_start(level, 1);
+    fizz_night(night);
+    if (screen) fizz_show(screen);
+  }
 
   if (soundtest) {
     /* No screen: start the handler, play the first song for three seconds and report what it did. */
@@ -251,31 +277,41 @@ int main(int argc, char **argv) {
     return 0;
   }
 
+  /* Mode 13h is only set on a VGA. Without one the start-up screen is shown on the text screen instead, and Esc leaves; with
+     "preview" it is still drawn into the frame (for FRAME.RAW) and the text goes to standard output. */
+  have_vga = (check ? probe[C_VIDEO] : compat_video()) >= VIDEO_VGA_MONO;
+  if (!have_vga && !previewshot) {
+    if (check) {
+      print_check(probe, cpu, 0);
+      while (getch() != 27) {}
+    } else {
+      printf("Lieutenant Fizz needs a VGA (320x200, 256 colours).\n");
+    }
+    return 1;
+  }
+  if (!have_vga) print_check(probe, cpu, 1);
+
   if (ticks == 0 && !bench) {
     if (kbd_install()) { printf("could not hook the keyboard\n"); snd_shutdown(); return 1; }
   }
-  if (vga_open()) { printf("no near pointers\n"); kbd_remove(); snd_shutdown(); return 1; }
+  if (have_vga && vga_open()) { printf("no near pointers\n"); kbd_remove(); snd_shutdown(); return 1; }
   build_palette(pal);
-  for (i = 0; i < 255; i++) vga_palette(i, pal[i * 3], pal[i * 3 + 1], pal[i * 3 + 2]);
+  if (have_vga)
+    for (i = 0; i < 255; i++) vga_palette(i, pal[i * 3], pal[i * 3 + 1], pal[i * 3 + 2]);
 
-  /* The start-up screen: what the machine has, a speed test, and a chance to pick the sound. It runs before the sound handler
-     takes over the timer. */
-  if ((ticks == 0 && !bench && preview) || previewshot) {
-    compat_probe(probe, cpu);
-    probe[C_FPS] = speed_test();
+  /* The start-up screen: what the machine has and, when it has what the game needs, a speed test. It runs before the sound
+     handler takes over the timer. Enter or Space go on only when the game can start; Esc leaves. */
+  if (check) {
+    if (ready) probe[C_FPS] = speed_test();
     for (;;) {
-      probe[C_SOUND_CHOICE] = sound_mode;
-      probe[C_SOUND_USING] = sound_using(sound_mode, probe[C_ADLIB]);
       fizz_preview(frame, probe, cpu);
-      vga_vsync();
-      vga_present(frame);
+      if (have_vga) {
+        vga_vsync();
+        vga_present(frame);
+      }
       if (previewshot) break;
-      if (kbd_pressed(SC_ENTER) || kbd_pressed(SC_SPACE)) { sound_pref = sound_mode; settings_save(night); break; }
+      if (ready && (kbd_pressed(SC_ENTER) || kbd_pressed(SC_SPACE))) break;
       if (kbd_pressed(SC_ESC)) { vga_close(); kbd_remove(); return 0; }
-      if (kbd_pressed(SC_A)) sound_mode = SND_ADLIB;
-      if (kbd_pressed(SC_M)) sound_mode = SND_MIXED;
-      if (kbd_pressed(SC_P)) sound_mode = SND_SPEAKER;
-      if (kbd_pressed(SC_O)) sound_mode = SND_OFF;
     }
   }
   if (!previewshot && ticks == 0 && !bench && preview) {
@@ -318,9 +354,11 @@ int main(int argc, char **argv) {
       if (kbd_pressed(SC_PGDN)) fizz_goto(fizz_level() + 1);
       if (kbd_pressed(SC_R)) fizz_goto(fizz_level());
       if (kbd_pressed(SC_BACKSPACE)) fizz_goto_map();
-      if (kbd_pressed(SC_N)) { night = !night; fizz_night(night); }
-      if (kbd_pressed(SC_M)) snd_set_music(!snd_music_enabled());
-      if (kbd_pressed(SC_E)) snd_set_fx(!snd_fx_enabled());
+      if (kbd_pressed(SC_N)) fizz_toggle_night(); /* the game's own flag, which the Options row also sets; for this run only */
+      /* M and E are the Options screen's Music and Effects rows, and like them only act when they can apply, and are kept (with the
+         night that was last kept: N is not). */
+      if (kbd_pressed(SC_M) && snd_mode() != SND_OFF && snd_have_opl()) { snd_set_music(!snd_music_enabled()); settings_save(night_pref); }
+      if (kbd_pressed(SC_E) && snd_mode() != SND_OFF) { snd_set_fx(!snd_fx_enabled()); settings_save(night_pref); }
       if (owed > done + 6) { base = clock560(); done = 0; owed = 0; } /* after a stall, do not rush to catch up */
       if (owed > done) {
         /* The first tick of a frame also gets any quick taps; the rest of a catch-up see what is held. */
@@ -358,7 +396,7 @@ int main(int argc, char **argv) {
       }
     }
   }
-  vga_close();
+  if (have_vga) vga_close();
   kbd_remove();
   snd_shutdown();
   if (shot) {
@@ -368,7 +406,9 @@ int main(int argc, char **argv) {
     f = fopen("PAL.RAW", "wb");
     if (f) { fwrite(pal, 1, sizeof pal, f); fclose(f); }
   }
-  if (ticks || bench || shot) {
+  if (previewshot) {
+    /* The check's picture is in FRAME.RAW (with "shot"); the game may not have been started, so there is nothing more to say. */
+  } else if (ticks || bench || shot) {
     /* The scripted and benchmark runs report what they did; a player who quits just gets a goodbye. */
     printf("%u ticks, ended in mode %u (2 map, 3 level) on level %u\n", t, fizz_mode(), fizz_level());
     if ((ticks && with_sound) || bench) printf("guest time %lu ms for %u frames\n", snd_ticks() * 1000UL / 560UL, ticks);

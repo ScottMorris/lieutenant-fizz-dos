@@ -21,7 +21,7 @@
 
 **From a release:** [the releases page](https://github.com/ScottMorris/lieutenant-fizz-dos/releases) has a 1.44 MB floppy image (`-floppy.img`, volume label `FIZZ EP1`), the same files as a zip for copying to a real disk or folder (`-disk.zip`), the DOSBox demo (`-dosbox.zip`), the browser bundle (`-browser.jsdos`, for any js-dos 8 player), a debug zip (`-debug.zip`, the same game with its symbols, for reading a crash's traceback) and `SHA256SUMS`. The game in a release is stripped of its symbols and debugging sections, a quarter smaller. `CHANGELOG.md` lists what changed. `tools/make-release.sh <version>` builds them.
 
-**In DOSBox:** unpack `dist/fizz-dos-demo.zip` (or build it, below) and run `dosbox --conf DOSBOX.CONF` in the folder. `FIZZ.EXE` starts at a system check in the manner of Keen's — the hardware it found, a speed test of the real renderer and the sound it will use (A AdLib for everything, M music on AdLib with effects on the speaker, P speaker only, O off) — and Enter continues to the opening titles (any key skips them) and then the title.
+**In DOSBox:** unpack `dist/fizz-dos-demo.zip` (or build it, below) and run `dosbox --conf DOSBOX.CONF` in the folder. `FIZZ.EXE` starts at a system check in the manner of Keen's — the video, input, sound and machine hardware it found and a speed test of the real renderer — and Enter continues to the opening titles (any key skips them) and then the title. The game needs a VGA, an x87 and at least 1 MB of free memory; without one of them the check says what is missing and only Esc leaves. Below 10 MB the memory row shows a yellow warning: the game still starts, but CWSDPMI pages to its swap file on disk, so it starts slowly and may stutter. The sound is set on the Options screen.
 
 | Key | Action |
 |---|---|
@@ -34,9 +34,9 @@
 | F5 / F9 | Quick-save and quick-load, in `QUICK.SAV`, a slot of its own |
 | Backspace | Back to the overworld map |
 | PgUp / PgDn | Previous or next level |
-| R, N, M, E | Restart the level; night mode; music on or off; effects on or off |
+| R, N, M, E | Restart the level; night mode (for the run); music on or off (with an AdLib); effects on or off |
 
-The Options screen has music, effects, which chip plays the effects, **frame rate** (auto, 60 Hz or 30 Hz), **detail** (auto, high or low, which drops the backdrop layers on slow machines) and night. Options are kept in `FIZZ.CFG` and game saves in `AUTO.SAV`, `QUICK.SAV` and `SLOT1.SAV` to `SLOT4.SAV`, all beside the game. `FIZZ.EXE [level|map]` starts in a level or on the map; `nopreview` skips the system check.
+The Options screen has music and which chip plays the effects (both only with an AdLib, as the music plays on it alone), effects (when sound is running), **frame rate** (auto, 60 Hz or 30 Hz), **detail** (auto, high or low, which drops the backdrop layers on slow machines) and night. Options, and the M and E keys' changes, are kept in `FIZZ.CFG` and read at the next start (a sound setting that cannot apply on a run, such as the music without an AdLib, keeps what was kept) and game saves in `AUTO.SAV`, `QUICK.SAV` and `SLOT1.SAV` to `SLOT4.SAV`, all beside the game. `FIZZ.EXE [level|map]` starts in a level or on the map; `nopreview` skips the system check.
 
 ## Build it
 

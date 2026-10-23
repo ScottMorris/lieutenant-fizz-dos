@@ -4,9 +4,11 @@ LIEUTENANT FIZZ - EPISODE 1 - DOS demo (work in progress)
 This is the real Episode 1 simulation, written in Rust, running as a 32-bit DOS program in VGA mode 13h
 (320x200, 256 colours), with AdLib (OPL2) music and effects, or PC speaker effects if there is no AdLib, the game's own pixel font, a score/lives/Fizz HUD, map prompts, floating caption words, toasts and result cards. Everything is drawn from the game's own sprites. After the system check the opening titles play (any key skips them), then you reach the title (New game, Options, Quit; Continue and Load game once you have a save), then the overworld map; walk to a level marker and press Jump, Fire or Enter to go in.
 
-The first thing you see is a system check in the manner of Keen's: what video, input, sound and maths hardware it found, a
-speed test of the real renderer, and the sound it will use (A picks AdLib for everything, M the music on AdLib with the effects on the PC speaker, P the PC speaker alone, O off). Enter starts the
-game. Add 'nopreview' on the command line to skip it.
+The first thing you see is a system check in the manner of Keen's: what video, input, sound and machine hardware it found and a
+speed test of the real renderer. Enter starts the game. The game needs a VGA, an x87 maths unit and at least 1 MB of free memory;
+without one of them the check says what is missing and Esc leaves. Below 10 MB the memory row is a yellow warning: the game still
+starts, but the DOS extender pages memory to disk, so it is slower. The sound is set on the Options screen. Add 'nopreview' on the command
+line to skip the check.
 
 Run it
   1. Install DOSBox Staging (https://www.dosbox-staging.org) or DOSBox-X.
@@ -26,14 +28,14 @@ Keys
   PgUp / PgDn      previous / next level (0-15)
   R                restart the level
   N                night mode (darker ambient light; lamps and glowing things stand out)
-  M                music on/off
+  M                music on/off (with an AdLib)
   E                sound effects on/off
   Esc              pause menu (and back, in a menu); Quit to title, then Quit, leaves the game
 
 Notes
   - Saves are small files next to FIZZ.EXE: AUTO.SAV (written every time you reach the map), QUICK.SAV (F5) and SLOT1.SAV to SLOT4.SAV (Pause, Save game).
-  - Options (music, effects, frame rate, detail, night, and the sound you chose at start-up) are kept in FIZZ.CFG, apart from the saves. Delete it to start fresh.
-  - Options (title or pause menu): music, effects, which chip plays the effects, frame rate (auto, 60 or 30 Hz), detail (auto, high or low; low drops the backdrop layers on slow machines) and night.
+  - Options (music, effects, the effects' device, frame rate, detail and night), and the M and E keys' changes, are kept in FIZZ.CFG, apart from the saves. Delete it to start fresh.
+  - Options (title or pause menu): music and which chip plays the effects (both only with an AdLib), effects, frame rate (auto, 60 or 30 Hz), detail (auto, high or low; low drops the backdrop layers on slow machines) and night.
   - New game plays the opening story (Enter moves on, Esc skips it); beating the last boss plays the ending and the credits. Controls, on the title and pause menus, lists the keys.
   - The boss fight now starts with its dialogue: Enter finishes a line and moves on.
   - If it runs slowly with sound on, the OPL emulator is the cost: DOSBOX.CONF uses 'oplemu = compat' (light). Nuked is
