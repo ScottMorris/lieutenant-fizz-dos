@@ -1,6 +1,6 @@
 #!/bin/bash
-# Builds the files of a release into dist/release/: a 1.44 MB floppy image, the disk's contents as a zip, the DOSBox demo zip, the
-# browser bundle, a debug zip and SHA256SUMS. The game in all of them is the stripped FIZZ.EXE (tools/strip-exe.sh); the debug zip holds the
+# Builds the files of a release into dist/release/: a 1.44 MB floppy image, the same disk made bootable with FreeDOS
+# (tools/make-freedos-floppy.sh), the disk's contents as a zip, the DOSBox demo zip, the browser bundle, a debug zip and SHA256SUMS. The game in all of them is the stripped FIZZ.EXE (tools/strip-exe.sh); the debug zip holds the
 # unstripped one that m4/build.sh wrote, for reading a crash's traceback against.
 #
 # (c) Copyright 2026 Liminal HQ, Scott Morris
@@ -215,6 +215,9 @@ if seen < 10:
 print(f"the image and its {seen - 1} files are all stamped {want} UTC")
 PY
 
-(cd "$OUT" && sha256sum "$NAME-floppy.img" "$NAME-disk.zip" "$NAME-dosbox.zip" "$NAME-browser.jsdos" "$NAME-debug.zip" > SHA256SUMS)
+# The same disk made bootable with FreeDOS, for a machine without a DOS of its own.
+tools/make-freedos-floppy.sh "$IMG" "$OUT/$NAME-floppy-freedos.img"
+
+(cd "$OUT" && sha256sum "$NAME-floppy.img" "$NAME-floppy-freedos.img" "$NAME-disk.zip" "$NAME-dosbox.zip" "$NAME-browser.jsdos" "$NAME-debug.zip" > SHA256SUMS)
 rm -rf "$DISK"
 ls -l "$OUT"

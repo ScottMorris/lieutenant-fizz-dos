@@ -4,6 +4,10 @@ What changed in each release of Lieutenant Fizz for DOS. A release is a tag `vX.
 
 ## Unreleased
 
+### Added
+
+- A second floppy image with each release, `-floppy-freedos.img`: the game disk made bootable with FreeDOS 1.4's kernel and command interpreter, so a machine or emulator with no DOS of its own starts at an `A:\>` prompt with the game on the disk (type `FIZZ`). `-floppy.img` is unchanged, for a machine that already has DOS. The FreeDOS parts are under the GPL; the image carries `FREEDOS.TXT` with the licence and where the source is.
+
 ### Changed
 
 - `CHANGES.TXT` on the disk is a running log: it holds every version's changes, newest first, so a player can see what changed from one version to the next. It held only the release's own section.
