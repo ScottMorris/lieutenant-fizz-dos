@@ -1776,7 +1776,10 @@ impl World {
                 && !ladder
                 && self.map.has_climb(cx, under);
             let from_top = ladder_top || vine_top;
-            if !(up && (ladder || vine)) && !from_top {
+            // Falling past a vine with Down held grabs it too. Down with Fire is an aim-down shot,
+            // so it never grabs.
+            let vine_air = down && !self.p.b.on_ground && vine && !ladder && h & FIRE == 0;
+            if !(up && (ladder || vine)) && !from_top && !vine_air {
                 return;
             }
             // A ladder wins where both are present; a vine alone is climbed freely, without

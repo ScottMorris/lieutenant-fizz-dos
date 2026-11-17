@@ -2308,6 +2308,53 @@ fn down_grabs_a_vine_that_hangs_below_the_ledge_ben_stands_on() {
 }
 
 #[test]
+fn down_grabs_a_vine_ben_falls_past_but_not_while_firing_or_after_a_hop_off() {
+    let vine_wall = || {
+        let mut w = arena();
+        for y in 2..14 {
+            w.map.set(14, y, VINE);
+        }
+        w
+    };
+    // Falling past the vine with Down held grabs it, without snapping him to its column.
+    let mut w = vine_wall();
+    w.p.b.x = 14.1;
+    w.p.b.y = 12.0;
+    w.p.b.on_ground = false;
+    run(&mut w, 4, DOWN);
+    assert!(w.p.climb && w.p.wall, "Down grabs a vine he falls past");
+    assert!((w.p.b.x - 14.1).abs() < 0.01, "not snapped to the column");
+    let y0 = w.p.b.y;
+    run(&mut w, 20, DOWN);
+    assert!(w.p.climb && w.p.b.y < y0, "and climbs down it");
+    // Without Down he falls on past it.
+    let mut v = vine_wall();
+    v.p.b.x = 14.1;
+    v.p.b.y = 12.0;
+    v.p.b.on_ground = false;
+    run(&mut v, 4, 0);
+    assert!(!v.p.climb, "no Down, no grab");
+    // Down with Fire held is an aim-down shot, not a grab.
+    let mut f = vine_wall();
+    f.p.b.x = 14.1;
+    f.p.b.y = 12.0;
+    f.p.b.on_ground = false;
+    run(&mut f, 4, DOWN | FIRE);
+    assert!(!f.p.climb, "Down with Fire aims down instead");
+    // A hop off the vine does not re-grab while Down is still held.
+    let mut h = vine_wall();
+    h.p.b.x = 14.1;
+    h.p.b.y = 12.0;
+    h.p.b.on_ground = false;
+    run(&mut h, 4, DOWN);
+    assert!(h.p.climb);
+    h.step(DOWN | JUMP);
+    assert!(!h.p.climb, "Jump lets go");
+    run(&mut h, 6, DOWN);
+    assert!(!h.p.climb, "no immediate re-grab with Down held");
+}
+
+#[test]
 fn a_jump_off_a_vine_hops_clear_and_does_not_regrab_with_up_held() {
     let mut w = arena();
     for x in 10..15 {
