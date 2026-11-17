@@ -2355,6 +2355,51 @@ fn down_grabs_a_vine_ben_falls_past_but_not_while_firing_or_after_a_hop_off() {
 }
 
 #[test]
+fn down_grabs_a_ladder_ben_falls_past_and_snaps_him_to_it() {
+    let ladder = || {
+        let mut w = arena();
+        for y in 2..14 {
+            w.map.set(14, y, RUNG);
+        }
+        w
+    };
+    let mut w = ladder();
+    w.p.b.x = 14.1;
+    w.p.b.y = 12.0;
+    w.p.b.on_ground = false;
+    run(&mut w, 4, DOWN);
+    assert!(
+        w.p.climb && !w.p.wall,
+        "Down grabs the ladder, not as a vine"
+    );
+    assert!(
+        (w.p.b.centre_x() - 14.5).abs() < 0.01,
+        "snapped to the rung"
+    );
+    let y0 = w.p.b.y;
+    run(&mut w, 20, DOWN);
+    assert!(w.p.climb && w.p.b.y < y0, "and climbs down it");
+    // Without Down, or with Fire held, he falls on past it.
+    for held in [0, DOWN | FIRE] {
+        let mut v = ladder();
+        v.p.b.x = 14.1;
+        v.p.b.y = 12.0;
+        v.p.b.on_ground = false;
+        run(&mut v, 4, held);
+        assert!(!v.p.climb, "no grab with input {held}");
+    }
+    // A hop off the ladder does not re-grab while Down is held.
+    let mut h = ladder();
+    h.p.b.x = 14.1;
+    h.p.b.y = 12.0;
+    h.p.b.on_ground = false;
+    run(&mut h, 4, DOWN);
+    h.step(DOWN | JUMP);
+    run(&mut h, 6, DOWN);
+    assert!(!h.p.climb, "no immediate re-grab with Down held");
+}
+
+#[test]
 fn a_jump_off_a_vine_hops_clear_and_does_not_regrab_with_up_held() {
     let mut w = arena();
     for x in 10..15 {
