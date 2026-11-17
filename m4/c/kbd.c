@@ -17,6 +17,11 @@
 static volatile unsigned char keys[128];
 static volatile unsigned char latch[128];
 static volatile unsigned char any_press;
+/* Every key press in order, for the shell's key sequences (the hidden Debug menu). The handler adds and the game's loop takes, each moving
+   its own index; a full queue drops the newest press. Nothing here changes what keys, latch or the input bits hold. */
+#define RAW_Q 16
+static volatile unsigned char raw_q[RAW_Q];
+static volatile unsigned char raw_head, raw_tail;
 static _go32_dpmi_seginfo old_isr, new_isr;
 static int installed;
 
@@ -28,7 +33,12 @@ static void isr(void) {
     if (sc & 0x80) {
       keys[code] = 0;
     } else {
-      if (!keys[code]) { latch[code] = 1; any_press = 1; }
+      if (!keys[code]) {
+        unsigned char next = (unsigned char)((raw_head + 1) % RAW_Q);
+        latch[code] = 1;
+        any_press = 1;
+        if (next != raw_tail) { raw_q[raw_head] = code; raw_head = next; }
+      }
       keys[code] = 1;
     }
   }
@@ -41,8 +51,11 @@ int kbd_install(void) {
   memset((void *)keys, 0, sizeof keys);
   memset((void *)latch, 0, sizeof latch);
   any_press = 0;
+  memset((void *)raw_q, 0, sizeof raw_q);
+  raw_head = raw_tail = 0;
   /* The handler and what it touches must never be paged out, or the first key during a page fault would hang. */
   if (_go32_dpmi_lock_data((void *)keys, sizeof keys) || _go32_dpmi_lock_data((void *)latch, sizeof latch) || _go32_dpmi_lock_data((void *)&any_press, sizeof any_press) ||
+      _go32_dpmi_lock_data((void *)raw_q, sizeof raw_q) || _go32_dpmi_lock_data((void *)&raw_head, sizeof raw_head) || _go32_dpmi_lock_data((void *)&raw_tail, sizeof raw_tail) ||
       _go32_dpmi_lock_code((void *)isr, (unsigned long)isr_end - (unsigned long)isr))
     return 1;
   _go32_dpmi_get_protected_mode_interrupt_vector(9, &old_isr);
@@ -85,4 +98,11 @@ int kbd_pressed(int sc) {
   int was = latch[sc & 0x7F];
   latch[sc & 0x7F] = 0;
   return was;
+}
+int kbd_raw_pop(void) {
+  int code;
+  if (raw_tail == raw_head) return -1;
+  code = raw_q[raw_tail];
+  raw_tail = (unsigned char)((raw_tail + 1) % RAW_Q);
+  return code;
 }

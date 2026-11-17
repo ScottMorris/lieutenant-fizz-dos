@@ -14,4 +14,6 @@ int kbd_down(int scancode);
 unsigned kbd_tick_bits(void);
 /* 1 once for each press of the key since the last call. */
 int kbd_pressed(int scancode);
+/* The scancode of the oldest key press not yet taken, in the order they came (a held key's repeats are not presses), or -1 when there is none. For key sequences; it does not touch what the other calls return. */
+int kbd_raw_pop(void);
 #endif
