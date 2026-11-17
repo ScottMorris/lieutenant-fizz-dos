@@ -2264,6 +2264,50 @@ fn a_ladder_still_snaps_to_its_column_where_a_vine_does_not() {
 }
 
 #[test]
+fn down_grabs_a_vine_that_hangs_below_the_ledge_ben_stands_on() {
+    let mut w = arena();
+    // A ledge four tiles thick with a one-tile shaft through it, and a vine filling the shaft.
+    for x in 8..20 {
+        for y in 2..6 {
+            w.map.set(x, y, FILL);
+        }
+    }
+    for y in 2..6 {
+        w.map.set(14, y, VINE);
+    }
+    // Ben stands on the lip of the ledge with his centre line just inside the shaft.
+    w.p.b.x = 14.2 - w.p.b.w / 2.0;
+    w.p.b.y = 6.0;
+    run(&mut w, 2, 0);
+    assert!(w.p.b.on_ground, "he starts on the ledge");
+    let y0 = w.p.b.y;
+    run(&mut w, 6, DOWN);
+    assert!(w.p.climb && w.p.wall, "Down grabs the vine as a vine");
+    assert!(
+        (w.p.b.centre_x() - 14.5).abs() < 0.01,
+        "lined up with the vine's column"
+    );
+    run(&mut w, 30, DOWN);
+    assert!(w.p.climb, "he keeps climbing down");
+    assert!(w.p.b.y < y0 - 0.8, "and descends, got {}", w.p.b.y - y0);
+    // Not over the shaft: Down does nothing.
+    let mut v = arena();
+    for x in 8..20 {
+        for y in 2..6 {
+            v.map.set(x, y, FILL);
+        }
+    }
+    for y in 2..6 {
+        v.map.set(14, y, VINE);
+    }
+    v.p.b.x = 10.0;
+    v.p.b.y = 6.0;
+    run(&mut v, 2, 0);
+    run(&mut v, 6, DOWN);
+    assert!(!v.p.climb, "no vine under his feet, no grab");
+}
+
+#[test]
 fn a_jump_off_a_vine_hops_clear_and_does_not_regrab_with_up_held() {
     let mut w = arena();
     for x in 10..15 {

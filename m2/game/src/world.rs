@@ -1766,16 +1766,23 @@ impl World {
             if up == down {
                 return;
             }
-            let from_top = down
+            let under = (self.p.b.y - 0.1).floor() as i32;
+            let ladder_top = down && self.p.b.on_ground && self.map.has_ladder(cx, under);
+            // A vine has no top to stand on, so Down grabs one that hangs just below the ledge Ben
+            // is on, once his centre line is over it.
+            let vine_top = down
                 && self.p.b.on_ground
-                && self.map.has_ladder(cx, (self.p.b.y - 0.1).floor() as i32);
+                && !ladder_top
+                && !ladder
+                && self.map.has_climb(cx, under);
+            let from_top = ladder_top || vine_top;
             if !(up && (ladder || vine)) && !from_top {
                 return;
             }
             // A ladder wins where both are present; a vine alone is climbed freely, without
-            // snapping Ben to its column.
-            self.p.wall = vine && !ladder && !from_top;
-            let free = self.p.wall;
+            // snapping Ben to its column (unless he steps down into it from a ledge).
+            self.p.wall = (vine && !ladder && !ladder_top) || vine_top;
+            let free = self.p.wall && !vine_top;
             let b = &mut self.p.b;
             if !free {
                 b.x = f64::from(cx) + 0.5 - b.w / 2.0;
