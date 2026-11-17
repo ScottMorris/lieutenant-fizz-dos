@@ -18,6 +18,8 @@
 
 #[path = "../../../m2/dos-rt/src/cine.rs"]
 mod cine;
+#[path = "../../../m2/dos-rt/src/debug.rs"]
+mod debug;
 #[path = "../../../m2/dos-rt/src/fx.rs"]
 mod fx;
 #[path = "../../../m2/dos-rt/src/preview.rs"]
@@ -107,7 +109,16 @@ pub extern "C" fn snd_fx_device() -> i32 {
 pub extern "C" fn snd_set_fx_device(_: i32) {}
 #[no_mangle]
 pub extern "C" fn save_write(_: i32, _: *const u8, _: i32) -> i32 {
+    SAVE_WRITES.fetch_add(1, Ordering::Relaxed);
     0
+}
+/// How many times the shell asked for a save file to be written.
+static SAVE_WRITES: AtomicU64 = AtomicU64::new(0);
+/// The raw key presses a test has queued for the shell, oldest first (what the C side's `kbd_raw_pop` hands over).
+static RAW_KEYS: std::sync::Mutex<std::collections::VecDeque<u8>> = std::sync::Mutex::new(std::collections::VecDeque::new());
+#[no_mangle]
+pub extern "C" fn kbd_raw_pop() -> i32 {
+    RAW_KEYS.lock().unwrap().pop_front().map_or(-1, i32::from)
 }
 #[no_mangle]
 pub extern "C" fn save_read(_: i32, _: *mut u8, _: i32) -> i32 {
@@ -389,6 +400,223 @@ fn flow_test() {
     }
 }
 
+/// The hidden Debug menu: the key sequence from every kind of screen, a lone key doing nothing, the swallowed Enter, the held game, Back, and a
+/// warp that writes no save and ends at the title.
+fn debug_test() {
+    let mut bad = 0;
+    let mut check = |what: &str, ok: bool| {
+        println!("debug: {what}: {}", if ok { "yes" } else { "NO" });
+        if !ok {
+            bad += 1;
+        }
+    };
+    const ENTER: u32 = 128;
+    const ESC: u32 = 256;
+    const DOWN: u32 = 8;
+    // One tick with `held`, after queuing the keys that came with it.
+    let tick = |held: u32, keys: &[u8]| {
+        for &k in keys {
+            RAW_KEYS.lock().unwrap().push_back(k);
+        }
+        shell::advance(held);
+    };
+    let run = |n: u32| {
+        for _ in 0..n {
+            shell::advance(0);
+        }
+    };
+    let (two, enter) = (debug::SC_2, debug::SC_ENTER);
+
+    // On the title: a lone 2, a lone Enter and Enter then 2 do not open it.
+    video::start(video::TITLE);
+    run(30);
+    tick(0, &[two]);
+    run(5);
+    check("a lone 2 does not open it", shell::on_title());
+    run(200);
+    tick(ENTER, &[enter]);
+    run(1);
+    check("a lone Enter does not open it", !shell::debug_open());
+
+    // The sequence on the title. The Enter that completes it chooses nothing underneath: the menu does not start a game.
+    video::start(video::TITLE);
+    run(30);
+    tick(0, &[two]);
+    run(3);
+    tick(ENTER, &[enter]);
+    check("2 then Enter opens the menu on the title", shell::debug_open());
+    // Enter is still down for a few ticks: it chooses nothing on the Debug menu either.
+    for _ in 0..10 {
+        shell::advance(ENTER);
+    }
+    check("the Enter that completed it did not choose a Debug row", shell::debug_open() && !shell::debug_warp_page());
+    run(30);
+    check("and none of its press chose New game underneath", shell::debug_open());
+    shell::advance(ESC);
+    shell::advance(0);
+    check("Esc puts the title back", shell::on_title());
+
+    // Too slow: 2, then Enter 1.6 seconds later (96 ticks), does nothing.
+    video::start(video::TITLE);
+    run(30);
+    tick(0, &[two]);
+    run(95);
+    tick(0, &[enter]);
+    check("Enter 1.6 s after 2 does not open it", !shell::debug_open());
+    video::start(video::TITLE);
+    run(30);
+    tick(0, &[two]);
+    run(85);
+    tick(0, &[enter]);
+    check("Enter 1.4 s after 2 opens it", shell::debug_open());
+
+    // A wrong key between them drops the progress.
+    video::start(video::TITLE);
+    run(30);
+    tick(0, &[two]);
+    run(3);
+    tick(0, &[0x1E]);
+    run(3);
+    tick(0, &[enter]);
+    check("a key between 2 and Enter drops the sequence", !shell::debug_open());
+
+    // Over the opening titles it is ignored.
+    video::start(video::TITLE);
+    shell::boot_titles();
+    run(5);
+    tick(0, &[two]);
+    run(2);
+    tick(0, &[enter]);
+    check("the opening titles ignore it", shell::on_titles() && !shell::debug_open());
+
+    // In a level: the game is held while it is up, and Back puts it back.
+    video::start(0);
+    run(120);
+    let before = shell::play_ticks();
+    tick(0, &[two]);
+    run(2);
+    tick(ENTER, &[enter]);
+    check("it opens in a level", shell::debug_open());
+    let held_at = shell::play_ticks();
+    run(120);
+    check("the level is held while the menu is up", shell::play_ticks() == held_at && held_at > before);
+    shell::advance(ESC);
+    shell::advance(0);
+    check("Esc goes back to the level", !shell::debug_open() && shell::on_play());
+    run(10);
+    check("and the level runs again", shell::play_ticks() > held_at);
+
+    // On the map and over the pause menu.
+    video::start(video::MAP);
+    run(30);
+    tick(0, &[two]);
+    tick(ENTER, &[enter]);
+    check("it opens on the map", shell::debug_open());
+    shell::advance(ESC);
+    shell::advance(0);
+    shell::show(1);
+    run(5);
+    tick(0, &[two]);
+    tick(ENTER, &[enter]);
+    check("it opens over the pause menu", shell::debug_open());
+    shell::advance(ESC);
+    shell::advance(0);
+    check("and Back returns to the pause menu", shell::on_pause());
+
+    // The opening cinematic, the ending and the credits cannot be held: Back lands on the title.
+    for (name, n) in [("cinematic", 100), ("ending", 7), ("credits", 8)] {
+        video::start(0);
+        shell::show(n);
+        run(5);
+        tick(0, &[two]);
+        tick(ENTER, &[enter]);
+        check(&format!("it opens over the {name}"), shell::debug_open());
+        shell::advance(ESC);
+        shell::advance(0);
+        check(&format!("and Back after the {name} lands on the title"), shell::on_title());
+    }
+
+    // A warp: the list, a pick, the level, no save written, and the title at the end.
+    video::start(video::TITLE);
+    run(30);
+    let writes = SAVE_WRITES.load(Ordering::Relaxed);
+    tick(0, &[two]);
+    tick(ENTER, &[enter]);
+    run(2);
+    tick(ENTER, &[]);
+    run(1);
+    check("Enter on Warp to level opens the list", shell::debug_warp_page());
+    for _ in 0..4 {
+        shell::advance(DOWN);
+        shell::advance(0);
+    }
+    shell::advance(ENTER);
+    shell::advance(0);
+    run(40);
+    check("the pick starts that level (the fifth row is level 4, Zarg Lookout)", shell::on_play() && video::level() == 4 && lf_episode_1::mode() == 3);
+    check("the run is a warped one", save::locked());
+    // F5 (512) and the pause menu's slots must not write.
+    shell::advance(512);
+    shell::advance(0);
+    check("F5 writes nothing in a warped run", SAVE_WRITES.load(Ordering::Relaxed) == writes);
+    shell::show(4);
+    shell::advance(ENTER);
+    shell::advance(0);
+    check("Save game's slot writes nothing in a warped run", SAVE_WRITES.load(Ordering::Relaxed) == writes && save::locked());
+    check("the save call itself refuses", !save::write(1, 0));
+    shell::advance(ESC);
+    shell::advance(0);
+    // Quit to title from a level, then a warp again and the level's end.
+    shell::show(1);
+    shell::advance(0);
+    // A warped run has no "Back to the map" row, so Quit to title is the fifth and last.
+    for _ in 0..4 {
+        shell::advance(DOWN);
+        shell::advance(0);
+    }
+    shell::advance(ENTER);
+    shell::advance(0);
+    run(40);
+    check("Quit to title ends the warp", shell::on_title() && !save::locked());
+    check("and nothing was written on the way", SAVE_WRITES.load(Ordering::Relaxed) == writes);
+
+    // A warped level's end goes to the title, with no autosave.
+    video::start(video::TITLE);
+    run(30);
+    tick(0, &[two]);
+    tick(ENTER, &[enter]);
+    run(2);
+    tick(ENTER, &[]);
+    run(1);
+    shell::advance(ENTER);
+    shell::advance(0);
+    run(40);
+    check("a warp to the first level", shell::on_play() && video::level() == 0 && save::locked());
+    // Ben falls out of the world: the card for a lost life comes up, and Enter on it would go back to the map.
+    lf_episode_1::state_set(lf_episode_1::state::PLAYER_Y, -50.0);
+    run(300);
+    check("falling out of the level brings the card", shell::card_up());
+    run(30);
+    shell::advance(ENTER);
+    shell::advance(0);
+    run(60);
+    check("a warped level that ends goes to the title, not the map", shell::on_title() && !save::locked());
+    check("with no autosave written", SAVE_WRITES.load(Ordering::Relaxed) == writes);
+
+    // An ordinary run still autosaves on the map.
+    video::start(video::TITLE);
+    run(30);
+    shell::show(10);
+    run(20);
+    check("a load is not a warp, and its map visit autosaves", !save::locked());
+
+    if bad == 0 {
+        println!("debug ok");
+    } else {
+        std::process::exit(1);
+    }
+}
+
 /// The text start-up screen for a set of machines: for each, its name, the 25 rows of characters (code page 437 shown as
 /// Unicode) and the 25 rows of attributes as two hex digits a cell.
 fn startup_cells() {
@@ -453,6 +681,10 @@ fn main() {
     assert!(fx::self_check(), "an easing or a tween is off");
     if std::env::var("PAUSETEST").is_ok() {
         pause_resume_test();
+        return;
+    }
+    if std::env::var("DEBUGTEST").is_ok() {
+        debug_test();
         return;
     }
     if std::env::var("FLOWTEST").is_ok() {
