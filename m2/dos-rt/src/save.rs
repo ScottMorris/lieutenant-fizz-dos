@@ -7,6 +7,7 @@
 // on the map and the time played. The sim takes it back through its state accessors.
 
 use core::fmt::Write;
+use core::sync::atomic::{AtomicBool, Ordering};
 
 use lf_episode_1::state::{
     AMMO, DONE_MASK, HAS_MAP_POS, LIVES, MAP_X, MAP_Y, NEXT_LIFE, SCORE,
@@ -31,6 +32,20 @@ pub const QUICK: usize = 5;
 /// The bits of the cleared mask that are levels (the 16th is the secret).
 const LEVEL_BITS: u32 = 0x7FFF;
 
+/// Set for a run that began at the Debug menu's World warp: nothing it does may reach a slot (`write` refuses), so a warp cannot overwrite
+/// real progress. The title screen clears it.
+static LOCKED: AtomicBool = AtomicBool::new(false);
+
+/// Turns the warp lock on or off.
+pub fn set_locked(on: bool) {
+    LOCKED.store(on, Ordering::Relaxed);
+}
+
+/// Whether saving is off because the run is a warped one.
+pub fn locked() -> bool {
+    LOCKED.load(Ordering::Relaxed)
+}
+
 /// What a slot's list row shows.
 #[derive(Clone, Copy)]
 pub struct Info {
@@ -49,8 +64,11 @@ fn get(buf: &[u8; LEN], at: usize) -> u32 {
     u32::from_le_bytes([buf[at], buf[at + 1], buf[at + 2], buf[at + 3]])
 }
 
-/// Writes the current progress to `slot`; `played` is the seconds played so far. Returns whether it was written.
+/// Writes the current progress to `slot`; `played` is the seconds played so far. Returns whether it was written (never, while the warp lock is on).
 pub fn write(slot: i32, played: u32) -> bool {
+    if locked() {
+        return false;
+    }
     let mut b = [0u8; LEN];
     b[..4].copy_from_slice(MAGIC);
     b[4] = VERSION;
