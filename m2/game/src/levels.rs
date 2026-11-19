@@ -1934,10 +1934,66 @@ fn citadel() -> LevelData {
     )
 }
 
-/// Builds a level by id; an unknown id falls back to the first level.
+/// Builds a level by id in Expert mode; an unknown id falls back to the first level.
 pub fn build_level(id: u8) -> LevelData {
+    build_level_for(id, false)
+}
+
+/// Builds a level by id for a mode: Expert (`normal` false) is the level as designed, Normal is that level
+/// with `soften` applied. An unknown id falls back to the first level.
+pub fn build_level_for(id: u8, normal: bool) -> LevelData {
     let def = LEVELS.get(usize::from(id)).unwrap_or(&LEVELS[0]);
-    (def.build)()
+    let mut l = (def.build)();
+    if normal {
+        soften(&mut l);
+    }
+    l
+}
+
+/// Enemies Normal mode removes from Cocoa Foundry, as (kind, x): the three hot spots at x 95-114,
+/// x 125-145 and x 160-176 stack a Phantom, a Sentry, a Drone and presses over the same few jumps.
+const FOUNDRY_NORMAL_CUTS: [(Kind, f64); 6] = [
+    (Kind::Phantom, 98.0),
+    (Kind::Phantom, 142.0),
+    (Kind::Sentry, 108.0),
+    (Kind::Drone, 140.5),
+    (Kind::Press, 108.0),
+    (Kind::Press, 164.0),
+];
+
+/// Turns an Expert level into its Normal one. Two rules, both leaving every other tile, item, column span
+/// and spawn as built:
+///
+/// - **Spikes.** Expert's spike runs are close to a full jump long (a 3-wide run leaves about 3.7 of 4.4
+///   tiles of jump clearance, a 4-wide one about 4.7), so Normal narrows each horizontal run by one: 4
+///   becomes 3 and 3 becomes 2. The last spike of the run turns to empty and the ground under it stays,
+///   so items placed at absolute columns keep their footing. Other widths are unchanged.
+/// - **Cocoa Foundry.** The enemies in `FOUNDRY_NORMAL_CUTS` are removed so each of the three hot spots
+///   asks for one threat at a time. The key and door route is untouched.
+pub fn soften(l: &mut LevelData) {
+    for y in 0..l.map.h {
+        let mut x = 0;
+        while x < l.map.w {
+            if l.map.get(x, y) != SPIKE {
+                x += 1;
+                continue;
+            }
+            let start = x;
+            while x < l.map.w && l.map.get(x, y) == SPIKE {
+                x += 1;
+            }
+            if matches!(x - start, 3 | 4) {
+                l.map.set(x - 1, y, EMPTY);
+            }
+        }
+    }
+    if l.id == COCOA_FOUNDRY {
+        l.spawns.retain(|s| {
+            !FOUNDRY_NORMAL_CUTS
+                .iter()
+                .any(|&(k, x)| s.kind == k && s.x == x)
+        });
+    }
 }
 
 // ---------- Overworld ----------

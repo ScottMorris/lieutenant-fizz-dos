@@ -139,6 +139,9 @@ pub struct Game {
     /// Cleared levels (`levels::level_bit`) plus flags such as `SECRET_FOUND`.
     pub done: u32,
     pub map_pos: Option<(f64, f64)>,
+    /// Normal mode (`true`) or Expert (`false`, the default): chosen at New game and kept in the save. It is
+    /// applied when a level is built (see `levels::soften`).
+    pub normal: bool,
 }
 
 /// Bit in `Game::done` set once the secret teleporter has been discovered.
@@ -172,6 +175,7 @@ impl Game {
             ammo: 5,
             done: 0,
             map_pos: None,
+            normal: false,
         }
     }
 }
@@ -696,7 +700,7 @@ impl World {
     pub fn load_level(&mut self, id: u8) {
         // An id the table does not know builds the first level, so it is also that level's id.
         let id = if id < levels::TABLE_LEN { id } else { 0 };
-        let d = levels::build_level(id);
+        let d = levels::build_level_for(id, self.game.normal);
         self.level_id = id;
         self.theme = d.theme;
         self.map = d.map;
@@ -1766,16 +1770,26 @@ impl World {
             if up == down {
                 return;
             }
-            let from_top = down
+            let under = (self.p.b.y - 0.1).floor() as i32;
+            let ladder_top = down && self.p.b.on_ground && self.map.has_ladder(cx, under);
+            // A vine has no top to stand on, so Down grabs one that hangs just below the ledge Ben
+            // is on, once his centre line is over it.
+            let vine_top = down
                 && self.p.b.on_ground
-                && self.map.has_ladder(cx, (self.p.b.y - 0.1).floor() as i32);
-            if !(up && (ladder || vine)) && !from_top {
+                && !ladder_top
+                && !ladder
+                && self.map.has_climb(cx, under);
+            let from_top = ladder_top || vine_top;
+            // Falling past a ladder or a vine with Down held grabs it too. Down with Fire is an
+            // aim-down shot, so it never grabs.
+            let air = down && !self.p.b.on_ground && (ladder || vine) && h & FIRE == 0;
+            if !(up && (ladder || vine)) && !from_top && !air {
                 return;
             }
             // A ladder wins where both are present; a vine alone is climbed freely, without
-            // snapping Ben to its column.
-            self.p.wall = vine && !ladder && !from_top;
-            let free = self.p.wall;
+            // snapping Ben to its column (unless he steps down into it from a ledge).
+            self.p.wall = (vine && !ladder && !ladder_top) || vine_top;
+            let free = self.p.wall && !vine_top;
             let b = &mut self.p.b;
             if !free {
                 b.x = f64::from(cx) + 0.5 - b.w / 2.0;

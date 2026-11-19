@@ -1,6 +1,6 @@
 diff -ruN a/Cargo.toml b/Cargo.toml
 --- a/Cargo.toml	2026-10-05 20:55:14.000000000 -0400
-+++ b/Cargo.toml	2026-10-15 20:39:15.000000000 -0400
++++ b/Cargo.toml	2026-11-19 10:04:59.000000000 -0500
 @@ -2,11 +2,9 @@
  name = "lf-sim"
  version = "0.1.0"
@@ -18,7 +18,7 @@ diff -ruN a/Cargo.toml b/Cargo.toml
 +libm = "0.2"
 diff -ruN a/src/body.rs b/src/body.rs
 --- a/src/body.rs	2026-10-10 21:14:01.000000000 -0400
-+++ b/src/body.rs	2026-10-15 20:39:31.000000000 -0400
++++ b/src/body.rs	2026-11-19 10:04:59.000000000 -0500
 @@ -3,6 +3,10 @@
  // (c) Copyright 2026 Liminal HQ, Scott Morris
  // SPDX-License-Identifier: Apache-2.0 OR MIT
@@ -32,7 +32,7 @@ diff -ruN a/src/body.rs b/src/body.rs
  use crate::GRAVITY;
 diff -ruN a/src/events.rs b/src/events.rs
 --- a/src/events.rs	2026-10-05 22:43:12.000000000 -0400
-+++ b/src/events.rs	2026-10-15 20:39:31.000000000 -0400
++++ b/src/events.rs	2026-11-19 10:04:59.000000000 -0500
 @@ -5,6 +5,10 @@
  
  /// A flat event: a kind code plus five numeric arguments. The shell reads these straight out
@@ -46,7 +46,7 @@ diff -ruN a/src/events.rs b/src/events.rs
      pub kind: f32,
 diff -ruN a/src/fmath.rs b/src/fmath.rs
 --- a/src/fmath.rs	1969-12-31 19:00:00.000000000 -0500
-+++ b/src/fmath.rs	2026-10-15 20:39:54.000000000 -0400
++++ b/src/fmath.rs	2026-11-19 10:04:59.000000000 -0500
 @@ -0,0 +1,66 @@
 +// The f64 functions `core` does not have, from the `libm` crate so every target (web, DOS) computes the same values.
 +//
@@ -116,7 +116,7 @@ diff -ruN a/src/fmath.rs b/src/fmath.rs
 +}
 diff -ruN a/src/instance.rs b/src/instance.rs
 --- a/src/instance.rs	2026-10-05 22:43:12.000000000 -0400
-+++ b/src/instance.rs	2026-10-15 20:39:31.000000000 -0400
++++ b/src/instance.rs	2026-11-19 10:04:59.000000000 -0500
 @@ -3,6 +3,10 @@
  // (c) Copyright 2026 Liminal HQ, Scott Morris
  // SPDX-License-Identifier: Apache-2.0 OR MIT
@@ -130,7 +130,7 @@ diff -ruN a/src/instance.rs b/src/instance.rs
  /// Atlas rectangle of a sprite (UV origin and size) plus its size in logical pixels.
 diff -ruN a/src/lib.rs b/src/lib.rs
 --- a/src/lib.rs	2026-10-07 15:53:19.000000000 -0400
-+++ b/src/lib.rs	2026-10-15 20:39:11.000000000 -0400
++++ b/src/lib.rs	2026-11-19 10:04:59.000000000 -0500
 @@ -10,8 +10,15 @@
  //! Y against it, moving platforms, a front-to-back instance buffer shared with the renderer,
  //! a nearest-first light selector and a flat event queue.
@@ -149,7 +149,7 @@ diff -ruN a/src/lib.rs b/src/lib.rs
  pub mod platform;
 diff -ruN a/src/lights.rs b/src/lights.rs
 --- a/src/lights.rs	2026-10-05 22:43:12.000000000 -0400
-+++ b/src/lights.rs	2026-10-15 20:39:31.000000000 -0400
++++ b/src/lights.rs	2026-11-19 10:04:59.000000000 -0500
 @@ -4,6 +4,10 @@
  // SPDX-License-Identifier: Apache-2.0 OR MIT
  
@@ -163,7 +163,7 @@ diff -ruN a/src/lights.rs b/src/lights.rs
      pub x: f64,
 diff -ruN a/src/platform.rs b/src/platform.rs
 --- a/src/platform.rs	2026-10-07 15:53:19.000000000 -0400
-+++ b/src/platform.rs	2026-10-15 20:39:31.000000000 -0400
++++ b/src/platform.rs	2026-11-19 10:04:59.000000000 -0500
 @@ -5,6 +5,10 @@
  
  /// A moving platform that eases between two anchor points; riders are carried by its
@@ -186,7 +186,7 @@ diff -ruN a/src/platform.rs b/src/platform.rs
          self.dx = nx - self.x;
 diff -ruN a/src/rng.rs b/src/rng.rs
 --- a/src/rng.rs	2026-10-05 22:43:12.000000000 -0400
-+++ b/src/rng.rs	2026-10-15 20:39:31.000000000 -0400
++++ b/src/rng.rs	2026-11-19 10:04:59.000000000 -0500
 @@ -4,6 +4,10 @@
  // SPDX-License-Identifier: Apache-2.0 OR MIT
  
@@ -200,7 +200,7 @@ diff -ruN a/src/rng.rs b/src/rng.rs
          .wrapping_mul(374_761_393)
 diff -ruN a/src/tilemap.rs b/src/tilemap.rs
 --- a/src/tilemap.rs	2026-10-07 15:53:19.000000000 -0400
-+++ b/src/tilemap.rs	2026-10-15 20:39:31.000000000 -0400
++++ b/src/tilemap.rs	2026-11-19 10:04:59.000000000 -0500
 @@ -4,6 +4,10 @@
  // SPDX-License-Identifier: Apache-2.0 OR MIT
  
