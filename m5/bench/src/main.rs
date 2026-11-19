@@ -413,6 +413,7 @@ fn debug_test() {
     const ENTER: u32 = 128;
     const ESC: u32 = 256;
     const DOWN: u32 = 8;
+    const RIGHT: u32 = 2;
     // One tick with `held`, after queuing the keys that came with it.
     let tick = |held: u32, keys: &[u8]| {
         for &k in keys {
@@ -536,6 +537,28 @@ fn debug_test() {
         check(&format!("and Back after the {name} lands on the title"), shell::on_title());
     }
 
+    // The Mode row sits between Warp to level and Back and flips the mode; Left and Right flip it too.
+    video::start(video::TITLE);
+    run(30);
+    check("a game starts in Expert", !shell::normal_chosen());
+    shell::show(110);
+    shell::advance(DOWN);
+    shell::advance(0);
+    shell::advance(ENTER);
+    shell::advance(0);
+    check("Enter on the Mode row makes it Normal", shell::normal_chosen() && shell::debug_open() && !shell::debug_warp_page());
+    shell::advance(ENTER);
+    shell::advance(0);
+    check("and again makes it Expert", !shell::normal_chosen() && shell::debug_open());
+    shell::advance(RIGHT);
+    shell::advance(0);
+    check("Right on the row flips it", shell::normal_chosen());
+    shell::advance(DOWN);
+    shell::advance(0);
+    shell::advance(ENTER);
+    shell::advance(0);
+    check("Back is the row after Mode, and keeps the mode", !shell::debug_open() && shell::normal_chosen());
+
     // A warp: the list, a pick, the level, no save written, and the title at the end.
     video::start(video::TITLE);
     run(30);
@@ -555,6 +578,7 @@ fn debug_test() {
     run(40);
     check("the pick starts that level (the fifth row is level 4, Zarg Lookout)", shell::on_play() && video::level() == 4 && lf_episode_1::mode() == 3);
     check("the run is a warped one", save::locked());
+    check("the warp keeps the chosen mode", shell::normal_chosen());
     // F5 (512) and the pause menu's slots must not write.
     shell::advance(512);
     shell::advance(0);
@@ -609,6 +633,32 @@ fn debug_test() {
     shell::show(10);
     run(20);
     check("a load is not a warp, and its map visit autosaves", !save::locked());
+
+    // The New game screen: Normal is under the cursor, Esc goes back to the title, and the pick starts the opening in that mode.
+    video::start(video::TITLE);
+    run(30);
+    shell::advance(ENTER);
+    shell::advance(0);
+    check("New game opens the mode screen", shell::mode_screen_up());
+    shell::advance(ESC);
+    shell::advance(0);
+    check("Esc on it goes back to the title", shell::on_title() && !shell::mode_screen_up());
+    shell::advance(ENTER);
+    shell::advance(0);
+    shell::advance(DOWN);
+    shell::advance(0);
+    shell::advance(ENTER);
+    shell::advance(0);
+    run(40);
+    check("Expert is the second row, and starts the opening in Expert", !shell::mode_screen_up() && !shell::on_title() && !shell::normal_chosen());
+    video::start(video::TITLE);
+    run(30);
+    shell::advance(ENTER);
+    shell::advance(0);
+    shell::advance(ENTER);
+    shell::advance(0);
+    run(40);
+    check("Normal is the first row, and starts the opening in Normal", !shell::mode_screen_up() && !shell::on_title() && shell::normal_chosen());
 
     if bad == 0 {
         println!("debug ok");
