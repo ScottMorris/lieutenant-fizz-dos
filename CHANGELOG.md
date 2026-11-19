@@ -6,6 +6,8 @@ What changed in each release of Lieutenant Fizz for DOS. A release is a tag `vX.
 
 ### Added
 
+- Normal mode, as in the main game: New game from the title asks for Normal or Expert (Normal first; Esc goes back). Normal has shorter runs of spikes and fewer hazards in the Foundry; Expert is the game as it was. A save records the mode in a spare byte of the same 48-byte file, so earlier saves still load, as Expert, and a loaded game keeps the mode it was saved in.
+- The Debug menu has a Mode row that flips between Expert and Normal; a warp keeps it.
 - A hidden Debug menu, opened from any screen by pressing `2` then Enter within 1.5 seconds, with Warp to level: every level, started on a fresh game. A warped run writes no save (the autosave, the slots and the quick-save are left alone) and ends at the title.
 
 ## 0.3.1 — 2026-10-23

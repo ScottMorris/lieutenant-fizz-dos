@@ -16,6 +16,20 @@ pub const DEBUG_SEQUENCE: [u8; 2] = [SC_2, SC_ENTER];
 /// The longest gap, in milliseconds, between one key of the sequence and the next.
 pub const DEBUG_SEQUENCE_MS: u32 = 1500;
 
+/// The Debug menu's Mode row, flipped: Normal for Expert and Expert for Normal.
+pub fn toggled(normal: bool) -> bool {
+    !normal
+}
+
+/// What the Mode row shows for a mode.
+pub fn mode_name(normal: bool) -> &'static str {
+    if normal {
+        "Normal"
+    } else {
+        "Expert"
+    }
+}
+
 /// Whether a scancode is a Shift, Ctrl or Alt key. Pressing one neither advances the sequence nor drops its progress.
 pub fn is_modifier(code: u8) -> bool {
     matches!(code, 0x2A | 0x36 | 0x1D | 0x38)
@@ -141,6 +155,15 @@ mod tests {
         let mut m = matcher();
         assert!(!m.press(SC_2, u32::MAX - 10));
         assert!(m.press(SC_ENTER, 20));
+    }
+
+    #[test]
+    fn the_mode_row_flips_between_the_two_modes() {
+        assert!(toggled(false));
+        assert!(!toggled(true));
+        assert!(!toggled(toggled(false)));
+        assert_eq!(mode_name(false), "Expert");
+        assert_eq!(mode_name(true), "Normal");
     }
 
     #[test]

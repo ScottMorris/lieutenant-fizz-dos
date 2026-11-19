@@ -2264,6 +2264,142 @@ fn a_ladder_still_snaps_to_its_column_where_a_vine_does_not() {
 }
 
 #[test]
+fn down_grabs_a_vine_that_hangs_below_the_ledge_ben_stands_on() {
+    let mut w = arena();
+    // A ledge four tiles thick with a one-tile shaft through it, and a vine filling the shaft.
+    for x in 8..20 {
+        for y in 2..6 {
+            w.map.set(x, y, FILL);
+        }
+    }
+    for y in 2..6 {
+        w.map.set(14, y, VINE);
+    }
+    // Ben stands on the lip of the ledge with his centre line just inside the shaft.
+    w.p.b.x = 14.2 - w.p.b.w / 2.0;
+    w.p.b.y = 6.0;
+    run(&mut w, 2, 0);
+    assert!(w.p.b.on_ground, "he starts on the ledge");
+    let y0 = w.p.b.y;
+    run(&mut w, 6, DOWN);
+    assert!(w.p.climb && w.p.wall, "Down grabs the vine as a vine");
+    assert!(
+        (w.p.b.centre_x() - 14.5).abs() < 0.01,
+        "lined up with the vine's column"
+    );
+    run(&mut w, 30, DOWN);
+    assert!(w.p.climb, "he keeps climbing down");
+    assert!(w.p.b.y < y0 - 0.8, "and descends, got {}", w.p.b.y - y0);
+    // Not over the shaft: Down does nothing.
+    let mut v = arena();
+    for x in 8..20 {
+        for y in 2..6 {
+            v.map.set(x, y, FILL);
+        }
+    }
+    for y in 2..6 {
+        v.map.set(14, y, VINE);
+    }
+    v.p.b.x = 10.0;
+    v.p.b.y = 6.0;
+    run(&mut v, 2, 0);
+    run(&mut v, 6, DOWN);
+    assert!(!v.p.climb, "no vine under his feet, no grab");
+}
+
+#[test]
+fn down_grabs_a_vine_ben_falls_past_but_not_while_firing_or_after_a_hop_off() {
+    let vine_wall = || {
+        let mut w = arena();
+        for y in 2..14 {
+            w.map.set(14, y, VINE);
+        }
+        w
+    };
+    // Falling past the vine with Down held grabs it, without snapping him to its column.
+    let mut w = vine_wall();
+    w.p.b.x = 14.1;
+    w.p.b.y = 12.0;
+    w.p.b.on_ground = false;
+    run(&mut w, 4, DOWN);
+    assert!(w.p.climb && w.p.wall, "Down grabs a vine he falls past");
+    assert!((w.p.b.x - 14.1).abs() < 0.01, "not snapped to the column");
+    let y0 = w.p.b.y;
+    run(&mut w, 20, DOWN);
+    assert!(w.p.climb && w.p.b.y < y0, "and climbs down it");
+    // Without Down he falls on past it.
+    let mut v = vine_wall();
+    v.p.b.x = 14.1;
+    v.p.b.y = 12.0;
+    v.p.b.on_ground = false;
+    run(&mut v, 4, 0);
+    assert!(!v.p.climb, "no Down, no grab");
+    // Down with Fire held is an aim-down shot, not a grab.
+    let mut f = vine_wall();
+    f.p.b.x = 14.1;
+    f.p.b.y = 12.0;
+    f.p.b.on_ground = false;
+    run(&mut f, 4, DOWN | FIRE);
+    assert!(!f.p.climb, "Down with Fire aims down instead");
+    // A hop off the vine does not re-grab while Down is still held.
+    let mut h = vine_wall();
+    h.p.b.x = 14.1;
+    h.p.b.y = 12.0;
+    h.p.b.on_ground = false;
+    run(&mut h, 4, DOWN);
+    assert!(h.p.climb);
+    h.step(DOWN | JUMP);
+    assert!(!h.p.climb, "Jump lets go");
+    run(&mut h, 6, DOWN);
+    assert!(!h.p.climb, "no immediate re-grab with Down held");
+}
+
+#[test]
+fn down_grabs_a_ladder_ben_falls_past_and_snaps_him_to_it() {
+    let ladder = || {
+        let mut w = arena();
+        for y in 2..14 {
+            w.map.set(14, y, RUNG);
+        }
+        w
+    };
+    let mut w = ladder();
+    w.p.b.x = 14.1;
+    w.p.b.y = 12.0;
+    w.p.b.on_ground = false;
+    run(&mut w, 4, DOWN);
+    assert!(
+        w.p.climb && !w.p.wall,
+        "Down grabs the ladder, not as a vine"
+    );
+    assert!(
+        (w.p.b.centre_x() - 14.5).abs() < 0.01,
+        "snapped to the rung"
+    );
+    let y0 = w.p.b.y;
+    run(&mut w, 20, DOWN);
+    assert!(w.p.climb && w.p.b.y < y0, "and climbs down it");
+    // Without Down, or with Fire held, he falls on past it.
+    for held in [0, DOWN | FIRE] {
+        let mut v = ladder();
+        v.p.b.x = 14.1;
+        v.p.b.y = 12.0;
+        v.p.b.on_ground = false;
+        run(&mut v, 4, held);
+        assert!(!v.p.climb, "no grab with input {held}");
+    }
+    // A hop off the ladder does not re-grab while Down is held.
+    let mut h = ladder();
+    h.p.b.x = 14.1;
+    h.p.b.y = 12.0;
+    h.p.b.on_ground = false;
+    run(&mut h, 4, DOWN);
+    h.step(DOWN | JUMP);
+    run(&mut h, 6, DOWN);
+    assert!(!h.p.climb, "no immediate re-grab with Down held");
+}
+
+#[test]
 fn a_jump_off_a_vine_hops_clear_and_does_not_regrab_with_up_held() {
     let mut w = arena();
     for x in 10..15 {
@@ -4114,3 +4250,189 @@ fn the_maps_lights_follow_what_has_been_cleared_while_ben_is_on_it() {
     assert!(lit(&w) > before, "a pad that has just opened is lit");
     assert_eq!(w.map_lights_done, w.game.done);
 }
+
+// ---------- Normal and Expert modes ----------
+
+/// Every horizontal run of spike tiles in a level, as (row, first column, width).
+fn spike_runs(map: &lf_sim::TileMap) -> Vec<(i32, i32, i32)> {
+    let mut runs = Vec::new();
+    for y in 0..map.h {
+        let mut x = 0;
+        while x < map.w {
+            if map.get(x, y) != SPIKE {
+                x += 1;
+                continue;
+            }
+            let start = x;
+            while x < map.w && map.get(x, y) == SPIKE {
+                x += 1;
+            }
+            runs.push((y, start, x - start));
+        }
+    }
+    runs
+}
+
+#[test]
+fn expert_is_the_default_and_builds_levels_as_they_always_were() {
+    use crate::levels::{build_level, build_level_for, LEVEL_COUNT};
+    assert!(!crate::world::Game::fresh().normal);
+    for id in 0..LEVEL_COUNT {
+        assert_eq!(
+            build_level(id).fingerprint(),
+            build_level_for(id, false).fingerprint(),
+            "level {id}"
+        );
+    }
+    // Pinned so a change to Expert has to be made on purpose (the DOS port's parity check reads these).
+    let prints: Vec<u32> = (0..LEVEL_COUNT)
+        .map(|id| build_level(id).fingerprint())
+        .collect();
+    assert_eq!(
+        prints.as_slice(),
+        &EXPERT_FINGERPRINTS[..],
+        "Expert fingerprints: {prints:08x?}"
+    );
+}
+
+#[test]
+fn normal_narrows_spike_runs_and_changes_nothing_else_in_the_map() {
+    use crate::levels::{build_level, build_level_for, LEVEL_COUNT};
+    let mut narrowed = 0;
+    for id in 0..LEVEL_COUNT {
+        let expert = build_level(id);
+        let normal = build_level_for(id, true);
+        assert_eq!((expert.map.w, expert.map.h), (normal.map.w, normal.map.h));
+        let mut expected = expert.map.data.clone();
+        for (y, x, w) in spike_runs(&expert.map) {
+            if w == 3 || w == 4 {
+                expected[(y * expert.map.w + x + w - 1) as usize] = EMPTY;
+                narrowed += 1;
+            }
+        }
+        assert_eq!(normal.map.data, expected, "level {id} tiles");
+        // Runs of 4 are 3 and runs of 3 are 2 after the change.
+        let widths =
+            |m: &lf_sim::TileMap| spike_runs(m).into_iter().map(|r| r.2).collect::<Vec<_>>();
+        let want: Vec<i32> = widths(&expert.map)
+            .into_iter()
+            .map(|w| if w == 3 || w == 4 { w - 1 } else { w })
+            .collect();
+        assert_eq!(widths(&normal.map), want, "level {id} run widths");
+        assert_eq!(expert.items.len(), normal.items.len(), "level {id} items");
+        assert_eq!(expert.start, normal.start);
+        if id != crate::levels::COCOA_FOUNDRY {
+            assert_eq!(
+                expert.spawns.len(),
+                normal.spawns.len(),
+                "level {id} spawns"
+            );
+        }
+    }
+    assert!(narrowed == 10, "narrowed {narrowed} runs");
+}
+
+#[test]
+fn normal_removes_only_the_named_cocoa_foundry_enemies() {
+    use crate::levels::{build_level, build_level_for, COCOA_FOUNDRY};
+    let expert = build_level(COCOA_FOUNDRY);
+    let normal = build_level_for(COCOA_FOUNDRY, true);
+    let cut = |k: Kind, x: f64| {
+        matches!(
+            (k, x),
+            (Kind::Phantom, 98.0)
+                | (Kind::Phantom, 142.0)
+                | (Kind::Sentry, 108.0)
+                | (Kind::Drone, 140.5)
+                | (Kind::Press, 108.0)
+                | (Kind::Press, 164.0)
+        )
+    };
+    let removed = expert.spawns.iter().filter(|s| cut(s.kind, s.x)).count();
+    assert_eq!(removed, 6, "each named spawn exists exactly once");
+    assert_eq!(normal.spawns.len(), expert.spawns.len() - 6);
+    assert!(normal.spawns.iter().all(|s| !cut(s.kind, s.x)));
+    let kept: Vec<_> = expert.spawns.iter().filter(|s| !cut(s.kind, s.x)).collect();
+    for (a, b) in kept.iter().zip(&normal.spawns) {
+        assert_eq!((a.kind, a.x, a.y), (b.kind, b.x, b.y));
+    }
+    assert_eq!(expert.items.len(), normal.items.len());
+}
+
+#[test]
+fn the_normal_state_slot_reads_back_and_is_applied_when_a_level_is_built() {
+    use crate::state::NORMAL;
+    let mut w = World::new();
+    assert_eq!(crate::state_get(NORMAL), 0.0);
+    crate::state_set(NORMAL, 1.0);
+    assert_eq!(crate::state_get(NORMAL), 1.0);
+    crate::state_set(NORMAL, 5.0);
+    assert_eq!(
+        crate::state_get(NORMAL),
+        1.0,
+        "any non-zero value is Normal"
+    );
+    crate::state_set(NORMAL, 0.0);
+    assert_eq!(crate::state_get(NORMAL), 0.0);
+
+    w.game_new();
+    w.game.normal = true;
+    w.enter_level(crate::levels::COCOA_FOUNDRY);
+    assert!(!w
+        .ents
+        .iter()
+        .any(|e| e.kind == Kind::Phantom && e.b.x < 100.0 && e.b.x > 95.0));
+    // A new game goes back to Expert.
+    w.game_new();
+    assert!(!w.game.normal);
+}
+
+#[test]
+fn a_plain_full_speed_jump_clears_a_normal_two_wide_spike_run() {
+    use crate::levels::build_level_for;
+    let l = build_level_for(CRATER, true);
+    let (row, x0, width) = spike_runs(&l.map)
+        .into_iter()
+        .find(|r| r.2 == 2)
+        .expect("Crater Fields has a 2-wide run in Normal");
+    assert_eq!(width, 2);
+    let mut w = World::new();
+    w.game_new();
+    w.game.normal = true;
+    w.enter_level(CRATER);
+    w.ents.clear();
+    w.events.clear();
+    // Run up at full speed on the flat ground before the run, then jump a tile short of it.
+    let ground = f64::from(row);
+    w.p.b.x = f64::from(x0) - 8.0;
+    w.p.b.y = ground;
+    run(&mut w, 40, RIGHT);
+    let mut jumped = false;
+    for _ in 0..240 {
+        let at_edge = w.p.b.x >= f64::from(x0) - 1.0;
+        let held = if at_edge || jumped {
+            RIGHT | JUMP
+        } else {
+            RIGHT
+        };
+        if at_edge && !jumped && w.p.b.on_ground {
+            jumped = true;
+        }
+        w.step(held);
+        assert!(
+            w.p.dead <= 0.0,
+            "died at x={:.2} y={:.2} (run at {x0})",
+            w.p.b.x,
+            w.p.b.y
+        );
+        if w.p.b.x > f64::from(x0) + 3.5 {
+            break;
+        }
+    }
+    assert!(jumped && w.p.b.x > f64::from(x0) + 2.0, "x={:.2}", w.p.b.x);
+}
+
+const EXPERT_FINGERPRINTS: [u32; 15] = [
+    0x6e9fac40, 0xf987a12b, 0x745ad35d, 0x7b060540, 0x0b121da9, 0xa76e561a, 0xe697af7d, 0x975ce0f7,
+    0x996e49e8, 0xd7e01e1e, 0x7a829e5e, 0x420905a2, 0xfe685abf, 0xf6ebc912, 0x144080be,
+];
