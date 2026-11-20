@@ -1455,7 +1455,8 @@ pub fn overlay(frame: &mut [u8], cam_px: (i32, i32)) {
             }
         }
         _ => {
-            let mut floor = TOAST_FLOOR;
+            // The boss's talk box takes the foot while it is up; toasts and hints stack above it.
+            let mut floor = if s.dialogue.is_some() { DIALOGUE_TOP - 2 } else { TOAST_FLOOR };
             if m == 2 || m == 3 {
                 captions(frame, s, cam_px);
                 if under == Screen::Play {
@@ -1786,7 +1787,7 @@ fn dialogue_box(frame: &mut [u8], d: Dialogue, tick: u32) {
     let Some(&(who, text)) = lines.get(usize::from(d.line)) else {
         return;
     };
-    let (x, y, w, h) = (6, H as i32 - 62, W as i32 - 12, 56);
+    let (x, y, w, h) = (6, DIALOGUE_TOP, W as i32 - 12, 56);
     ui::dim(frame, x, y, w, h, 11);
     ui::outline(frame, x, y, w, h, ui::GREY);
     let colour = match who {
@@ -1892,6 +1893,9 @@ fn hud(frame: &mut [u8]) {
 
 /// Where a toast's bottom edge sits when nothing is below it: the same gap from the foot as the map prompt.
 const TOAST_FLOOR: i32 = H as i32 - 4;
+
+/// The top edge of the boss's talk box.
+const DIALOGUE_TOP: i32 = H as i32 - 62;
 
 fn toast(frame: &mut [u8], id: u16, floor: i32) -> i32 {
     toast_text(frame, TOASTS[usize::from(id).min(TOASTS.len() - 1)], floor)

@@ -10,6 +10,11 @@ What changed in each release of Lieutenant Fizz for DOS. A release is a tag `vX.
 - The Debug menu has a Mode row that flips between Expert and Normal; a warp keeps it.
 - A hidden Debug menu, opened from any screen by pressing `2` then Enter within 1.5 seconds, with Warp to level: every level, started on a fresh game. A warped run writes no save (the autosave, the slots and the quick-save are left alone) and ends at the title.
 
+### Changed
+
+- The level cleared, tumble, end and game over cards let as much of the scene through as the map's panel does; they were nearly solid.
+- Toasts and hints now sit at the foot of the screen instead of the top. On the map they stack above the prompt, and during the boss's talk they stack above its box. The quick-save line moves up out of their way.
+
 ## 0.3.1 — 2026-10-23
 
 ### Added
