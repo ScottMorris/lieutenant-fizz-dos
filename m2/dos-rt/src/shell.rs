@@ -1455,23 +1455,25 @@ pub fn overlay(frame: &mut [u8], cam_px: (i32, i32)) {
             }
         }
         _ => {
+            let mut floor = TOAST_FLOOR;
             if m == 2 || m == 3 {
                 captions(frame, s, cam_px);
                 if under == Screen::Play {
                     hud(frame);
                 }
-                if let Some((id, _)) = s.toast {
-                    toast(frame, id);
-                }
+                // The map's prompt takes the foot of the screen; a toast stacks above it.
                 if let (2, Some((kind, id, extra))) = (m, s.prompt) {
-                    prompt(frame, kind, id, extra);
+                    floor = prompt(frame, kind, id, extra) - 2;
+                }
+                if let Some((id, _)) = s.toast {
+                    floor = toast(frame, id, floor);
                 }
             }
             if let Some(card) = s.card {
                 card_screen(frame, card);
             }
             if let Some((text, _)) = s.hint {
-                toast_text(frame, text);
+                floor = toast_text(frame, text, floor);
             }
             if let Some(d) = s.dialogue {
                 dialogue_box(frame, d, s.tick);
@@ -1492,8 +1494,10 @@ pub fn overlay(frame: &mut [u8], cam_px: (i32, i32)) {
                     _ => ("No quick-save yet: F5 makes one", ui::RED),
                 };
                 let w = ui::text_width(text) + 14;
-                ui::dim(frame, (W as i32 - w) / 2, 164, w, 14, 11);
-                ui::text_centred(frame, W as i32 / 2, 168, text, ink);
+                // Above any toast at the foot of the screen.
+                let y = 164.min(floor - 16);
+                ui::dim(frame, (W as i32 - w) / 2, y, w, 14, 11);
+                ui::text_centred(frame, W as i32 / 2, y + 4, text, ink);
             }
         }
     }
@@ -1886,21 +1890,27 @@ fn hud(frame: &mut [u8]) {
     }
 }
 
-fn toast(frame: &mut [u8], id: u16) {
-    toast_text(frame, TOASTS[usize::from(id).min(TOASTS.len() - 1)]);
+/// Where a toast's bottom edge sits when nothing is below it: the same gap from the foot as the map prompt.
+const TOAST_FLOOR: i32 = H as i32 - 4;
+
+fn toast(frame: &mut [u8], id: u16, floor: i32) -> i32 {
+    toast_text(frame, TOASTS[usize::from(id).min(TOASTS.len() - 1)], floor)
 }
 
-fn toast_text(frame: &mut [u8], text: &str) {
+/// Draws a toast with its bottom edge at `floor`, and returns the line a toast above it should sit on.
+fn toast_text(frame: &mut [u8], text: &str, floor: i32) -> i32 {
     let mut lines = [(0, 0); 4];
     let n = ui::wrap(text, 290, &mut lines);
     let h = n as i32 * ui::LINE + 11;
-    ui::dim(frame, 8, 24, W as i32 - 16, h, 9);
-    ui::outline(frame, 8, 24, W as i32 - 16, h, ui::DARK);
-    ui::paragraph(frame, 15, 29, 290, text, ui::WHITE);
+    let y = floor - h;
+    ui::dim(frame, 8, y, W as i32 - 16, h, 9);
+    ui::outline(frame, 8, y, W as i32 - 16, h, ui::DARK);
+    ui::paragraph(frame, 15, y + 5, 290, text, ui::WHITE);
+    y - 2
 }
 
-/// The panel at the foot of the map for the marker Ben is standing at.
-fn prompt(frame: &mut [u8], kind: u8, id: i32, extra: i32) {
+/// The panel at the foot of the map for the marker Ben is standing at. Returns its top edge, or the foot when there is none.
+fn prompt(frame: &mut [u8], kind: u8, id: i32, extra: i32) -> i32 {
     let level = |i: i32| LEVEL_NAMES[(i.max(0) as usize).min(LEVEL_NAMES.len() - 1)];
     let mut text = Buf::new();
     let (title, action): (&str, Option<&str>) = match kind {
@@ -1937,7 +1947,7 @@ fn prompt(frame: &mut [u8], kind: u8, id: i32, extra: i32) {
             let _ = write!(text, "{}", SIGNS[(id.max(0) as usize).min(SIGNS.len() - 1)]);
             ("Sign", None)
         }
-        _ => return,
+        _ => return TOAST_FLOOR,
     };
     let mut lines = [(0, 0); 6];
     let n = ui::wrap(text.as_str(), 294, &mut lines) as i32;
@@ -1952,6 +1962,7 @@ fn prompt(frame: &mut [u8], kind: u8, id: i32, extra: i32) {
         let _ = write!(label, "Press Enter, Jump or Fire to {}", a.to_ascii_lowercase());
         ui::text(frame, 13, y + 6 + ui::LINE * (n + 1), label.as_str(), ui::CYAN);
     }
+    y
 }
 
 fn card_screen(frame: &mut [u8], card: Card) {
@@ -1997,7 +2008,7 @@ fn card_screen(frame: &mut [u8], card: Card) {
     let n = ui::wrap(text.as_str(), 232, &mut lines) as i32;
     let h = 16 + ui::LINE * 2 + n * ui::LINE + 8;
     let (w, x, y) = (252, (W as i32 - 252) / 2, (H as i32 - h) / 2);
-    ui::dim(frame, x, y, w, h, 14);
+    ui::dim(frame, x, y, w, h, 9);
     ui::fill(frame, x, y, w, 1, ui::YELLOW);
     ui::outline(frame, x, y, w, h, ui::DARK);
     ui::text_centred(frame, W as i32 / 2, y + 8, title.as_str(), ui::YELLOW);
