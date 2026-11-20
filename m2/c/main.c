@@ -24,3 +24,6 @@ int detail_active(void) { return 0; }
 void settings_save(int night) { (void)night; }
 /* The keyboard is not hooked in the hash check, so no key press is ever waiting. */
 int kbd_raw_pop(void) { return -1; }
+int scheme_mode(void) { return 1; }
+void scheme_set(int scheme) { (void)scheme; }
+int keymap_next(int scheme) { return scheme; }
