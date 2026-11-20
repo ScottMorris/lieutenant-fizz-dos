@@ -4,6 +4,11 @@ What changed in each release of Lieutenant Fizz for DOS. A release is a tag `vX.
 
 ## Unreleased
 
+### Changed
+
+- The level cleared, tumble, end and game over cards let as much of the scene through as the map's panel does; they were nearly solid.
+- Toasts and hints now sit at the foot of the screen instead of the top. On the map they stack above the prompt, and during the boss's talk they stack above its box. The quick-save line moves up out of their way.
+
 ## 0.3.1 — 2026-10-23
 
 ### Added
