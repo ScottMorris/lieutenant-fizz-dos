@@ -29,7 +29,7 @@ The two big caches are deliberately all-zero at start (`BakeCache`'s keys use bi
 `main` in `m4/c/main.c`, interactive path (no tick count on the command line):
 
 ```
-settings_load()                 FIZZ.CFG → music, effects, device, frame rate, detail, night
+settings_load()                 FIZZ.CFG → music, effects, device, frame rate, detail, night, key scheme
 parse argv                      "text" may come first; the level, the ticks, then overrides for this run (nosound, fps30, text, ...)
 compat_probe()                  the system check's hardware probes, before the game takes its memory
 fizz_start(level, 1)            only when the machine has what the game needs (fizz_preview_ready)
@@ -76,9 +76,9 @@ The sound handler's smaller statics (`want_music`, `want_fx`, `spk_*`, `old_acc`
 
 Reading the state (main program side):
 
-- `kbd_held()` — the game's input bits from what is held now, through `keymap_bits` (`m4/c/keymap.c`): arrows or WASD move, Ctrl or Z jump, Alt or X pogo, Space or C fire, Enter confirm, Esc menu. The bits are the sim's (`IN_*` in `keymap.h`).
-- `kbd_tick_bits()` — what is held **or** latched, for the 16 game keys, and clears those latches. A key pressed and released between two ticks has `keys` clear but `latch` set, so the tick still sees it: a tap shorter than a tick (1/60 s) is never lost. It also carries `IN_ANY` (bit 2048) for a key of any kind pressed since the last call: the ISR sets a flag on each new press (never on a repeat, so a key already down does not count), and this clears it. Only the opening titles read it.
-- `kbd_pressed(sc)` — one latched press of a key, cleared on read; used by the main loop for its own keys (PgUp/PgDn change level, R restarts, Backspace goes to the map, N night, M music, E effects; M and E are kept in `FIZZ.CFG`; N turns the game's own night flag, the one the Options screen's Night row sets, with `fizz_toggle_night`, for the run only) and by the system check.
+- `kbd_held()` — the game's input bits from what is held now, through `keymap_bits(keys, scheme)` (`m4/c/keymap.c`): arrows or WASD move in every scheme, the chosen scheme's three keys jump, pogo and fire (Modern Z, X, C; Keen-style Ctrl, Alt, Space; WASD Space, K, J; Left hand Space, Q, E; Right hand comma, period, slash), Enter confirm, Esc menu. `kbd_set_scheme` and `kbd_scheme` hold the scheme; the scheme numbers are the web game's, with 3 (Mouse) not offered, and a number the build does not offer plays as Modern. The bits are the sim's (`IN_*` in `keymap.h`).
+- `kbd_tick_bits()` — what is held **or** latched, for the game keys of every scheme, and clears those latches. A key pressed and released between two ticks has `keys` clear but `latch` set, so the tick still sees it: a tap shorter than a tick (1/60 s) is never lost. It also carries `IN_ANY` (bit 2048) for a key of any kind pressed since the last call: the ISR sets a flag on each new press (never on a repeat, so a key already down does not count), and this clears it. Only the opening titles read it.
+- `kbd_pressed(sc)` — one latched press of a key, cleared on read; used by the main loop for its own keys (PgUp/PgDn change level, R restarts, Backspace goes to the map, N night, M music, E effects, which the Left hand scheme turns off because E is its Fire key; M and E are kept in `FIZZ.CFG`; N turns the game's own night flag, the one the Options screen's Night row sets, with `fizz_toggle_night`, for the run only) and by the system check.
 - `kbd_raw_pop()` — the scancode of the oldest new key press not yet taken, or -1: a 16-entry queue the ISR fills on each new press (a held key's repeats are not presses; a full queue drops the newest), which the shell empties every tick to watch for the Debug menu's key sequence (`m2/dos-rt/src/debug.rs`). It is separate from `latch`, so it changes nothing that the calls above return.
 - `kbd_down(sc)` — the held state of one key.
 
@@ -254,9 +254,9 @@ Loading starts a new game and sets these through the simulation's `state_set`, t
 | 8 | detail (0 auto, 1 high, 2 low) |
 | 9 | night |
 | 10 | sound choice: written as 0 (auto) and not read, as the start-up screen no longer offers one |
-| 11 | spare |
+| 11 | key scheme plus one: 0 (an older file, or none chosen) is Modern, otherwise the scheme number is the byte minus one (0 Keen-style, 1 Modern, 2 WASD, 4 Left hand, 5 Right hand); a value this build does not offer reads as Modern |
 
-Out-of-range values fall back to auto. Command-line arguments override the file for that run only.
+Out-of-range values fall back to auto. The key scheme needed no new version: byte 11 was always written as 0, so a file from before the scheme existed loads as Modern, and the version stays 1. Command-line arguments override the file for that run only.
 
 ## The C/Rust boundary
 

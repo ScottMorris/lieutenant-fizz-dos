@@ -6,12 +6,17 @@ What changed in each release of Lieutenant Fizz for DOS. A release is a tag `vX.
 
 ### Added
 
+- **Key schemes.** Options has a Keys row that chooses how Jump, Pogo and Fizz are keyed, as in the web game: Modern (Z, X, C), Keen-style (Ctrl, Alt, Space), WASD (Space, K, J), Left hand (Space, Q, E) and Right hand (comma, period, slash). The arrow keys and WASD move in every scheme. The web game's Mouse scheme is not offered, and its number is kept so a saved choice means the same in both.
+- The Controls screen, the readmes and the page show the chosen scheme's keys.
+- `FIZZ.CFG` keeps the scheme in its spare byte as the scheme plus one, so a file from an earlier version loads as Modern and the file stays 12 bytes at version 1.
 - Normal mode, as in the main game: New game from the title asks for Normal or Expert (Normal first; Esc goes back). Normal has shorter runs of spikes and fewer hazards in the Foundry; Expert is the game as it was. A save records the mode in a spare byte of the same 48-byte file, so earlier saves still load, as Expert, and a loaded game keeps the mode it was saved in.
 - The Debug menu has a Mode row that flips between Expert and Normal; a warp keeps it.
 - A hidden Debug menu, opened from any screen by pressing `2` then Enter within 1.5 seconds, with Warp to level: every level, started on a fresh game. A warped run writes no save (the autosave, the slots and the quick-save are left alone) and ends at the title.
 
 ### Changed
 
+- Only the chosen scheme's three keys act. Before, Ctrl or Z, Alt or X and Space or C all worked at once; the default is now Modern, so Ctrl, Alt and Space no longer play until Keys is set to Keen-style. In menus Enter always confirms; the Jump and Fizz keys of the chosen scheme confirm too.
+- With the Left hand scheme, E is Fizz, so the E key no longer turns effects on or off; use Options.
 - The level cleared, tumble, end and game over cards let as much of the scene through as the map's panel does; they were nearly solid.
 - Toasts and hints now sit at the foot of the screen instead of the top. On the map they stack above the prompt, and during the boss's talk they stack above its box. The quick-save line moves up out of their way.
 
