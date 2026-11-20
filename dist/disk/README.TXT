@@ -31,9 +31,13 @@ RUN IT
 
 KEYS
   Arrows or WASD   move (Up and Down also climb and look)
-  Ctrl or Z        jump
-  Alt or X         pogo stick
-  Space or C       fire
+  Jump, pogo, fire the three keys of the scheme chosen in Options, Keys:
+                     Modern (the default)  Z, X, C
+                     Keen-style            Ctrl, Alt, Space
+                     WASD                  Space, K, J
+                     Left hand             Space, Q, E (E no longer
+                                           turns effects on or off)
+                     Right hand            comma, period, slash
   Enter            confirm: enter a level marker, dismiss a card
   Esc              pause menu, and back in a menu
   Backspace        back to the overworld map
