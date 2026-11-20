@@ -100,6 +100,19 @@ pub extern "C" fn detail_active() -> i32 {
 pub extern "C" fn settings_save(_night: i32) {}
 
 #[no_mangle]
+pub extern "C" fn scheme_mode() -> i32 {
+    1
+}
+
+#[no_mangle]
+pub extern "C" fn scheme_set(_scheme: i32) {}
+
+#[no_mangle]
+pub extern "C" fn keymap_next(scheme: i32) -> i32 {
+    scheme
+}
+
+#[no_mangle]
 pub extern "C" fn snd_fx_device() -> i32 {
     1
 }

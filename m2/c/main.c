@@ -22,3 +22,6 @@ int detail_mode(void) { return 0; }
 void detail_set(int mode) { (void)mode; }
 int detail_active(void) { return 0; }
 void settings_save(int night) { (void)night; }
+int scheme_mode(void) { return 1; }
+void scheme_set(int scheme) { (void)scheme; }
+int keymap_next(int scheme) { return scheme; }
