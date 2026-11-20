@@ -8,6 +8,8 @@
 #define KBD_H
 int kbd_install(void);   /* hook IRQ 1; 0 on success */
 void kbd_remove(void);   /* give the keyboard back to DOS (also run at exit) */
+void kbd_set_scheme(int scheme); /* the key scheme to read the keys by (see keymap.h); a number this build does not offer is Modern */
+int kbd_scheme(void);
 unsigned kbd_held(void); /* the game's input bits right now */
 int kbd_down(int scancode);
 /* The game bits for one tick: what is held, plus any key pressed and released since the last tick (so a quick tap is never lost), and IN_ANY for a key of any kind pressed since the last call. */
