@@ -190,7 +190,7 @@ pub extern "C" fn enter_level(id: u32) {
 /// can tell whether the level it was made on has changed since. An unknown id gives the first level's.
 #[no_mangle]
 pub extern "C" fn level_hash(id: u32) -> u32 {
-    levels::build_level(u8::try_from(id).unwrap_or(u8::MAX)).fingerprint()
+    levels::build_level_for(u8::try_from(id).unwrap_or(u8::MAX), w().game.normal).fingerprint()
 }
 
 /// How many shots are in flight (read-only): Ben's fizz bubbles and the enemies' shots together.
@@ -292,6 +292,10 @@ pub mod state {
     /// What killed him (read-only): the tile id for spikes, chocolate and molten metal, the enemy kind
     /// (its position in `ents::Kind`) for an enemy or a puff, else 0.
     pub const DEATH_DETAIL: u32 = 25;
+    /// The difficulty mode: 0 is Expert (the default and the original rules), 1 is Normal. Set it after a
+    /// new game and before a level is entered, since it decides how the level is built. Reading it gives
+    /// 0 or 1; writing any non-zero value selects Normal. A new game resets it to Expert.
+    pub const NORMAL: u32 = 26;
 }
 
 #[no_mangle]
@@ -330,6 +334,7 @@ pub extern "C" fn state_get(i: u32) -> f64 {
         POGO_ON => b(s.p.pogo),
         DEATH_CAUSE => f64::from(s.p.death_cause),
         DEATH_DETAIL => f64::from(s.p.death_detail),
+        NORMAL => b(s.game.normal),
         _ => 0.0,
     }
 }
@@ -363,6 +368,7 @@ pub extern "C" fn state_set(i: u32, v: f64) {
             }
         }
         POGO_HEIGHT => s.pogo_height = v,
+        NORMAL => s.game.normal = v != 0.0,
         // Restores a recorded tick: a Phantom's teleport reads the absolute tick, so a replay of a level
         // that started late in a session needs the tick it started on.
         TICK => s.tick_count = v as u32,

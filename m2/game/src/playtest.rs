@@ -122,6 +122,7 @@ impl Waypoint {
     }
 }
 
+#[derive(Clone)]
 pub struct Options {
     pub beam: usize,
     /// Most states kept per tile column, height band and ground/air state.
@@ -134,6 +135,8 @@ pub struct Options {
     pub pogo: bool,
     /// Keep enemies (the default removes everything hostile).
     pub keep_enemies: bool,
+    /// Play the level in Normal mode instead of Expert.
+    pub normal: bool,
 }
 
 impl Default for Options {
@@ -146,6 +149,7 @@ impl Default for Options {
             fire: false,
             pogo: true,
             keep_enemies: false,
+            normal: false,
         }
     }
 }
@@ -331,6 +335,7 @@ pub fn solve(mut start: World, route: &[Waypoint], o: &Options) -> Outcome {
 pub fn play_level(id: u8, route: &[Waypoint], o: &Options) -> Outcome {
     let mut w = World::new();
     w.game_new();
+    w.game.normal = o.normal;
     w.enter_level(id);
     solve(w, route, o)
 }
@@ -340,6 +345,35 @@ mod tests {
     use super::*;
     use crate::levels::{build_level, METEOR_MESA};
     use crate::tiles::EXIT;
+
+    /// Plays the level in Expert and then in Normal with the same route. Gives the Expert outcome, unless
+    /// Expert finished and Normal did not, in which case Normal's.
+    fn play_both(id: u8, route: &[Waypoint], o: &Options) -> Outcome {
+        let expert = play_level(
+            id,
+            route,
+            &Options {
+                normal: false,
+                ..o.clone()
+            },
+        );
+        if !expert.finished {
+            return expert;
+        }
+        let normal = play_level(
+            id,
+            route,
+            &Options {
+                normal: true,
+                ..o.clone()
+            },
+        );
+        if normal.finished {
+            expert
+        } else {
+            normal
+        }
+    }
 
     /// Where the exit tile sits, as a waypoint standing in front of it.
     pub fn exit_of(id: u8) -> Waypoint {
@@ -360,7 +394,7 @@ mod tests {
 
     #[test]
     fn crater_fields_can_be_finished_via_the_red_key() {
-        let r = play_level(
+        let r = play_both(
             crate::levels::CRATER,
             &[wp(132.5, 13.0), exit_of(crate::levels::CRATER)],
             &Options::default(),
@@ -374,7 +408,7 @@ mod tests {
 
     #[test]
     fn crystal_caves_can_be_finished_via_the_switch_and_blue_key() {
-        let r = play_level(
+        let r = play_both(
             crate::levels::CAVES,
             &[
                 wp(57.5, 4.0),
@@ -427,7 +461,7 @@ mod tests {
             max_ticks: 14_000,
             ..Options::default()
         };
-        let r = play_level(ZARG_LOOKOUT, &route, &o);
+        let r = play_both(ZARG_LOOKOUT, &route, &o);
         assert!(
             r.finished,
             "bot stalled at wp {} after {} ticks; best states {:?}",
@@ -439,7 +473,7 @@ mod tests {
     fn marshmallow_meadows_can_be_finished_via_the_blue_key() {
         use crate::levels::MARSHMALLOW_MEADOWS;
         let route = [wp(59.5, 15.0), exit_of(MARSHMALLOW_MEADOWS)];
-        let r = play_level(MARSHMALLOW_MEADOWS, &route, &Options::default());
+        let r = play_both(MARSHMALLOW_MEADOWS, &route, &Options::default());
         assert!(
             r.finished,
             "bot stalled at wp {} after {} ticks; best states {:?}",
@@ -456,7 +490,7 @@ mod tests {
             max_ticks: 9_000,
             ..Options::default()
         };
-        let r = play_level(SAUCER, &route, &o);
+        let r = play_both(SAUCER, &route, &o);
         assert!(
             r.finished,
             "bot stalled at wp {} after {} ticks; best states {:?}",
@@ -474,7 +508,7 @@ mod tests {
             max_ticks: 12_000,
             ..Options::default()
         };
-        let r = play_level(WHISPER_HOLLOW, &route, &o);
+        let r = play_both(WHISPER_HOLLOW, &route, &o);
         assert!(
             r.finished,
             "bot stalled at wp {} after {} ticks, best {:.1},{:.1}; best states {:?}",
@@ -490,7 +524,7 @@ mod tests {
             max_ticks: 3_000,
             ..Options::default()
         };
-        assert!(!play_level(WHISPER_HOLLOW, &route, &o).finished);
+        assert!(!play_both(WHISPER_HOLLOW, &route, &o).finished);
     }
 
     #[test]
@@ -503,7 +537,7 @@ mod tests {
             beam: 400,
             ..Options::default()
         };
-        let r = play_level(BONBON_PLAYHOUSE, &route, &o);
+        let r = play_both(BONBON_PLAYHOUSE, &route, &o);
         assert!(
             r.finished,
             "bot stalled at wp {} after {} ticks; best states {:?}",
@@ -515,7 +549,7 @@ mod tests {
     fn fudge_bog_can_be_finished_via_the_red_key() {
         use crate::levels::FUDGE_BOG;
         let route = [wp(139.5, 15.0), exit_of(FUDGE_BOG)];
-        let r = play_level(FUDGE_BOG, &route, &Options::default());
+        let r = play_both(FUDGE_BOG, &route, &Options::default());
         assert!(
             r.finished,
             "bot stalled at wp {} after {} ticks; best states {:?}",
@@ -542,7 +576,7 @@ mod tests {
             max_ticks: 16_000,
             ..Options::default()
         };
-        let r = play_level(MIRROR_SHAFTS, &route, &o);
+        let r = play_both(MIRROR_SHAFTS, &route, &o);
         assert!(
             r.finished,
             "bot stalled at wp {} after {} ticks; best states {:?}",
@@ -559,7 +593,7 @@ mod tests {
             wp(130.5, 10.0), // the mural alcove
             exit_of(SUGAR_GLASS_GALLERY),
         ];
-        let r = play_level(SUGAR_GLASS_GALLERY, &route, &Options::default());
+        let r = play_both(SUGAR_GLASS_GALLERY, &route, &Options::default());
         assert!(
             r.finished,
             "bot stalled at wp {} after {} ticks; best states {:?}",
@@ -571,7 +605,7 @@ mod tests {
     fn frosting_flats_can_be_finished_via_the_red_key() {
         use crate::levels::FROSTING_FLATS;
         let route = [wp(131.5, 12.0), exit_of(FROSTING_FLATS)];
-        let r = play_level(FROSTING_FLATS, &route, &Options::default());
+        let r = play_both(FROSTING_FLATS, &route, &Options::default());
         assert!(
             r.finished,
             "bot stalled at wp {} after {} ticks; best states {:?}",
@@ -625,7 +659,7 @@ mod tests {
             max_ticks: 40_000,
             ..Options::default()
         };
-        let r = play_level(FROSTING_SPIRE, &route, &o);
+        let r = play_both(FROSTING_SPIRE, &route, &o);
         assert!(
             r.finished,
             "bot stalled at wp {} after {} ticks; keys {:?}; best states {:?}",
@@ -637,7 +671,7 @@ mod tests {
     fn cocoa_foundry_can_be_finished_via_the_blue_key() {
         use crate::levels::COCOA_FOUNDRY;
         let route = [wp(93.5, 12.0), exit_of(COCOA_FOUNDRY)];
-        let r = play_level(COCOA_FOUNDRY, &route, &Options::default());
+        let r = play_both(COCOA_FOUNDRY, &route, &Options::default());
         assert!(
             r.finished,
             "bot stalled at wp {} after {} ticks; keys {:?}; best states {:?}",
@@ -649,7 +683,7 @@ mod tests {
     fn gumdrop_isle_can_be_finished() {
         use crate::levels::GUMDROP_ISLE;
         let route = [exit_of(GUMDROP_ISLE)];
-        let r = play_level(GUMDROP_ISLE, &route, &Options::default());
+        let r = play_both(GUMDROP_ISLE, &route, &Options::default());
         assert!(
             r.finished,
             "bot stalled at wp {} after {} ticks; best states {:?}",
@@ -659,7 +693,7 @@ mod tests {
 
     #[test]
     fn meteor_mesa_can_be_finished() {
-        let r = play_level(METEOR_MESA, &[exit_of(METEOR_MESA)], &Options::default());
+        let r = play_both(METEOR_MESA, &[exit_of(METEOR_MESA)], &Options::default());
         assert!(
             r.finished,
             "bot stalled at x={:.1} y={:.1} after {} ticks",
@@ -676,7 +710,7 @@ mod tests {
             max_ticks: 2500,
             ..Options::default()
         };
-        let r = play_level(METEOR_MESA, &route, &o);
+        let r = play_both(METEOR_MESA, &route, &o);
         assert!(!r.finished, "a skipped waypoint must not pass");
     }
 }
