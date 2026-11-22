@@ -16,11 +16,11 @@ int mouse_present(void);
    times since the last read, so a click shorter than a tick still gives its bit for one tick. No DOS is involved. */
 unsigned mouse_bits(int status, int left_presses, int right_presses);
 /* One tick's bits, read from the driver (button status and each button's press count): the held buttons plus any click since the last
-   tick. It is only for the Mouse scheme; a first call after the scheme was not in use drops the clicks made meanwhile. Returns 0
+   tick. It is only for the WASD scheme with a mouse found at start-up; a first call after it was not in use drops the clicks made meanwhile. Returns 0
    without a mouse. */
 unsigned mouse_tick_bits(void);
 /* The bits of the last mouse_tick_bits(), for the ticks of a catch-up that follow the first one. */
 unsigned mouse_held(void);
-/* Tells the module the Mouse scheme is not in use, so nothing is read from the driver and the next use starts clean. */
+/* Tells the module the mouse is not being read (any scheme but WASD), so nothing is read from the driver and the next use starts clean. */
 void mouse_idle(void);
 #endif

@@ -117,8 +117,8 @@ static int night_pref = 0, music_pref = 1, fx_pref = 1, dev_pref = 0;
 
 /* The key scheme (see keymap.h). It is kept in the spare byte as the scheme plus one, so that a file from before the scheme was added,
    which has a zero there, reads as no choice and gets the default, Modern.
-   The Mouse scheme (3) is offered only where a mouse driver answered at start-up (mouse_init, then keymap_set_mouse). The screens ask for the
-   scheme in use, which is Modern when the saved choice is Mouse and there is no mouse; the file keeps the choice as it was given. */
+   Number 3 (a Mouse scheme in an earlier build, so a saved Mouse reads 4 here) is retired and plays as WASD; the first save writes 2. The mouse is
+   not a scheme: WASD also takes the mouse's buttons when a driver answered at start-up (mouse_init). */
 int scheme_mode(void) { return kbd_effective_scheme(); }
 void scheme_set(int scheme) { kbd_set_scheme(scheme); }
 /* Whether the E key stays the effects shortcut: it does not when the scheme uses E for Fizz. */
@@ -268,8 +268,8 @@ int main(int argc, char **argv) {
   char cpu[16];
   unsigned t, clear = 0;
   unsigned char pal[768];
-  /* The mouse driver is reset once, before anything reads the saved scheme or builds the Options screen; the start-up check shows the same answer. */
-  keymap_set_mouse(mouse_init());
+  /* The mouse driver is reset once, before the Controls screen is built or WASD reads the buttons; the start-up check shows the same answer. */
+  mouse_init();
   settings_load();
   night = night_pref;
   for (i = first + 2; i < argc; i++) {

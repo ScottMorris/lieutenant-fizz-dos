@@ -53,7 +53,7 @@ unsigned mouse_tick_bits(void) {
   right = call(5, 1).x.bx;
   status = call(3, 0).x.bx;
   if (!active) {
-    /* The scheme was not Mouse until now: clicks made before then are not for the game. */
+    /* The mouse was not being read until now: clicks made before then are not for the game. */
     active = 1;
     left = right = 0;
   }

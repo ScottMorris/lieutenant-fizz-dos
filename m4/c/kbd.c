@@ -77,9 +77,9 @@ void kbd_remove(void) {
   installed = 0;
 }
 
-/* The chosen scheme is kept as given (a number out of range is Modern), so a Mouse choice saved on a machine without a mouse stays
-   what FIZZ.CFG keeps; what the keys and the screens use is keymap_scheme() of it. */
-void kbd_set_scheme(int s) { scheme = s < 0 || s >= KEY_SCHEME_COUNT ? KEY_SCHEME_DEFAULT : s; }
+/* The chosen scheme is what keymap_scheme() makes of the number: a number out of range is Modern, and the retired Mouse number (3, from an
+   earlier build) is WASD, so the next save writes 2. */
+void kbd_set_scheme(int s) { scheme = keymap_scheme(s); }
 int kbd_scheme(void) { return scheme; }
 int kbd_effective_scheme(void) { return keymap_scheme(scheme); }
 
@@ -99,8 +99,8 @@ unsigned kbd_tick_bits(void) {
   /* Any key at all, from the latch of presses (a held key makes no new press), for the screens that wait for one. */
   i = any_press ? IN_ANY : 0;
   any_press = 0;
-  /* The mouse's buttons ride in the same word, and only in the Mouse scheme: in any other the driver is not read at all. */
-  if (keymap_scheme(scheme) == KEY_SCHEME_MOUSE) i |= mouse_tick_bits();
+  /* The mouse's buttons ride in the same word, and only in WASD with a mouse found at start-up: in any other scheme the driver is not read at all. */
+  if (keymap_scheme(scheme) == KEY_SCHEME_WASD && mouse_present()) i |= mouse_tick_bits();
   else mouse_idle();
   return keymap_bits(keys, scheme) | keymap_bits(taps, scheme) | i;
 }

@@ -26,4 +26,5 @@ void settings_save(int night) { (void)night; }
 int kbd_raw_pop(void) { return -1; }
 int scheme_mode(void) { return 1; }
 void scheme_set(int scheme) { (void)scheme; }
-int keymap_next(int scheme) { return scheme; }
+int keymap_step(int scheme, int dir) { (void)dir; return scheme; }
+int mouse_present(void) { return 0; }

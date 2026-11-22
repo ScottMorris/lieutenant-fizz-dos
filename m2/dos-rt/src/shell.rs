@@ -52,12 +52,14 @@ extern "C" {
     fn detail_mode() -> i32;
     fn detail_set(mode: i32);
     fn detail_active() -> i32;
-    /// The key scheme (C): its number in use (0 Keen-style, 1 Modern, 2 WASD, 3 Mouse, 4 Left hand, 5 Right hand; Mouse only where there is a mouse,
-    /// else a saved Mouse choice reads as Modern), a change of the choice, and the scheme after a given one in the order Options steps through
-    /// (it skips Mouse without a mouse).
+    /// The key scheme (C): its number in use (0 Keen-style, 1 Modern, 2 WASD, 4 Left hand, 5 Right hand; 3 was a Mouse scheme and is retired, so a saved
+    /// or given 3 reads as WASD), a change of the choice, and the scheme after (`dir` above 0) or before (below 0) a given one in the order Options steps
+    /// through (0, 1, 2, 4, 5, round).
     fn scheme_mode() -> i32;
     fn scheme_set(scheme: i32);
-    fn keymap_next(scheme: i32) -> i32;
+    fn keymap_step(scheme: i32, dir: i32) -> i32;
+    /// Whether a mouse driver answered at start-up (C): WASD then also takes the mouse's buttons, and the Controls screen says so.
+    fn mouse_present() -> i32;
     /// Writes the options to FIZZ.CFG (C), given the night setting that the game keeps.
     fn settings_save(night: i32);
     /// The scancode of the oldest key press not yet taken, or -1 (C): what the Debug menu's key sequence is read from.
@@ -495,6 +497,7 @@ fn cue(effect: i32) {
 }
 
 /// What the keys did in a menu this tick.
+#[derive(Clone, Copy, PartialEq)]
 enum Pick {
     Nothing,
     Chosen,
@@ -880,10 +883,11 @@ fn options_tick(s: &mut Shell, edges: u32, back: Back) {
     let leave = |s: &mut Shell| return_to(s, back, TitleItem::Options, PauseItem::Options);
     match menu_keys(s, edges, n) {
         Pick::Back => leave(s),
-        Pick::Chosen | Pick::Left | Pick::Right => match items[s.cursor] {
+        pick @ (Pick::Chosen | Pick::Left | Pick::Right) => match items[s.cursor] {
             OptionItem::Back => leave(s),
             item => {
-                change_option(item);
+                // Left goes to the previous value of a row that has several; Right and Enter go to the next.
+                change_option(item, if pick == Pick::Left { -1 } else { 1 });
                 // Every change is kept, so the next run starts the way this one was left.
                 unsafe { settings_save(i32::from(night_flag())) }
             }
@@ -892,8 +896,14 @@ fn options_tick(s: &mut Shell, edges: u32, back: Back) {
     }
 }
 
-/// Applies one press on an option row.
-fn change_option(item: OptionItem) {
+/// The value after (`dir` above 0) or before (below 0) `value` among `count` values, round the ends.
+fn cycle(value: i32, count: i32, dir: i32) -> i32 {
+    (value + if dir < 0 { count - 1 } else { 1 }).rem_euclid(count)
+}
+
+/// Applies one press on an option row: `dir` is -1 for Left and 1 for Right or Enter. It matters on the rows with more than two values
+/// (Frame rate, Detail, Keys); a row with two values toggles either way.
+fn change_option(item: OptionItem, dir: i32) {
     match item {
         OptionItem::Back => {}
             OptionItem::Music => {
@@ -912,11 +922,11 @@ fn change_option(item: OptionItem) {
             }
             OptionItem::Rate => {
                 cue(FX_SELECT);
-                unsafe { rate_set((rate_mode() + 1) % 3) }
+                unsafe { rate_set(cycle(rate_mode(), 3, dir)) }
             }
             OptionItem::Detail => {
                 cue(FX_SELECT);
-                unsafe { detail_set((detail_mode() + 1) % 3) }
+                unsafe { detail_set(cycle(detail_mode(), 3, dir)) }
             }
             OptionItem::Night => {
                 cue(FX_SELECT);
@@ -924,7 +934,7 @@ fn change_option(item: OptionItem) {
             }
             OptionItem::Keys => {
                 cue(FX_SELECT);
-                unsafe { scheme_set(keymap_next(scheme_mode())) }
+                unsafe { scheme_set(keymap_step(scheme_mode(), dir)) }
             }
     }
 }
@@ -1669,25 +1679,32 @@ fn pause_screen(frame: &mut [u8], s: &Shell) {
 }
 
 /// A key scheme as the player sees it: its name in Options and the keys for jump, pogo and Fizz. The order and numbers are those of
-/// `keymap.c` and of the web game's schemes, and FIZZ.CFG keeps the number. Mouse (3) jumps with Space; its pogo and Fizz are the buttons.
+/// `keymap.c` and of the web game's schemes, and FIZZ.CFG keeps the number. Number 3 (once Mouse) is retired and has a row only to keep the
+/// numbers in place: the C side never answers with it, and Options never offers it. `pogo_mouse` and `fire_mouse` are what the Controls screen
+/// shows instead when the scheme also takes the mouse's buttons and a mouse is present (WASD).
 struct Scheme {
     name: &'static str,
     jump: &'static str,
     pogo: &'static str,
     fire: &'static str,
+    pogo_mouse: &'static str,
+    fire_mouse: &'static str,
+}
+
+const fn keys(name: &'static str, jump: &'static str, pogo: &'static str, fire: &'static str) -> Scheme {
+    Scheme { name, jump, pogo, fire, pogo_mouse: pogo, fire_mouse: fire }
 }
 
 const SCHEMES: [Scheme; 6] = [
-    Scheme { name: "Keen-style", jump: "Ctrl", pogo: "Alt", fire: "Space" },
-    Scheme { name: "Modern", jump: "Z", pogo: "X", fire: "C or Space" },
-    Scheme { name: "WASD", jump: "Space", pogo: "K", fire: "J" },
-    Scheme { name: "Mouse", jump: "Space", pogo: "Right click", fire: "Left click" },
-    Scheme { name: "Left hand", jump: "Space", pogo: "Q", fire: "E" },
-    Scheme { name: "Right hand", jump: ",", pogo: ".", fire: "/" },
+    keys("Keen-style", "Ctrl", "Alt", "Space"),
+    keys("Modern", "Z", "X", "C or Space"),
+    Scheme { name: "WASD", jump: "Space", pogo: "K", fire: "J", pogo_mouse: "K or Right click", fire_mouse: "J or Left click" },
+    keys("WASD", "Space", "K", "J"), // 3, retired
+    keys("Left hand", "Space", "Q", "E"),
+    keys("Right hand", ",", ".", "/"),
 ];
 
-/// The scheme in use. The C side answers with the one it plays by, which is Modern when the saved choice is Mouse and there is no mouse,
-/// so this only guards a number out of range.
+/// The scheme in use. The C side answers with the one it plays by (a saved 3 is already WASD), so this only guards a number out of range.
 fn scheme() -> &'static Scheme {
     SCHEMES.get(unsafe { scheme_mode() } as usize).unwrap_or(&SCHEMES[1])
 }
@@ -1721,12 +1738,13 @@ fn controls_screen(frame: &mut [u8]) {
     let (top, line) = (36, ui::LINE);
     // Move and aim, then the chosen scheme's three action keys, then the keys that are the same in every scheme.
     let sch = scheme();
+    let mouse = unsafe { mouse_present() } != 0;
     let rows: [(&str, &str); 8] = [
         CONTROLS[0],
         CONTROLS[1],
         ("Jump", sch.jump),
-        ("Pogo (toggle)", sch.pogo),
-        ("Fizz", sch.fire),
+        ("Pogo (toggle)", if mouse { sch.pogo_mouse } else { sch.pogo }),
+        ("Fizz", if mouse { sch.fire_mouse } else { sch.fire }),
         CONTROLS[2],
         CONTROLS[3],
         CONTROLS[4],
@@ -2077,4 +2095,29 @@ pub fn dialogue_len() -> usize {
 #[allow(dead_code)]
 fn _link() {
     enter_map();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cycle_steps_both_ways_and_wraps() {
+        let step = |dir: i32| -> Vec<i32> {
+            let mut v = 0;
+            (0..4).map(|_| { v = cycle(v, 3, dir); v }).collect()
+        };
+        assert_eq!(step(1), [1, 2, 0, 1]);
+        assert_eq!(step(-1), [2, 1, 0, 2]);
+    }
+
+    #[test]
+    fn mouse_key_names_fit_the_controls_screen() {
+        // A row is the action on the left and its keys on the right of the line; the two must not touch.
+        let w = W as i32 - 40;
+        let wasd = &SCHEMES[2];
+        for (action, keys) in [("Pogo (toggle)", wasd.pogo_mouse), ("Fizz", wasd.fire_mouse)] {
+            assert!(ui::text_width(action) + 12 + ui::text_width(keys) <= w, "{action}: {keys}");
+        }
+    }
 }

@@ -110,8 +110,13 @@ pub extern "C" fn scheme_mode() -> i32 {
 pub extern "C" fn scheme_set(_scheme: i32) {}
 
 #[no_mangle]
-pub extern "C" fn keymap_next(scheme: i32) -> i32 {
+pub extern "C" fn keymap_step(scheme: i32, _dir: i32) -> i32 {
     scheme
+}
+
+#[no_mangle]
+pub extern "C" fn mouse_present() -> i32 {
+    0
 }
 
 #[no_mangle]
