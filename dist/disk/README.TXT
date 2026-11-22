@@ -32,7 +32,7 @@ RUN IT
 KEYS
   Arrows or WASD   move (Up and Down also climb and look)
   Jump, pogo, fire the three keys of the scheme chosen in Options, Keys:
-                     Modern (the default)  Z, X, C
+                     Modern (the default)  Z, X, C or Space
                      Keen-style            Ctrl, Alt, Space
                      WASD                  Space, K, J
                      Left hand             Space, Q, E (E no longer

@@ -26,7 +26,7 @@
 | Key | Action |
 |---|---|
 | Arrows or WASD | Move (Up and Down also climb and look) |
-| Jump, Pogo stick, Fire | Three keys chosen by the **Keys** option (below); Modern by default: Z, X, C |
+| Jump, Pogo stick, Fire | Three keys chosen by the **Keys** option (below); Modern by default: Z, X, and C or Space |
 | Enter | Confirm: enter a level marker, dismiss a card |
 | Esc | Pause menu, and back in a menu |
 | F5 / F9 | Quick-save and quick-load, in `QUICK.SAV`, a slot of its own |
@@ -37,13 +37,13 @@
 
 | Scheme | Jump | Pogo stick | Fire |
 |---|---|---|---|
-| Modern (the default) | Z | X | C |
+| Modern (the default) | Z | X | C or Space |
 | Keen-style | Ctrl | Alt | Space |
 | WASD | Space | K | J |
 | Left hand | Space | Q | E |
 | Right hand | , | . | / |
 
-Only the chosen scheme's three keys act. The schemes are numbered as in the web game (0 Keen-style, 1 Modern, 2 WASD, 3 Mouse, 4 Left hand, 5 Right hand), and the number is what `FIZZ.CFG` keeps. The web game's Mouse scheme (3) is not offered here, so Options steps through 0, 1, 2, 4 and 5; a saved 3 plays as Modern. The keys are physical positions, named as a US keyboard prints them. With Left hand, E is Fire, so the E shortcut for effects is off and effects are changed in Options.
+Only the chosen scheme's keys act (Modern fires with C or Space; every other scheme has one key for each action). The schemes are numbered as in the web game (0 Keen-style, 1 Modern, 2 WASD, 3 Mouse, 4 Left hand, 5 Right hand), and the number is what `FIZZ.CFG` keeps. The web game's Mouse scheme (3) is not offered here, so Options steps through 0, 1, 2, 4 and 5; a saved 3 plays as Modern. The keys are physical positions, named as a US keyboard prints them. With Left hand, E is Fire, so the E shortcut for effects is off and effects are changed in Options.
 
 The Options screen has music and which chip plays the effects (both only with an AdLib, as the music plays on it alone), effects (when sound is running), **frame rate** (auto, 60 Hz or 30 Hz), **detail** (auto, high or low, which drops the backdrop layers on slow machines), night and **keys** (the scheme above). The Controls screen shows the chosen scheme's keys. Options, and the M and E keys' changes, are kept in `FIZZ.CFG` and read at the next start (a sound setting that cannot apply on a run, such as the music without an AdLib, keeps what was kept) and game saves in `AUTO.SAV`, `QUICK.SAV` and `SLOT1.SAV` to `SLOT4.SAV`, all beside the game. `FIZZ.EXE [level|map]` starts in a level or on the map; `nopreview` skips the system check.
 

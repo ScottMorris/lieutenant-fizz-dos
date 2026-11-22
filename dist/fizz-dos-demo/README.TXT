@@ -31,7 +31,7 @@ Keys
   Esc              pause menu (and back, in a menu); Quit to title, then Quit, leaves the game
 
 Key schemes (Options, Keys; Modern until you choose another; only the chosen scheme's keys act)
-  Modern           Z jump,     X pogo,    C fire
+  Modern           Z jump,     X pogo,    C or Space fire
   Keen-style       Ctrl jump,  Alt pogo,  Space fire
   WASD             Space jump, K pogo,    J fire
   Left hand        Space jump, Q pogo,    E fire (E no longer turns effects on or off)

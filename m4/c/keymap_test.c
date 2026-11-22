@@ -16,13 +16,13 @@ static void expect(const char *what, unsigned got, unsigned want) {
 static volatile unsigned char k[128];
 static void clear(void) { memset((void *)k, 0, sizeof k); }
 
-/* Every scheme's keys as jump, pogo and fire. The Mouse scheme (3) has none here, so it is not listed. */
-static const struct { int scheme; const char *name; int jump, pogo, fire; } schemes[] = {
-  {0, "Keen-style", SC_CTRL, SC_ALT, SC_SPACE},
-  {1, "Modern", SC_Z, SC_X, SC_C},
-  {2, "WASD", SC_SPACE, SC_K, SC_J},
-  {4, "Left hand", SC_SPACE, SC_Q, SC_E},
-  {5, "Right hand", SC_COMMA, SC_PERIOD, SC_SLASH},
+/* Every scheme's keys as jump, pogo and fire, and a second fire key (0 for none). The Mouse scheme (3) has none here, so it is not listed. */
+static const struct { int scheme; const char *name; int jump, pogo, fire, fire2; } schemes[] = {
+  {0, "Keen-style", SC_CTRL, SC_ALT, SC_SPACE, 0},
+  {1, "Modern", SC_Z, SC_X, SC_C, SC_SPACE},
+  {2, "WASD", SC_SPACE, SC_K, SC_J, 0},
+  {4, "Left hand", SC_SPACE, SC_Q, SC_E, 0},
+  {5, "Right hand", SC_COMMA, SC_PERIOD, SC_SLASH, 0},
 };
 #define NSCHEMES ((int)(sizeof schemes / sizeof schemes[0]))
 
@@ -38,11 +38,11 @@ static void one_key(int n, const char *label, int key, unsigned want) {
 static void check_scheme(int n) {
   char what[96];
   int s = schemes[n].scheme, m, a, j;
-  const int keys[3] = {schemes[n].jump, schemes[n].pogo, schemes[n].fire};
-  const unsigned bits[3] = {IN_JUMP, IN_POGO, IN_FIRE};
+  const int keys[4] = {schemes[n].jump, schemes[n].pogo, schemes[n].fire, schemes[n].fire2};
+  const unsigned bits[4] = {IN_JUMP, IN_POGO, IN_FIRE, IN_FIRE};
   static const int reserved[] = {SC_ESC, SC_ENTER, SC_F5, SC_F9, SC_P, 0x21 /* F */, SC_R, SC_N, SC_M, SC_PGUP, SC_PGDN, SC_BACKSPACE};
-  for (a = 0; a < 3; a++) {
-    one_key(n, "its action key", keys[a], bits[a]);
+  for (a = 0; a < 3 + (keys[3] != 0); a++) {
+    one_key(n, "its action key", keys[a], a == 3 ? IN_FIRE : bits[a]);
     expect("is an action key", (unsigned)keymap_is_action(s, keys[a]), 1);
   }
   clear();
@@ -51,11 +51,11 @@ static void check_scheme(int n) {
   expect(what, keymap_bits(k, s), IN_JUMP | IN_POGO | IN_FIRE);
   /* The other schemes' keys do nothing, except one this scheme uses as well. */
   for (m = 0; m < NSCHEMES; m++) {
-    const int other[3] = {schemes[m].jump, schemes[m].pogo, schemes[m].fire};
+    const int other[4] = {schemes[m].jump, schemes[m].pogo, schemes[m].fire, schemes[m].fire2};
     if (m == n) continue;
-    for (a = 0; a < 3; a++) {
-      int shared = 0;
-      for (j = 0; j < 3; j++) if (keys[j] == other[a]) shared = 1;
+    for (a = 0; a < 4; a++) {
+      int shared = other[a] == 0;
+      for (j = 0; j < 4; j++) if (keys[j] == other[a]) shared = 1;
       if (shared) continue;
       sprintf(what, "another scheme's key %02X", other[a]);
       one_key(n, what, other[a], 0);
@@ -94,6 +94,21 @@ int main(void) {
   expect("Modern: D, Z and C", keymap_bits(k, 1), IN_RIGHT | IN_JUMP | IN_FIRE);
   clear(); k[SC_ALT] = 1; k[SC_UP] = 1; k[SC_LEFT] = 1;
   expect("Keen-style: Alt up left", keymap_bits(k, 0), IN_POGO | IN_UP | IN_LEFT);
+  /* Modern fires with C or Space; every other scheme keeps its own Space meaning. */
+  clear(); k[SC_SPACE] = 1;
+  expect("Modern: Space fires", keymap_bits(k, 1), IN_FIRE);
+  expect("Modern: Space is an action key", (unsigned)keymap_is_action(1, SC_SPACE), 1);
+  clear(); k[SC_C] = 1;
+  expect("Modern: C still fires", keymap_bits(k, 1), IN_FIRE);
+  clear(); k[SC_SPACE] = 1; k[SC_C] = 1;
+  expect("Modern: Space and C give one fire", keymap_bits(k, 1), IN_FIRE);
+  clear(); k[SC_SPACE] = 1;
+  expect("WASD: Space jumps", keymap_bits(k, 2), IN_JUMP);
+  expect("Left hand: Space jumps", keymap_bits(k, 4), IN_JUMP);
+  expect("Keen-style: Space fires", keymap_bits(k, 0), IN_FIRE);
+  expect("Right hand: Space does nothing", keymap_bits(k, 5), 0);
+  expect("Right hand: Space is not an action key", (unsigned)keymap_is_action(5, SC_SPACE), 0);
+  expect("no scheme treats key 0 as an action", (unsigned)keymap_is_action(1, 0) + keymap_is_action(0, 0), 0);
   /* The Mouse scheme is not offered: its number, and numbers out of range, read as Modern. */
   expect("Mouse reads as Modern", (unsigned)keymap_scheme(KEY_SCHEME_MOUSE), 1);
   expect("negative reads as Modern", (unsigned)keymap_scheme(-1), 1);
