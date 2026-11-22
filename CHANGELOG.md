@@ -20,6 +20,10 @@ What changed in each release of Lieutenant Fizz for DOS. A release is a tag `vX.
 - The level cleared, tumble, end and game over cards let as much of the scene through as the map's panel does; they were nearly solid.
 - Toasts and hints now sit at the foot of the screen instead of the top. On the map they stack above the prompt, and during the boss's talk they stack above its box. The quick-save line moves up out of their way.
 
+### Fixed
+
+- The scene behind the pause menu, the Options, Controls and save screens, and the level cleared and other cards no longer shakes. The screen was drawn between ticks with the interpolation factor of a running game, so whatever had been moving when the sim stopped (the camera, so the mountains and ground, and Ben and the crates) glided back and forth along its last step as the factor rose and fell. A tick that leaves the sim alone now draws its newest state.
+
 ## 0.3.1 — 2026-10-23
 
 ### Added
