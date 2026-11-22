@@ -52,8 +52,9 @@ extern "C" {
     fn detail_mode() -> i32;
     fn detail_set(mode: i32);
     fn detail_active() -> i32;
-    /// The key scheme (C): its number (0 Keen-style, 1 Modern, 2 WASD, 4 Left hand, 5 Right hand; 3 is the web game's Mouse scheme and
-    /// is never set here), a change of it, and the scheme after a given one in the order Options steps through.
+    /// The key scheme (C): its number in use (0 Keen-style, 1 Modern, 2 WASD, 3 Mouse, 4 Left hand, 5 Right hand; Mouse only where there is a mouse,
+    /// else a saved Mouse choice reads as Modern), a change of the choice, and the scheme after a given one in the order Options steps through
+    /// (it skips Mouse without a mouse).
     fn scheme_mode() -> i32;
     fn scheme_set(scheme: i32);
     fn keymap_next(scheme: i32) -> i32;
@@ -1668,7 +1669,7 @@ fn pause_screen(frame: &mut [u8], s: &Shell) {
 }
 
 /// A key scheme as the player sees it: its name in Options and the keys for jump, pogo and Fizz. The order and numbers are those of
-/// `keymap.c` and of the web game's schemes (3, Mouse, is the web game's alone), and FIZZ.CFG keeps the number.
+/// `keymap.c` and of the web game's schemes, and FIZZ.CFG keeps the number. Mouse (3) jumps with Space; its pogo and Fizz are the buttons.
 struct Scheme {
     name: &'static str,
     jump: &'static str,
@@ -1680,18 +1681,15 @@ const SCHEMES: [Scheme; 6] = [
     Scheme { name: "Keen-style", jump: "Ctrl", pogo: "Alt", fire: "Space" },
     Scheme { name: "Modern", jump: "Z", pogo: "X", fire: "C or Space" },
     Scheme { name: "WASD", jump: "Space", pogo: "K", fire: "J" },
-    Scheme { name: "Mouse", jump: "", pogo: "", fire: "" },
+    Scheme { name: "Mouse", jump: "Space", pogo: "Right click", fire: "Left click" },
     Scheme { name: "Left hand", jump: "Space", pogo: "Q", fire: "E" },
     Scheme { name: "Right hand", jump: ",", pogo: ".", fire: "/" },
 ];
 
-/// The scheme in use; a number that is not one this build offers shows Modern, as the C side plays it.
+/// The scheme in use. The C side answers with the one it plays by, which is Modern when the saved choice is Mouse and there is no mouse,
+/// so this only guards a number out of range.
 fn scheme() -> &'static Scheme {
-    let n = unsafe { scheme_mode() };
-    match SCHEMES.get(n as usize) {
-        Some(s) if n != 3 => s,
-        _ => &SCHEMES[1],
-    }
+    SCHEMES.get(unsafe { scheme_mode() } as usize).unwrap_or(&SCHEMES[1])
 }
 
 /// The keys that do not depend on the scheme.

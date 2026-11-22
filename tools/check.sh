@@ -34,7 +34,7 @@ ls -l m4/c/fizz.exe
 
 step "Key map"
 CC_BIN="$(mktemp "${TMPDIR:-/tmp}/keymap_test.XXXXXX")"
-gcc -o "$CC_BIN" m4/c/keymap_test.c m4/c/keymap.c
+gcc -o "$CC_BIN" m4/c/keymap_test.c m4/c/keymap.c m4/c/mouse.c
 "$CC_BIN"
 rm -f "$CC_BIN"
 

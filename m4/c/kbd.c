@@ -13,6 +13,7 @@
 #include <string.h>
 #include "kbd.h"
 #include "keymap.h"
+#include "mouse.h"
 
 static volatile unsigned char keys[128];
 static volatile unsigned char latch[128];
@@ -76,10 +77,13 @@ void kbd_remove(void) {
   installed = 0;
 }
 
-void kbd_set_scheme(int s) { scheme = keymap_scheme(s); }
+/* The chosen scheme is kept as given (a number out of range is Modern), so a Mouse choice saved on a machine without a mouse stays
+   what FIZZ.CFG keeps; what the keys and the screens use is keymap_scheme() of it. */
+void kbd_set_scheme(int s) { scheme = s < 0 || s >= KEY_SCHEME_COUNT ? KEY_SCHEME_DEFAULT : s; }
 int kbd_scheme(void) { return scheme; }
+int kbd_effective_scheme(void) { return keymap_scheme(scheme); }
 
-unsigned kbd_held(void) { return keymap_bits(keys, scheme); }
+unsigned kbd_held(void) { return keymap_bits(keys, scheme) | mouse_held(); }
 
 unsigned kbd_tick_bits(void) {
   /* Keys of the game only: a press of Esc, P, R or the page keys is for the main loop, which reads it by itself. */
@@ -95,6 +99,9 @@ unsigned kbd_tick_bits(void) {
   /* Any key at all, from the latch of presses (a held key makes no new press), for the screens that wait for one. */
   i = any_press ? IN_ANY : 0;
   any_press = 0;
+  /* The mouse's buttons ride in the same word, and only in the Mouse scheme: in any other the driver is not read at all. */
+  if (keymap_scheme(scheme) == KEY_SCHEME_MOUSE) i |= mouse_tick_bits();
+  else mouse_idle();
   return keymap_bits(keys, scheme) | keymap_bits(taps, scheme) | i;
 }
 int kbd_down(int sc) { return keys[sc & 0x7F]; }

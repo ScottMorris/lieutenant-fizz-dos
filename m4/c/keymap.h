@@ -27,18 +27,22 @@ enum {
   SC_UP = 0x48, SC_PGUP = 0x49, SC_LEFT = 0x4B, SC_RIGHT = 0x4D, SC_DOWN = 0x50, SC_PGDN = 0x51
 };
 /* The key schemes. The number is what FIZZ.CFG keeps and what the web game's Options keep, so a scheme means the same in both:
-   0 Keen-style (Ctrl, Alt, Space), 1 Modern (Z, X, and C or Space), 2 WASD (Space, K, J), 3 Mouse (web only; not offered here), 4 Left hand (Space,
-   Q, E), 5 Right hand (comma, period, slash), as jump, pogo and fire. */
+   0 Keen-style (Ctrl, Alt, Space), 1 Modern (Z, X, and C or Space), 2 WASD (Space, K, J), 3 Mouse (Space, then the right and left buttons; only with a
+   mouse), 4 Left hand (Space, Q, E), 5 Right hand (comma, period, slash), as jump, pogo and fire. */
 #define KEY_SCHEME_COUNT 6
 #define KEY_SCHEME_DEFAULT 1
 #define KEY_SCHEME_MOUSE 3
-/* The scheme to use for a saved or given number: itself when it is one this build offers, else Modern. */
+/* Tells the key map whether the machine has a mouse (see mouse.h). The Mouse scheme is offered only when it does. */
+void keymap_set_mouse(int present);
+/* The scheme to play by for a saved or given number: itself when it is one this machine offers (0 to 5, with the Mouse scheme only when
+   there is a mouse), else Modern. A caller that keeps the number (FIZZ.CFG) keeps the one it was given, so a Mouse choice saved on a
+   machine without a mouse comes back when there is one. */
 int keymap_scheme(int scheme);
-/* The scheme after this one in the order Options steps through, skipping the Mouse scheme. */
+/* The scheme after this one in the order Options steps through: 0 to 5, without the Mouse scheme (3) when there is no mouse. */
 int keymap_next(int scheme);
 /* Whether the scancode is one of the scheme's jump, pogo or fire keys (Modern has two fire keys). */
 int keymap_is_action(int scheme, int scancode);
 /* The held bits for a table of 128 key states (non-zero is down): the arrows or WASD move in every scheme; the scheme's own keys jump,
-   pogo and fire, and no other scheme's do. Enter, Esc, F5 and F9 are the same in every scheme. */
+   pogo and fire, and no other scheme's do (the Mouse scheme has Space for jump and nothing for the other two: mouse_bits() gives those). Enter, Esc, F5 and F9 are the same in every scheme. */
 unsigned keymap_bits(const volatile unsigned char *keys, int scheme);
 #endif

@@ -11,6 +11,7 @@
 #include <string.h>
 #include <sys/utsname.h>
 #include "compat.h"
+#include "mouse.h"
 #include "sound.h"
 
 static int fpu_present(void) {
@@ -45,16 +46,12 @@ int compat_video(void) {
 }
 
 void compat_probe(int v[C_COUNT], char cpu[16]) {
-  __dpmi_regs r;
   struct utsname u;
   unsigned long kb;
   __dpmi_free_mem_info info;
   memset(v, 0, C_COUNT * sizeof(int));
   v[C_VIDEO] = compat_video();
-  memset(&r, 0, sizeof r);
-  r.x.ax = 0;
-  __dpmi_int(0x33, &r);
-  v[C_MOUSE] = r.x.ax == 0xFFFF;
+  v[C_MOUSE] = mouse_present(); /* the reset (INT 33h function 0) ran once at start-up, in mouse_init() */
   v[C_JOYSTICK] = inportb(0x201) != 0xFF;
   v[C_ADLIB] = snd_detect_opl();
   v[C_BLASTER] = snd_detect_blaster();
