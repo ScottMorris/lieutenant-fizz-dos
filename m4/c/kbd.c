@@ -24,6 +24,7 @@ static volatile unsigned char raw_q[RAW_Q];
 static volatile unsigned char raw_head, raw_tail;
 static _go32_dpmi_seginfo old_isr, new_isr;
 static int installed;
+static volatile int scheme = KEY_SCHEME_DEFAULT;
 
 static void isr(void) {
   unsigned char sc = inportb(0x60);
@@ -75,12 +76,15 @@ void kbd_remove(void) {
   installed = 0;
 }
 
-unsigned kbd_held(void) { return keymap_bits(keys); }
+void kbd_set_scheme(int s) { scheme = keymap_scheme(s); }
+int kbd_scheme(void) { return scheme; }
+
+unsigned kbd_held(void) { return keymap_bits(keys, scheme); }
 
 unsigned kbd_tick_bits(void) {
   /* Keys of the game only: a press of Esc, P, R or the page keys is for the main loop, which reads it by itself. */
   static const unsigned char game_keys[] = {SC_LEFT, SC_RIGHT, SC_UP, SC_DOWN, SC_A, SC_D, SC_W, SC_S,
-                                            SC_CTRL, SC_Z, SC_ALT, SC_X, SC_SPACE, SC_C, SC_ENTER, SC_ESC, SC_F5, SC_F9};
+                                            SC_CTRL, SC_ALT, SC_SPACE, SC_Z, SC_X, SC_C, SC_K, SC_J, SC_Q, SC_E, SC_COMMA, SC_PERIOD, SC_SLASH, SC_ENTER, SC_ESC, SC_F5, SC_F9};
   unsigned char taps[128];
   unsigned i;
   memset(taps, 0, sizeof taps);
@@ -91,7 +95,7 @@ unsigned kbd_tick_bits(void) {
   /* Any key at all, from the latch of presses (a held key makes no new press), for the screens that wait for one. */
   i = any_press ? IN_ANY : 0;
   any_press = 0;
-  return keymap_bits(keys) | keymap_bits(taps) | i;
+  return keymap_bits(keys, scheme) | keymap_bits(taps, scheme) | i;
 }
 int kbd_down(int sc) { return keys[sc & 0x7F]; }
 int kbd_pressed(int sc) {

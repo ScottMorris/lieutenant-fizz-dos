@@ -52,6 +52,11 @@ extern "C" {
     fn detail_mode() -> i32;
     fn detail_set(mode: i32);
     fn detail_active() -> i32;
+    /// The key scheme (C): its number (0 Keen-style, 1 Modern, 2 WASD, 4 Left hand, 5 Right hand; 3 is the web game's Mouse scheme and
+    /// is never set here), a change of it, and the scheme after a given one in the order Options steps through.
+    fn scheme_mode() -> i32;
+    fn scheme_set(scheme: i32);
+    fn keymap_next(scheme: i32) -> i32;
     /// Writes the options to FIZZ.CFG (C), given the night setting that the game keeps.
     fn settings_save(night: i32);
     /// The scancode of the oldest key press not yet taken, or -1 (C): what the Debug menu's key sequence is read from.
@@ -230,6 +235,7 @@ enum OptionItem {
     Rate,
     Detail,
     Night,
+    Keys,
     Back,
 }
 
@@ -852,14 +858,14 @@ fn controls_tick(s: &mut Shell, edges: u32, back: Back) {
     }
 }
 
-fn option_items() -> ([OptionItem; 7], usize) {
+fn option_items() -> ([OptionItem; 8], usize) {
     // Only what can apply is offered. The effects need sound running (a device to play them on); the music plays on the
     // AdLib alone, and the device row chooses between the AdLib and the speaker, so both need the AdLib.
     let (running, adlib) = unsafe { (snd_fx_device() != 0, snd_fx_device() != 0 && snd_have_opl() != 0) };
     use OptionItem::*;
-    let mut items = [Back; 7];
+    let mut items = [Back; 8];
     let mut n = 0;
-    for (shown, item) in [(adlib, Music), (running, Effects), (adlib, Device), (true, Rate), (true, Detail), (true, Night), (true, Back)] {
+    for (shown, item) in [(adlib, Music), (running, Effects), (adlib, Device), (true, Rate), (true, Detail), (true, Night), (true, Keys), (true, Back)] {
         if shown {
             items[n] = item;
             n += 1;
@@ -914,6 +920,10 @@ fn change_option(item: OptionItem) {
             OptionItem::Night => {
                 cue(FX_SELECT);
                 crate::video::set_night(!night_flag());
+            }
+            OptionItem::Keys => {
+                cue(FX_SELECT);
+                unsafe { scheme_set(keymap_next(scheme_mode())) }
             }
     }
 }
@@ -1657,13 +1667,37 @@ fn pause_screen(frame: &mut [u8], s: &Shell) {
     ui::text_centred(frame, W as i32 / 2, 188, "Up and Down choose, Enter selects, Esc resumes", ui::GREY);
 }
 
-/// The keys, as the C side's key map reads them: both schemes work at once.
-const CONTROLS: [(&str, &str); 8] = [
+/// A key scheme as the player sees it: its name in Options and the keys for jump, pogo and Fizz. The order and numbers are those of
+/// `keymap.c` and of the web game's schemes (3, Mouse, is the web game's alone), and FIZZ.CFG keeps the number.
+struct Scheme {
+    name: &'static str,
+    jump: &'static str,
+    pogo: &'static str,
+    fire: &'static str,
+}
+
+const SCHEMES: [Scheme; 6] = [
+    Scheme { name: "Keen-style", jump: "Ctrl", pogo: "Alt", fire: "Space" },
+    Scheme { name: "Modern", jump: "Z", pogo: "X", fire: "C" },
+    Scheme { name: "WASD", jump: "Space", pogo: "K", fire: "J" },
+    Scheme { name: "Mouse", jump: "", pogo: "", fire: "" },
+    Scheme { name: "Left hand", jump: "Space", pogo: "Q", fire: "E" },
+    Scheme { name: "Right hand", jump: ",", pogo: ".", fire: "/" },
+];
+
+/// The scheme in use; a number that is not one this build offers shows Modern, as the C side plays it.
+fn scheme() -> &'static Scheme {
+    let n = unsafe { scheme_mode() };
+    match SCHEMES.get(n as usize) {
+        Some(s) if n != 3 => s,
+        _ => &SCHEMES[1],
+    }
+}
+
+/// The keys that do not depend on the scheme.
+const CONTROLS: [(&str, &str); 5] = [
     ("Move", "Arrows or A and D"),
     ("Aim Fizz", "Up and Down, or W and S"),
-    ("Jump", "Ctrl or Z"),
-    ("Pogo (toggle)", "Alt or X"),
-    ("Fizz", "Space or C"),
     ("Menu, and back", "Esc"),
     ("Choose in a menu", "Enter"),
     ("Quick-save, load (in play)", "F5, F9"),
@@ -1687,13 +1721,27 @@ fn controls_screen(frame: &mut [u8]) {
     let (x, w) = (20, W as i32 - 40);
     // A line of text a row (`ui::LINE`), so the menu keys and the play keys fit above the tip.
     let (top, line) = (36, ui::LINE);
-    for (i, (action, keys)) in CONTROLS.iter().enumerate() {
+    // Move and aim, then the chosen scheme's three action keys, then the keys that are the same in every scheme.
+    let sch = scheme();
+    let rows: [(&str, &str); 8] = [
+        CONTROLS[0],
+        CONTROLS[1],
+        ("Jump", sch.jump),
+        ("Pogo (toggle)", sch.pogo),
+        ("Fizz", sch.fire),
+        CONTROLS[2],
+        CONTROLS[3],
+        CONTROLS[4],
+    ];
+    for (i, (action, keys)) in rows.iter().enumerate() {
         let y = top + i as i32 * line;
         ui::text(frame, x, y, action, ui::WHITE);
         ui::text(frame, x + w - ui::text_width(keys), y, keys, ui::CYAN);
     }
     let (col, gap) = ((w - 12) / 2, 12);
     for (i, (action, keys)) in PLAY_KEYS.iter().enumerate() {
+        // The Left hand scheme uses E for Fizz, so effects are changed in Options there.
+        let keys = if *action == "Effects on or off" && unsafe { scheme_mode() } == 4 { "Options" } else { *keys };
         let (cx, y) = (x + (i as i32 / 4) * (col + gap), top + 8 * line + 4 + (i as i32 % 4) * line);
         ui::text(frame, cx, y, action, ui::WHITE);
         ui::text(frame, cx + col - ui::text_width(keys), y, keys, ui::CYAN);
@@ -1709,7 +1757,7 @@ fn options_screen(frame: &mut [u8], s: &Shell) {
     let (music, fx) = unsafe { (snd_music_enabled() != 0, snd_fx_enabled() != 0) };
     let device = if unsafe { snd_fx_device() } == 1 { "AdLib" } else { "PC speaker" };
     let (items, n) = option_items();
-    let mut rows: [(&str, &str); 7] = [("", ""); 7];
+    let mut rows: [(&str, &str); 8] = [("", ""); 8];
     let rate = match unsafe { (rate_mode(), rate_active()) } {
         (0, 30) => "Auto (30 Hz)",
         (0, _) => "Auto (60 Hz)",
@@ -1730,6 +1778,7 @@ fn options_screen(frame: &mut [u8], s: &Shell) {
             OptionItem::Effects => ("Effects", on(fx)),
             OptionItem::Device => ("Effects play on", device),
             OptionItem::Night => ("Night", on(night_flag())),
+            OptionItem::Keys => ("Keys", scheme().name),
             OptionItem::Back => ("Back", ""),
         };
     }

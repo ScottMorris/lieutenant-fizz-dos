@@ -11,7 +11,7 @@
    check. "preview" draws the picture check into FRAME.RAW (with "shot") and stops; "previewtext" shows the text check, writes
    its cells to CELLS.RAW and what video memory then holds to VMEM.RAW (4000 bytes each: character, attribute), prints its
    characters and stops.
-   With no ticks (or 0) it is interactive: arrows or WASD move, Ctrl or Z jump, Alt or X pogo, Space or C fire,
+   With no ticks (or 0) it is interactive: arrows or WASD move and the chosen key scheme's three keys jump, pogo and fire (Modern, the default: Z, X, C),
    PgUp and PgDn change level, R restarts it, Backspace goes back to the map, N toggles night, M music, E effects, Esc pauses
    (and goes back in a menu; Quit to title, then Quit, leaves).
    With ticks it runs a scripted walk for that many ticks and, with "shot", writes FRAME.RAW (64000 bytes) and PAL.RAW
@@ -108,11 +108,18 @@ static void detail_apply(int low) { detail_low = low; fizz_detail(low); }
 void detail_set(int mode) { detail = mode; if (mode) detail_apply(mode == 2); }
 
 /* The options, kept in FIZZ.CFG beside the game: twelve bytes, "FZC", a version, then music, effects, the effects' device, frame rate,
-   detail, night, the sound choice and a spare. The options screen saves after each change. The sound choice byte is written as
+   detail, night, the sound choice and the key scheme plus one (0: none chosen yet). The options screen saves after each change. The sound choice byte is written as
    auto and not read: the start-up screen no longer offers it (the Options screen's music, effects and device cover the same
    ground), and a choice of "off" kept from before could not be undone. Arguments on the command line override what was kept,
    for that run. */
 static int night_pref = 0, music_pref = 1, fx_pref = 1, dev_pref = 0;
+
+/* The key scheme (see keymap.h). It is kept in the spare byte as the scheme plus one, so that a file from before the scheme was added,
+   which has a zero there, reads as no choice and gets the default, Modern. */
+int scheme_mode(void) { return kbd_scheme(); }
+void scheme_set(int scheme) { kbd_set_scheme(scheme); }
+/* Whether the E key stays the effects shortcut: it does not when the scheme uses E for Fizz. */
+static int effects_key_free(void) { return !keymap_is_action(kbd_scheme(), SC_E); }
 
 static void settings_load(void) {
   unsigned char b[12];
@@ -123,6 +130,7 @@ static void settings_load(void) {
   rate = b[7] > 2 ? 0 : b[7];
   detail = b[8] > 2 ? 0 : b[8];
   night_pref = b[9] != 0;
+  scheme_set(b[11] ? b[11] - 1 : KEY_SCHEME_DEFAULT);
   if (rate) rate_now = rate == 2 ? 30 : 60;
   if (detail) detail_low = detail == 2;
 }
@@ -144,6 +152,7 @@ void settings_save(int night) {
   b[8] = (unsigned char)detail;
   b[9] = (unsigned char)night;
   b[10] = (unsigned char)SND_AUTO;
+  b[11] = (unsigned char)(kbd_scheme() + 1);
   save_write(-1, b, 12);
 }
 
@@ -413,7 +422,7 @@ int main(int argc, char **argv) {
       /* M and E are the Options screen's Music and Effects rows, and like them only act when they can apply, and are kept (with the
          night that was last kept: N is not). */
       if (kbd_pressed(SC_M) && snd_mode() != SND_OFF && snd_have_opl()) { snd_set_music(!snd_music_enabled()); settings_save(night_pref); }
-      if (kbd_pressed(SC_E) && snd_mode() != SND_OFF) { snd_set_fx(!snd_fx_enabled()); settings_save(night_pref); }
+      if (kbd_pressed(SC_E) && effects_key_free() && snd_mode() != SND_OFF) { snd_set_fx(!snd_fx_enabled()); settings_save(night_pref); }
       if (owed > done + 6) { base = clock560(); done = 0; owed = 0; } /* after a stall, do not rush to catch up */
       if (owed > done) {
         /* The first tick of a frame also gets any quick taps; the rest of a catch-up see what is held. */

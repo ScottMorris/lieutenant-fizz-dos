@@ -117,7 +117,7 @@
   <rect class="box" x="325" y="512" width="150" height="58" rx="7"/>
   <text class="t" x="337" y="532">Keyboard</text>
   <text class="s" x="337" y="548">scancodes on port 0x60</text>
-  <text class="s" x="337" y="563">arrows, WASD, Ctrl, Alt</text>
+  <text class="s" x="337" y="563">arrows, WASD, key schemes</text>
   <rect class="box" x="490" y="512" width="150" height="58" rx="7"/>
   <text class="t" x="502" y="532">486 + x87 FPU</text>
   <text class="s" x="502" y="548">32-bit flat, CWSDPMI</text>
