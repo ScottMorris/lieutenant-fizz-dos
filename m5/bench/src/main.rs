@@ -326,6 +326,103 @@ fn pause_resume_test() {
     println!("pause, Resume with Enter held: mode {} (2 is right; 3 is the bug)", lf_episode_1::mode());
 }
 
+/// One scenario of `flicker_test`: draws `frames` frames, with a `shell::advance(input)` before every third (a machine quicker than the
+/// tick) and the interpolation factor the main loop would give it (it climbs between ticks), and reports how many pixels differ from the
+/// frame before within a tick. Between ticks the picture may change only by the sim's own doing (the soda can bobbing, water), which a
+/// tick brings and `alpha` does not.
+fn flicker_run(name: &str, frames: u32, input: u32, bad: &mut u32) {
+    let mut prev = vec![0u8; video::W * video::H];
+    let mut frame = vec![0u8; video::W * video::H];
+    let mut changed = 0usize;
+    let mut worst = 0usize;
+    let mut bbox = (i32::MAX, i32::MAX, -1, -1);
+    for k in 0..frames {
+        if k % 3 == 0 {
+            shell::advance(input);
+        }
+        let alpha = (k % 3) as f32 / 3.0 + 0.1;
+        let n = video::build(alpha);
+        video::paint(&mut frame, n);
+        if k % 3 != 0 {
+            let mut here = 0;
+            for (i, (a, b)) in frame.iter().zip(prev.iter()).enumerate() {
+                if a != b {
+                    here += 1;
+                    let (x, y) = ((i % video::W) as i32, (i / video::W) as i32);
+                    bbox = (bbox.0.min(x), bbox.1.min(y), bbox.2.max(x), bbox.3.max(y));
+                }
+            }
+            if here > 0 {
+                changed += 1;
+            }
+            worst = worst.max(here);
+        }
+        prev.copy_from_slice(&frame);
+    }
+    if changed == 0 {
+        println!("flicker: {name}: still");
+    } else {
+        *bad += 1;
+        println!("flicker: {name}: {changed} of {} frames differ from the one before in their tick, up to {worst} pixels, within x {}..{} y {}..{}", frames - frames.div_ceil(3), bbox.0, bbox.2, bbox.1, bbox.3);
+    }
+}
+
+/// A scene that stands still in the game's terms must draw the same picture every frame, however the interpolation factor moves: the
+/// pause menu and the screens that open from it, a level with Ben at rest, and the map's prompt. Prints what differs.
+fn flicker_test() {
+    let mut bad = 0;
+    const ESC: u32 = 256;
+    // A level with Ben at rest, no menu.
+    video::start(0);
+    for t in 0..200 {
+        shell::advance(walk(t));
+    }
+    for _ in 0..120 {
+        shell::advance(0);
+    }
+    // The sim runs here, so a patrolling enemy or a moving platform glides between ticks on purpose: reported, not counted.
+    flicker_run("level, Ben at rest (moving things glide)", 24, 0, &mut 0);
+    // The pause menu opened while Ben was running, and again after he had stopped.
+    video::start(0);
+    for t in 0..200 {
+        shell::advance(walk(t));
+    }
+    shell::advance(ESC);
+    shell::advance(0);
+    flicker_run("pause, opened while running", 24, 0, &mut bad);
+    video::start(0);
+    for t in 0..200 {
+        shell::advance(walk(t));
+    }
+    for _ in 0..120 {
+        shell::advance(0);
+    }
+    shell::advance(ESC);
+    shell::advance(0);
+    flicker_run("pause, opened with Ben at rest", 24, 0, &mut bad);
+    for (name, n) in [("options", 2), ("controls", 6), ("load list", 3), ("end card", 9)] {
+        video::start(0);
+        for t in 0..200 {
+            shell::advance(walk(t));
+        }
+        shell::show(n);
+        shell::advance(0);
+        flicker_run(&format!("{name} over a level"), 24, 0, &mut bad);
+    }
+    // The map's prompt, with Ben standing on a marker.
+    video::start(video::MAP);
+    video::set_press(2);
+    for t in 0..3000 {
+        shell::advance(video::scripted_input(t));
+    }
+    flicker_run("map, Ben on a marker", 24, 0, &mut bad);
+    if bad == 0 {
+        println!("flicker ok");
+    } else {
+        std::process::exit(1);
+    }
+}
+
 /// The titles' flow: the opening at the start, a key skipping it, and the long wait on the title menu bringing it back.
 fn flow_test() {
     let mut bad = 0;
@@ -748,6 +845,10 @@ fn main() {
     }
     if std::env::var("DEBUGTEST").is_ok() {
         debug_test();
+        return;
+    }
+    if std::env::var("PAUSEFLICKER").is_ok() {
+        flicker_test();
         return;
     }
     if std::env::var("FLOWTEST").is_ok() {

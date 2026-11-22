@@ -1,6 +1,6 @@
 #!/bin/bash
 # Everything the CI runs: licence headers, the simulation copies against the main game, the determinism check against the web
-# build, a build of the playable game, the key map, and the bench's frame checksums, menu test and text start-up screen. Stops at the first failure.
+# build, a build of the playable game, the key map, and the bench's frame checksums, menu and still-picture tests and text start-up screen. Stops at the first failure.
 #
 # (c) Copyright 2026 Liminal HQ, Scott Morris
 # SPDX-License-Identifier: Apache-2.0 OR MIT
@@ -49,6 +49,8 @@ grep -q '^control, a fresh Enter on the marker: mode 3' "${TMPDIR:-/tmp}/fizz-pa
 grep -q '^pause, Resume with Enter held: mode 2' "${TMPDIR:-/tmp}/fizz-pause.txt"
 FLOWTEST=1 "$BENCH" | tee "${TMPDIR:-/tmp}/fizz-flow.txt"
 grep -q '^flow ok$' "${TMPDIR:-/tmp}/fizz-flow.txt"
+PAUSEFLICKER=1 "$BENCH" | tee "${TMPDIR:-/tmp}/fizz-flicker.txt"
+grep -q '^flicker ok$' "${TMPDIR:-/tmp}/fizz-flicker.txt"
 (cd m5/bench && cargo test --release --target i586-unknown-linux-gnu)
 DEBUGTEST=1 "$BENCH" | tee "${TMPDIR:-/tmp}/fizz-debug.txt"
 grep -q '^debug ok$' "${TMPDIR:-/tmp}/fizz-debug.txt"
