@@ -226,7 +226,9 @@ Names are 8.3, upper case. `save_stamp` is `time(NULL)`; dates in the load list 
 | Offset | Field |
 |---|---|
 | 0 | `FZSV` |
-| 4 | version (1); 5–7 zero |
+| 4 | version (1) |
+| 5 | mode: 0 Expert, 1 Normal (`MODE_AT` in `save.rs`); a save from before modes holds 0, and any value but 1 is read as Expert |
+| 6, 7 | zero |
 | 8 | `u32` saved at (seconds since 1970) |
 | 12 | lives (`i32`) |
 | 16 | score (`i32`) |
@@ -237,7 +239,7 @@ Names are 8.3, upper case. `save_stamp` is `time(NULL)`; dates in the load list 
 | 36, 40 | map x, map y (`f32` bits) |
 | 44 | seconds played |
 
-Loading starts a new game and sets these through the simulation's `state_set`; the load list shows levels cleared (bits 0–14), score, lives and date.
+Loading starts a new game and sets these through the simulation's `state_set`, the mode (`NORMAL`, state index 26, mirroring the main game's `state::NORMAL`) first so that everything derived from it afterwards sees it; the load list shows levels cleared (bits 0–14), score, lives and date.
 
 **Options (`FIZZ.CFG`, `settings_load` and `settings_save` in `main.c`).**
 

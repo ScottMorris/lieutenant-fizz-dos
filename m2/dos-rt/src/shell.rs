@@ -14,13 +14,13 @@ use lf_episode_1::state::{
 };
 use lf_episode_1::state::{ATTRACT_PERIOD, ATTRACT_T};
 use lf_episode_1::{
-    enter_map, events_clear, events_len, events_ptr, game_new, load_attract, mode, state_get, step,
+    enter_map, events_clear, events_len, events_ptr, game_new, load_attract, mode, state_get, state_set, step,
 };
 
 use crate::cine::Cine;
 use crate::debug::{self, SequenceMatcher};
 use crate::fx;
-use crate::save::{self, SLOTS};
+use crate::save::{self, NORMAL, SLOTS};
 use crate::story::{self, Press};
 use crate::titles::Titles;
 use crate::ui::{self, Buf};
@@ -135,6 +135,8 @@ enum Screen {
     Options(Back),
     Controls(Back),
     Slots(SlotKind, Back),
+    /// The choice between Normal and Expert, between the title's New game and the opening.
+    Mode,
     /// The hidden Debug menu, over whatever was on screen (`Shell::debug_back`); the sim is held while it is up.
     Debug(DebugPage),
     /// The ending's panels, then the credits roll.
@@ -149,7 +151,7 @@ enum Screen {
 /// The Debug menu's two pages.
 #[derive(Clone, Copy, PartialEq)]
 enum DebugPage {
-    /// Its rows (Warp to level, Back).
+    /// Its rows (Warp to level, Mode, Back).
     Menu,
     /// Every level, to start one on a fresh game.
     Warp,
@@ -289,6 +291,9 @@ struct Shell {
     debug_cursor: usize,
     /// The tick on which the Enter that completed the sequence was taken: that Enter is hidden from every screen until it is let go.
     enter_eaten: Option<u32>,
+    /// Whether the game being played is in Normal mode (not Expert). It is chosen on the New game screen, taken from a save that is loaded,
+    /// and set by the Debug menu; the sim forgets it on every `game_new`, so it is put back after each one.
+    normal: bool,
 }
 
 static mut SHELL: Shell = Shell {
@@ -327,6 +332,7 @@ static mut SHELL: Shell = Shell {
     debug_back: Screen::Title,
     debug_cursor: 0,
     enter_eaten: None,
+    normal: false,
 };
 
 #[allow(static_mut_refs)]
@@ -522,6 +528,11 @@ fn fade_to(s: &mut Shell, then: Next) {
     s.fade = Some(Fade { ramp: fx::Ramp::new(FADE_TICKS, true), then });
 }
 
+/// Puts the chosen mode into the sim, which `game_new` has just set back to Expert.
+fn apply_mode(s: &Shell) {
+    state_set(NORMAL, if s.normal { 1.0 } else { 0.0 });
+}
+
 /// Does what a finished fade out led to.
 fn perform(s: &mut Shell, then: Next) {
     match then {
@@ -536,11 +547,13 @@ fn perform(s: &mut Shell, then: Next) {
         }
         Next::NewGame => {
             game_new();
+            apply_mode(s);
             s.played = 0;
             to_map(s);
         }
         Next::Opening => {
             game_new();
+            apply_mode(s);
             s.played = 0;
             start_opening(s);
         }
@@ -551,10 +564,13 @@ fn perform(s: &mut Shell, then: Next) {
             game_new();
             save::set_locked(false);
             s.played = save::load(i32::from(slot)).unwrap_or(0) * 60;
+            // The save's mode, which `load` put into the sim, is the game's from here on (a Game over restarts in it).
+            s.normal = state_get(NORMAL) != 0.0;
             to_map(s);
         }
         Next::Warp(level) => {
             game_new();
+            apply_mode(s);
             s.titles = None;
             s.played = 0;
             s.last_mode = 0;
@@ -621,6 +637,7 @@ pub fn advance(held: u32) {
         Screen::Options(back) => options_tick(s, edges, back),
         Screen::Controls(back) => controls_tick(s, edges, back),
         Screen::Slots(kind, back) => slots_tick(s, edges, kind, back),
+        Screen::Mode => mode_tick(s, edges),
         Screen::Debug(page) => debug_tick(s, edges, page),
         Screen::Play => play_tick(s, edges, sim_held),
         Screen::Ending => ending_tick(s, edges),
@@ -731,7 +748,11 @@ fn title_tick(s: &mut Shell, edges: u32) {
                     fade_to(s, Next::Load(slot as u8));
                 }
             }
-            TitleItem::New => fade_to(s, Next::Opening),
+            TitleItem::New => {
+                // Normal is under the cursor first; Esc comes back here.
+                s.screen = Screen::Mode;
+                s.cursor = 0;
+            }
             TitleItem::Load => {
                 s.screen = Screen::Slots(SlotKind::Load, Back::Title);
                 s.cursor = 0;
@@ -746,6 +767,21 @@ fn title_tick(s: &mut Shell, edges: u32) {
             }
             TitleItem::Quit => fade_to(s, Next::Quit),
         }
+    }
+}
+
+/// The New game screen's rows: Normal first, so a press of Enter takes it.
+const MODE_ROWS: [&str; 2] = ["Normal", "Expert"];
+
+fn mode_tick(s: &mut Shell, edges: u32) {
+    match menu_keys(s, edges, MODE_ROWS.len()) {
+        Pick::Back => return_to(s, Back::Title, TitleItem::New, PauseItem::Resume),
+        Pick::Chosen => {
+            cue(FX_SELECT);
+            s.normal = s.cursor == 0;
+            fade_to(s, Next::Opening);
+        }
+        _ => {}
     }
 }
 
@@ -984,7 +1020,7 @@ fn close_debug(s: &mut Shell) {
 }
 
 /// The Debug menu's rows.
-const DEBUG_ROWS: [&str; 2] = ["Warp to level", "Back"];
+const DEBUG_ROWS: [&str; 3] = ["Warp to level", "Mode", "Back"];
 
 fn debug_tick(s: &mut Shell, edges: u32, page: DebugPage) {
     let n = match page {
@@ -999,14 +1035,17 @@ fn debug_tick(s: &mut Shell, edges: u32, page: DebugPage) {
             s.cursor = 0;
         }
         (Pick::Chosen, DebugPage::Menu) => {
-            if s.cursor == 0 {
-                cue(FX_SELECT);
-                s.screen = Screen::Debug(DebugPage::Warp);
-                s.cursor = 0;
-            } else {
-                close_debug(s);
+            match s.cursor {
+                0 => {
+                    cue(FX_SELECT);
+                    s.screen = Screen::Debug(DebugPage::Warp);
+                    s.cursor = 0;
+                }
+                1 => toggle_mode(s),
+                _ => close_debug(s),
             }
         }
+        (Pick::Left | Pick::Right, DebugPage::Menu) if s.cursor == 1 => toggle_mode(s),
         (Pick::Chosen, DebugPage::Warp) => {
             if s.cursor == LEVEL_NAMES.len() {
                 cue(FX_BACK);
@@ -1021,6 +1060,14 @@ fn debug_tick(s: &mut Shell, edges: u32, page: DebugPage) {
     }
 }
 
+/// The Debug menu's Mode row: Normal for Expert and back. The game under the menu takes it from the next level it enters (a warp takes it at
+/// once, and a save written from here records it).
+fn toggle_mode(s: &mut Shell) {
+    cue(FX_SELECT);
+    s.normal = debug::toggled(s.normal);
+    apply_mode(s);
+}
+
 /// Levels the warp list shows at once; it scrolls to keep the cursor in view.
 const WARP_SHOWN: usize = 10;
 
@@ -1030,10 +1077,11 @@ fn debug_screen(frame: &mut [u8], s: &Shell, page: DebugPage) {
     match page {
         DebugPage::Menu => {
             heading(frame, "Debug", 30);
-            let mut rows: [(&str, &str); 2] = [("", ""); 2];
+            let mut rows: [(&str, &str); 3] = [("", ""); 3];
             for (row, label) in rows.iter_mut().zip(DEBUG_ROWS) {
                 *row = (label, "");
             }
+            rows[1].1 = debug::mode_name(s.normal);
             plate_rows(frame, 70, 66, 180, &rows, s.cursor, s.tick);
             ui::text_centred(frame, W as i32 / 2, 188, "Up and Down choose, Enter selects, Esc goes back", ui::GREY);
         }
@@ -1297,6 +1345,15 @@ pub fn debug_warp_page() -> bool {
     sh().screen == Screen::Debug(DebugPage::Warp)
 }
 
+/// Whether the New game screen (the choice of mode) is up, and whether the game's mode is Normal (checks).
+pub fn mode_screen_up() -> bool {
+    sh().screen == Screen::Mode
+}
+
+pub fn normal_chosen() -> bool {
+    sh().normal
+}
+
 /// The ticks the game has run since it began (the sim is held on every other screen), for checks.
 pub fn play_ticks() -> u32 {
     sh().played
@@ -1383,6 +1440,7 @@ pub fn overlay(frame: &mut [u8], cam_px: (i32, i32)) {
     let under = if let Screen::Debug(_) = s.screen { s.debug_back } else { s.screen };
     match under {
         Screen::Title => title_screen(frame, s),
+        Screen::Mode => mode_screen(frame, s),
         Screen::Ending => s.reel.draw(frame, s.tick, false),
         Screen::Credits => s.roll.draw(frame),
         Screen::Opening => {
@@ -1529,6 +1587,19 @@ fn title_ben(frame: &mut [u8], s: &Shell, left: i32, logo_w: i32) {
     // Kept on the screen if a longer title pushes the wordmark's end out.
     let at = (left + x as i32).min(W as i32 - bw as i32);
     crate::video::draw_sprite_ui_lean(frame, id, at, feet - crate::video::sprite_height(id), flip, lean);
+}
+
+/// The New game screen: the title's picture without its menu, then the two modes and a line on the one under the cursor.
+fn mode_screen(frame: &mut [u8], s: &Shell) {
+    ui::dim(frame, 0, 0, W as i32, H as i32, 5);
+    let w = ui::text_width(TITLE_WORDS) * TITLE_LOGO_SCALE;
+    ui::text_logo(frame, (W as i32 - w) / 2, TITLE_LOGO_Y, TITLE_WORDS, ui::WHITE, ui::RED, TITLE_LOGO_SCALE);
+    heading(frame, "Choose a mode", 66);
+    let rows = [(MODE_ROWS[0], ""), (MODE_ROWS[1], "")];
+    plate_rows(frame, 85, 98, 150, &rows, s.cursor, s.tick);
+    let line = if s.cursor == 0 { "Shorter runs of spikes and fewer hazards" } else { "The game as it was made" };
+    ui::text_centred(frame, W as i32 / 2, 140, line, ui::CYAN);
+    ui::text_centred(frame, W as i32 / 2, 188, "Up and Down choose, Enter starts, Esc goes back", ui::GREY);
 }
 
 /// The title: the attract loop behind, dimmed, with the name and the menu.
