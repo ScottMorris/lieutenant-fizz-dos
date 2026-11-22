@@ -4,6 +4,10 @@ What changed in each release of Lieutenant Fizz for DOS. A release is a tag `vX.
 
 ## Unreleased
 
+### Added
+
+- A hidden Debug menu, opened from any screen by pressing `2` then Enter within 1.5 seconds, with Warp to level: every level, started on a fresh game. A warped run writes no save (the autosave, the slots and the quick-save are left alone) and ends at the title.
+
 ## 0.3.1 — 2026-10-23
 
 ### Added

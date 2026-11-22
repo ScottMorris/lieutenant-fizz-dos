@@ -18,6 +18,7 @@ use lf_episode_1::{
 };
 
 use crate::cine::Cine;
+use crate::debug::{self, SequenceMatcher};
 use crate::fx;
 use crate::save::{self, SLOTS};
 use crate::story::{self, Press};
@@ -53,6 +54,8 @@ extern "C" {
     fn detail_active() -> i32;
     /// Writes the options to FIZZ.CFG (C), given the night setting that the game keeps.
     fn settings_save(night: i32);
+    /// The scancode of the oldest key press not yet taken, or -1 (C): what the Debug menu's key sequence is read from.
+    fn kbd_raw_pop() -> i32;
 }
 
 /// Effect numbers for the interface (the order of the sound data's effects): a click as the cursor moves, the menu sound
@@ -132,6 +135,8 @@ enum Screen {
     Options(Back),
     Controls(Back),
     Slots(SlotKind, Back),
+    /// The hidden Debug menu, over whatever was on screen (`Shell::debug_back`); the sim is held while it is up.
+    Debug(DebugPage),
     /// The ending's panels, then the credits roll.
     Ending,
     Credits,
@@ -139,6 +144,15 @@ enum Screen {
     Opening,
     /// The opening titles: Liminal HQ presents, the wordmark and the chase, drawn whole by `titles`.
     Titles,
+}
+
+/// The Debug menu's two pages.
+#[derive(Clone, Copy, PartialEq)]
+enum DebugPage {
+    /// Its rows (Warp to level, Back).
+    Menu,
+    /// Every level, to start one on a fresh game.
+    Warp,
 }
 
 /// Where Options and the slot lists go back to.
@@ -168,6 +182,8 @@ enum Next {
     Map,
     Quit,
     Load(u8),
+    /// The Debug menu's warp: a fresh game in level `n` that writes no save.
+    Warp(u8),
 }
 
 #[derive(Clone, Copy)]
@@ -241,9 +257,9 @@ struct Shell {
     seen: [u32; CAPTIONS.len()],
     dialogue: Option<Dialogue>,
     saves: [Option<save::Info>; SLOTS],
-    /// A short message under the menus: 1 saved (the slot in `note_arg`), 2 could not save.
+    /// A short message under the menus: 1 saved (the slot in `note_arg`), 2 could not save, 3 saving is off in a warped run.
     note: Option<(u8, u8, u32)>,
-    /// A short message over the game after F5 or F9: 1 quick-saved, 2 could not save, 3 nothing to load.
+    /// A short message over the game after F5 or F9: 1 quick-saved, 2 could not save, 3 nothing to load, 4 saving is off in a warped run.
     quick: Option<(u8, u32)>,
     played: u32,
     prev_held: u32,
@@ -266,6 +282,13 @@ struct Shell {
     /// A message over the game with its ticks left (the first words of a new game).
     hint: Option<(&'static str, u32)>,
     tick: u32,
+    /// Watches the raw key presses for the Debug menu's sequence.
+    debug_keys: SequenceMatcher,
+    /// The screen and cursor the Debug menu was opened over, which Back puts back as they were.
+    debug_back: Screen,
+    debug_cursor: usize,
+    /// The tick on which the Enter that completed the sequence was taken: that Enter is hidden from every screen until it is let go.
+    enter_eaten: Option<u32>,
 }
 
 static mut SHELL: Shell = Shell {
@@ -300,6 +323,10 @@ static mut SHELL: Shell = Shell {
     idle_mark: 0,
     hint: None,
     tick: 0,
+    debug_keys: SequenceMatcher::new(&debug::DEBUG_SEQUENCE, debug::DEBUG_SEQUENCE_MS),
+    debug_back: Screen::Title,
+    debug_cursor: 0,
+    enter_eaten: None,
 };
 
 #[allow(static_mut_refs)]
@@ -330,6 +357,8 @@ pub fn set_play() {
 /// The title: the attract loop, with the menu over it.
 pub fn start_title() {
     reset();
+    // The title forgets a warp: nothing of a warped run is kept, and the saves are the player's again.
+    save::set_locked(false);
     let s = sh();
     refresh_saves(s);
     s.screen = Screen::Title;
@@ -345,7 +374,7 @@ pub fn quit_requested() -> bool {
     sh().quit
 }
 
-/// A check: puts a screen up (1 pause, 2 options, 3 load list, 4 save list, 6 controls, 7 the ending, 8 the credits, 9 the end card, 100 to 107 an opening scene,
+/// A check: puts a screen up (1 pause, 2 options, 3 load list, 4 save list, 6 controls, 7 the ending, 8 the credits, 9 the end card, 100 to 107 an opening scene, 110 and 111 the Debug menu and its warp list,
 /// 200 the opening titles from their first tick).
 pub fn show(n: u32) {
     let s = sh();
@@ -371,6 +400,8 @@ pub fn show(n: u32) {
             s.card = Some(Card::End { score: 1234, lives: 1 });
             return;
         }
+        110 => Screen::Debug(DebugPage::Menu),
+        111 => Screen::Debug(DebugPage::Warp),
         n if (100..108).contains(&n) => {
             // A check: the opening cinematic at a scene, `k` seconds into it (the scene's own clock runs on from there).
             start_opening(s);
@@ -431,7 +462,12 @@ fn autosave(s: &mut Shell) {
     refresh_saves(s);
 }
 
+/// A visit to the map: the autosave is written. A warped run has no map: it ends at the title with nothing written.
 fn to_map(s: &mut Shell) {
+    if save::locked() {
+        perform(s, Next::Title);
+        return;
+    }
     crate::video::goto_map();
     autosave(s);
 }
@@ -513,8 +549,19 @@ fn perform(s: &mut Shell, then: Next) {
         Next::Quit => s.quit = true,
         Next::Load(slot) => {
             game_new();
+            save::set_locked(false);
             s.played = save::load(i32::from(slot)).unwrap_or(0) * 60;
             to_map(s);
+        }
+        Next::Warp(level) => {
+            game_new();
+            s.titles = None;
+            s.played = 0;
+            s.last_mode = 0;
+            s.quick = None;
+            s.hint = None;
+            save::set_locked(true);
+            crate::video::goto(u32::from(level));
         }
     }
 }
@@ -523,6 +570,7 @@ fn perform(s: &mut Shell, then: Next) {
 pub fn advance(held: u32) {
     let s = sh();
     s.tick += 1;
+    let held = debug_filter(s, held);
     let edges = held & !s.prev_held;
     s.prev_held = held;
     s.swallow &= held;
@@ -573,6 +621,7 @@ pub fn advance(held: u32) {
         Screen::Options(back) => options_tick(s, edges, back),
         Screen::Controls(back) => controls_tick(s, edges, back),
         Screen::Slots(kind, back) => slots_tick(s, edges, kind, back),
+        Screen::Debug(page) => debug_tick(s, edges, page),
         Screen::Play => play_tick(s, edges, sim_held),
         Screen::Ending => ending_tick(s, edges),
         Screen::Credits => credits_tick(s, edges),
@@ -588,7 +637,10 @@ pub fn advance(held: u32) {
 /// F5 writes the quick-save slot and F9 loads it, in a level, on the map or in the pause menu. The slot is its own: the
 /// four the player picks in the pause menu are never touched.
 fn quick_keys(s: &mut Shell, edges: u32) {
-    if edges & QSAVE != 0 {
+    if edges & QSAVE != 0 && save::locked() {
+        cue(FX_DENY);
+        s.quick = Some((4, QUICK_TICKS));
+    } else if edges & QSAVE != 0 {
         let ok = save::write(save::QUICK as i32, seconds(s));
         refresh_saves(s);
         cue(if ok { FX_SELECT } else { FX_DENY });
@@ -699,7 +751,8 @@ fn title_tick(s: &mut Shell, edges: u32) {
 
 fn pause_items() -> ([PauseItem; 6], usize) {
     let mut v = [PauseItem::Resume, PauseItem::Save, PauseItem::Options, PauseItem::Controls, PauseItem::Map, PauseItem::Title];
-    if mode() == 3 {
+    // A warped run has no map to go back to (it would end at the title), so the row is left out.
+    if mode() == 3 && !save::locked() {
         (v, 6)
     } else {
         v[4] = PauseItem::Title;
@@ -857,6 +910,9 @@ fn slots_tick(s: &mut Shell, edges: u32, kind: SlotKind, back: Back) {
                 } else {
                     cue(FX_DENY);
                 }
+            } else if save::locked() {
+                cue(FX_DENY);
+                s.note = Some((3, slot as u8, 120));
             } else {
                 let ok = save::write(slot as i32, seconds(s));
                 refresh_saves(s);
@@ -865,6 +921,138 @@ fn slots_tick(s: &mut Shell, edges: u32, kind: SlotKind, back: Back) {
             }
         }
         _ => {}
+    }
+}
+
+/// Reads the raw key presses of this tick for the Debug menu's sequence and, when it completes, opens the menu and hides the Enter that
+/// finished it. Returns `held` without that Enter (and with it back once it is let go), so it confirms, skips or pauses nothing.
+fn debug_filter(s: &mut Shell, held: u32) -> u32 {
+    let reachable = debug_reachable(s);
+    // A tick is 1000 / 60 milliseconds. The clock wraps after about sixteen days of play, which at worst costs one try at the sequence.
+    let now = s.tick.wrapping_mul(50) / 3;
+    let mut done = false;
+    loop {
+        // SAFETY: the C side's queue read; it only returns the next press or -1.
+        let code = unsafe { kbd_raw_pop() };
+        if code < 0 {
+            break;
+        }
+        if !reachable {
+            s.debug_keys.reset();
+        } else if !debug::is_modifier(code as u8) && s.debug_keys.press(code as u8, now) {
+            done = true;
+        }
+    }
+    if done {
+        s.enter_eaten = Some(s.tick);
+        open_debug(s);
+    }
+    match s.enter_eaten {
+        // The press and release can fall on one tick, so it is let go only from a later tick on which Enter is up.
+        Some(t) if held & CONFIRM == 0 && t != s.tick => s.enter_eaten = None,
+        Some(_) => return held & !CONFIRM,
+        None => {}
+    }
+    held
+}
+
+/// Whether the Debug menu can open now (and its sequence be watched for): not over the opening titles, the menu itself, or a fade out
+/// to the next screen.
+fn debug_reachable(s: &Shell) -> bool {
+    !matches!(s.screen, Screen::Titles | Screen::Debug(_)) && !s.quit && !s.fade.is_some_and(|f| f.ramp.out)
+}
+
+/// Opens the Debug menu over the screen the game is on. The sim is held while it is up (nothing else ticks), and Back puts the screen back
+/// as it was. The opening cinematic, the ending and the credits cannot be held, so they go to the title first.
+fn open_debug(s: &mut Shell) {
+    s.debug_keys.reset();
+    if matches!(s.screen, Screen::Opening | Screen::Ending | Screen::Credits) {
+        perform(s, Next::Title);
+    }
+    s.debug_back = s.screen;
+    s.debug_cursor = s.cursor;
+    s.screen = Screen::Debug(DebugPage::Menu);
+    s.cursor = 0;
+    cue(FX_SELECT);
+}
+
+/// Closes the Debug menu: the screen under it comes back with its cursor.
+fn close_debug(s: &mut Shell) {
+    cue(FX_BACK);
+    s.screen = s.debug_back;
+    s.cursor = s.debug_cursor;
+}
+
+/// The Debug menu's rows.
+const DEBUG_ROWS: [&str; 2] = ["Warp to level", "Back"];
+
+fn debug_tick(s: &mut Shell, edges: u32, page: DebugPage) {
+    let n = match page {
+        DebugPage::Menu => DEBUG_ROWS.len(),
+        DebugPage::Warp => LEVEL_NAMES.len() + 1,
+    };
+    match (menu_keys(s, edges, n), page) {
+        (Pick::Back, DebugPage::Menu) => close_debug(s),
+        (Pick::Back, DebugPage::Warp) => {
+            cue(FX_BACK);
+            s.screen = Screen::Debug(DebugPage::Menu);
+            s.cursor = 0;
+        }
+        (Pick::Chosen, DebugPage::Menu) => {
+            if s.cursor == 0 {
+                cue(FX_SELECT);
+                s.screen = Screen::Debug(DebugPage::Warp);
+                s.cursor = 0;
+            } else {
+                close_debug(s);
+            }
+        }
+        (Pick::Chosen, DebugPage::Warp) => {
+            if s.cursor == LEVEL_NAMES.len() {
+                cue(FX_BACK);
+                s.screen = Screen::Debug(DebugPage::Menu);
+                s.cursor = 0;
+            } else {
+                cue(FX_SELECT);
+                fade_to(s, Next::Warp(s.cursor as u8));
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Levels the warp list shows at once; it scrolls to keep the cursor in view.
+const WARP_SHOWN: usize = 10;
+
+fn debug_screen(frame: &mut [u8], s: &Shell, page: DebugPage) {
+    // Darker than the pause menu's dim, so the screen under it (the title's words, a card) does not run into the rows.
+    ui::dim(frame, 0, 0, W as i32, H as i32, 12);
+    match page {
+        DebugPage::Menu => {
+            heading(frame, "Debug", 30);
+            let mut rows: [(&str, &str); 2] = [("", ""); 2];
+            for (row, label) in rows.iter_mut().zip(DEBUG_ROWS) {
+                *row = (label, "");
+            }
+            plate_rows(frame, 70, 66, 180, &rows, s.cursor, s.tick);
+            ui::text_centred(frame, W as i32 / 2, 188, "Up and Down choose, Enter selects, Esc goes back", ui::GREY);
+        }
+        DebugPage::Warp => {
+            heading(frame, "Warp to level", 10);
+            let total = LEVEL_NAMES.len() + 1;
+            let first = s.cursor.saturating_sub(WARP_SHOWN / 2).min(total - WARP_SHOWN);
+            let mut numbers: [Buf; WARP_SHOWN] = core::array::from_fn(|_| Buf::new());
+            let mut rows: [(&str, &str); WARP_SHOWN] = [("", ""); WARP_SHOWN];
+            for (i, number) in numbers.iter_mut().enumerate() {
+                let _ = write!(number, "{}", first + i + 1);
+            }
+            for i in 0..WARP_SHOWN {
+                let at = first + i;
+                rows[i] = if at < LEVEL_NAMES.len() { (LEVEL_NAMES[at], numbers[i].as_str()) } else { ("Back", "") };
+            }
+            plate_rows(frame, 50, 34, 220, &rows, s.cursor.min(total - 1) - first, s.tick);
+            ui::text_centred(frame, W as i32 / 2, 188, "Up and Down choose, Enter warps, Esc goes back", ui::GREY);
+        }
     }
 }
 
@@ -1090,6 +1278,30 @@ pub fn on_title() -> bool {
     sh().screen == Screen::Title
 }
 
+/// Whether a level or the map is up and running (checks).
+pub fn on_play() -> bool {
+    sh().screen == Screen::Play
+}
+
+/// Whether the pause menu is up (checks).
+pub fn on_pause() -> bool {
+    sh().screen == Screen::Pause
+}
+
+/// Whether the Debug menu is up, and whether it shows its warp list (checks).
+pub fn debug_open() -> bool {
+    matches!(sh().screen, Screen::Debug(_))
+}
+
+pub fn debug_warp_page() -> bool {
+    sh().screen == Screen::Debug(DebugPage::Warp)
+}
+
+/// The ticks the game has run since it began (the sim is held on every other screen), for checks.
+pub fn play_ticks() -> u32 {
+    sh().played
+}
+
 /// The cinematic is over, or was skipped: the map, with a word about where to go.
 fn leave_opening(s: &mut Shell) {
     s.cine = None;
@@ -1167,7 +1379,9 @@ fn caption(s: &mut Shell, x: f32, y: f32, id: usize) {
 pub fn overlay(frame: &mut [u8], cam_px: (i32, i32)) {
     let s = sh();
     let m = mode();
-    match s.screen {
+    // The Debug menu is drawn over whatever it was opened over.
+    let under = if let Screen::Debug(_) = s.screen { s.debug_back } else { s.screen };
+    match under {
         Screen::Title => title_screen(frame, s),
         Screen::Ending => s.reel.draw(frame, s.tick, false),
         Screen::Credits => s.roll.draw(frame),
@@ -1185,7 +1399,7 @@ pub fn overlay(frame: &mut [u8], cam_px: (i32, i32)) {
         _ => {
             if m == 2 || m == 3 {
                 captions(frame, s, cam_px);
-                if s.screen == Screen::Play {
+                if under == Screen::Play {
                     hud(frame);
                 }
                 if let Some((id, _)) = s.toast {
@@ -1204,7 +1418,7 @@ pub fn overlay(frame: &mut [u8], cam_px: (i32, i32)) {
             if let Some(d) = s.dialogue {
                 dialogue_box(frame, d, s.tick);
             }
-            match s.screen {
+            match under {
                 Screen::Pause => pause_screen(frame, s),
                 Screen::Options(_) => options_screen(frame, s),
                 Screen::Controls(_) => controls_screen(frame),
@@ -1216,6 +1430,7 @@ pub fn overlay(frame: &mut [u8], cam_px: (i32, i32)) {
                 let (text, ink) = match kind {
                     1 => ("Quick-saved", ui::GREEN),
                     2 => ("Could not write QUICK.SAV", ui::RED),
+                    4 => ("Saving is off in a warped level", ui::RED),
                     _ => ("No quick-save yet: F5 makes one", ui::RED),
                 };
                 let w = ui::text_width(text) + 14;
@@ -1223,6 +1438,9 @@ pub fn overlay(frame: &mut [u8], cam_px: (i32, i32)) {
                 ui::text_centred(frame, W as i32 / 2, 168, text, ink);
             }
         }
+    }
+    if let Screen::Debug(page) = s.screen {
+        debug_screen(frame, s, page);
     }
     if let Some(f) = s.fade {
         fx::fade(frame, f.ramp.steps());
@@ -1481,6 +1699,7 @@ fn slots_screen(frame: &mut [u8], s: &Shell, kind: SlotKind) {
             let _ = write!(b, "Saved to slot {slot}");
             ui::text_centred(frame, W as i32 / 2, 186, b.as_str(), ui::GREEN);
         }
+        Some((3, _, _)) => ui::text_centred(frame, W as i32 / 2, 186, "Saving is off in a warped level", ui::RED),
         Some((_, _, _)) => ui::text_centred(frame, W as i32 / 2, 186, "Could not write the file", ui::RED),
         None => {}
     }

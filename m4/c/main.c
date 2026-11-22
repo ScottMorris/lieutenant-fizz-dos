@@ -284,6 +284,8 @@ int main(int argc, char **argv) {
     if (!strcmp(argv[i], "endcard")) screen = 9;
     if (!strncmp(argv[i], "cine", 4)) screen = 100 + atoi(argv[i] + 4);
     if (!strcmp(argv[i], "dialogue")) screen = 5;
+    if (!strcmp(argv[i], "debug")) screen = 110;
+    if (!strcmp(argv[i], "debugwarp")) screen = 111;
     if (!strcmp(argv[i], "titles")) screen = 200; /* the opening titles from their first tick; with "noinput" for a check */
     if (!strncmp(argv[i], "loadslot", 8)) screen = 10 + atoi(argv[i] + 8);
     if (!strcmp(argv[i], "preview")) previewshot = 1;

@@ -22,3 +22,5 @@ int detail_mode(void) { return 0; }
 void detail_set(int mode) { (void)mode; }
 int detail_active(void) { return 0; }
 void settings_save(int night) { (void)night; }
+/* The keyboard is not hooked in the hash check, so no key press is ever waiting. */
+int kbd_raw_pop(void) { return -1; }
