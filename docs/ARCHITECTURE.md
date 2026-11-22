@@ -85,7 +85,7 @@ The simulation steps at 60 Hz from a clock kept by the sound handler (the BIOS c
 ## Files
 
 - `AUTO.SAV`, `QUICK.SAV`, `SLOT1.SAV` to `SLOT4.SAV`: 48-byte `FZSV` saves (lives, score, next extra life, Fizz, levels cleared, map position, time played).
-- `FIZZ.CFG`: 12 bytes, `FZC`, a version, then music, effects, the effects' device, frame rate, detail, night, the sound choice and the key scheme plus one (0 when none has been chosen: Modern). It is written after each change on the Options screen and when the start-up screen is left.
+- `FIZZ.CFG`: 12 bytes, `FZC`, a version, then music, effects, the effects' device, frame rate, detail, night, the sound choice and the key scheme plus one (0 when none has been chosen: Modern; 4 is the Mouse scheme, kept even on a machine without a mouse, where it plays as Modern). It is written after each change on the Options screen and when the start-up screen is left.
 - File names are 8.3; a longer name fails on DOS.
 
 ## Measuring

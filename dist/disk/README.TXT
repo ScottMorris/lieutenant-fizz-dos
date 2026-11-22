@@ -38,6 +38,9 @@ KEYS
                      Left hand             Space, Q, E (E no longer
                                            turns effects on or off)
                      Right hand            comma, period, slash
+                     Mouse                 Space, right click, left click
+                                           (only with a mouse driver loaded,
+                                           such as CTMOUSE)
   Enter            confirm: enter a level marker, dismiss a card
   Esc              pause menu, and back in a menu
   Backspace        back to the overworld map

@@ -36,6 +36,8 @@ Key schemes (Options, Keys; Modern until you choose another; only the chosen sch
   WASD             Space jump, K pogo,    J fire
   Left hand        Space jump, Q pogo,    E fire (E no longer turns effects on or off)
   Right hand       , jump,     . pogo,    / fire
+  Mouse            Space jump, right click pogo, left click fire (only with a mouse;
+                   real DOS needs a mouse driver such as CTMOUSE loaded first)
 
 Notes
   - Saves are small files next to FIZZ.EXE: AUTO.SAV (written every time you reach the map), QUICK.SAV (F5) and SLOT1.SAV to SLOT4.SAV (Pause, Save game).
