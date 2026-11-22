@@ -34,13 +34,13 @@ KEYS
   Jump, pogo, fire the three keys of the scheme chosen in Options, Keys:
                      Modern (the default)  Z, X, C or Space
                      Keen-style            Ctrl, Alt, Space
-                     WASD                  Space, K, J
+                     WASD                  Space, K, J (with a mouse
+                                           driver loaded, such as CTMOUSE,
+                                           right click also pogoes and
+                                           left click also fires)
                      Left hand             Space, Q, E (E no longer
                                            turns effects on or off)
                      Right hand            comma, period, slash
-                     Mouse                 Space, right click, left click
-                                           (only with a mouse driver loaded,
-                                           such as CTMOUSE)
   Enter            confirm: enter a level marker, dismiss a card
   Esc              pause menu, and back in a menu
   Backspace        back to the overworld map
