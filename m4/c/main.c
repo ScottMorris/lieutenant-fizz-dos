@@ -11,7 +11,7 @@
    check. "preview" draws the picture check into FRAME.RAW (with "shot") and stops; "previewtext" shows the text check, writes
    its cells to CELLS.RAW and what video memory then holds to VMEM.RAW (4000 bytes each: character, attribute), prints its
    characters and stops.
-   With no ticks (or 0) it is interactive: arrows or WASD move and the chosen key scheme's three keys jump, pogo and fire (Modern, the default: Z, X, C),
+   With no ticks (or 0) it is interactive: arrows or WASD move and the chosen key scheme's three keys jump, pogo and fire (Modern, the default: Z, X, and C or Space),
    PgUp and PgDn change level, R restarts it, Backspace goes back to the map, N toggles night, M music, E effects, Esc pauses
    (and goes back in a menu; Quit to title, then Quit, leaves).
    With ticks it runs a scripted walk for that many ticks and, with "shot", writes FRAME.RAW (64000 bytes) and PAL.RAW

@@ -1678,7 +1678,7 @@ struct Scheme {
 
 const SCHEMES: [Scheme; 6] = [
     Scheme { name: "Keen-style", jump: "Ctrl", pogo: "Alt", fire: "Space" },
-    Scheme { name: "Modern", jump: "Z", pogo: "X", fire: "C" },
+    Scheme { name: "Modern", jump: "Z", pogo: "X", fire: "C or Space" },
     Scheme { name: "WASD", jump: "Space", pogo: "K", fire: "J" },
     Scheme { name: "Mouse", jump: "", pogo: "", fire: "" },
     Scheme { name: "Left hand", jump: "Space", pogo: "Q", fire: "E" },
