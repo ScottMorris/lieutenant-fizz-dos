@@ -13,6 +13,7 @@
 #include <string.h>
 #include "kbd.h"
 #include "keymap.h"
+#include "mouse.h"
 
 static volatile unsigned char keys[128];
 static volatile unsigned char latch[128];
@@ -76,10 +77,13 @@ void kbd_remove(void) {
   installed = 0;
 }
 
+/* The chosen scheme is what keymap_scheme() makes of the number: a number out of range is Modern, and the retired Mouse number (3, from an
+   earlier build) is WASD, so the next save writes 2. */
 void kbd_set_scheme(int s) { scheme = keymap_scheme(s); }
 int kbd_scheme(void) { return scheme; }
+int kbd_effective_scheme(void) { return keymap_scheme(scheme); }
 
-unsigned kbd_held(void) { return keymap_bits(keys, scheme); }
+unsigned kbd_held(void) { return keymap_bits(keys, scheme) | mouse_held(); }
 
 unsigned kbd_tick_bits(void) {
   /* Keys of the game only: a press of Esc, P, R or the page keys is for the main loop, which reads it by itself. */
@@ -95,6 +99,9 @@ unsigned kbd_tick_bits(void) {
   /* Any key at all, from the latch of presses (a held key makes no new press), for the screens that wait for one. */
   i = any_press ? IN_ANY : 0;
   any_press = 0;
+  /* The mouse's buttons ride in the same word, and only in WASD or Mouse jump with a mouse found at start-up: in any other scheme the driver is not read at all. */
+  if ((keymap_scheme(scheme) == KEY_SCHEME_WASD || keymap_scheme(scheme) == KEY_SCHEME_MOUSE_JUMP) && mouse_present()) i |= mouse_tick_bits(scheme);
+  else mouse_idle();
   return keymap_bits(keys, scheme) | keymap_bits(taps, scheme) | i;
 }
 int kbd_down(int sc) { return keys[sc & 0x7F]; }

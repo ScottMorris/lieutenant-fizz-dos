@@ -34,7 +34,14 @@ KEYS
   Jump, pogo, fire the three keys of the scheme chosen in Options, Keys:
                      Modern (the default)  Z, X, C or Space
                      Keen-style            Ctrl, Alt, Space
-                     WASD                  Space, K, J
+                     WASD                  Space, K, J (with a mouse
+                                           driver loaded, such as CTMOUSE,
+                                           right click also pogoes and
+                                           left click also fires)
+                     Mouse jump            J, K, Space (WASD with Jump and
+                                           Fizz swapped; with a mouse,
+                                           left click also jumps and
+                                           right click also pogoes)
                      Left hand             Space, Q, E (E no longer
                                            turns effects on or off)
                      Right hand            comma, period, slash
