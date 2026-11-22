@@ -38,6 +38,10 @@ KEYS
                                            driver loaded, such as CTMOUSE,
                                            right click also pogoes and
                                            left click also fires)
+                     Mouse jump            J, K, Space (WASD with Jump and
+                                           Fizz swapped; with a mouse,
+                                           left click also jumps and
+                                           right click also pogoes)
                      Left hand             Space, Q, E (E no longer
                                            turns effects on or off)
                      Right hand            comma, period, slash

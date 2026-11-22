@@ -36,6 +36,8 @@ Key schemes (Options, Keys; Modern until you choose another; only the chosen sch
   WASD             Space jump, K pogo,    J fire (with a mouse, right click also
                    pogoes and left click also fires; real DOS needs a mouse driver
                    such as CTMOUSE loaded first)
+  Mouse jump       J jump,     K pogo,    Space fire (WASD with Jump and Fizz swapped;
+                   with a mouse, left click also jumps and right click also pogoes)
   Left hand        Space jump, Q pogo,    E fire (E no longer turns effects on or off)
   Right hand       , jump,     . pogo,    / fire
 
