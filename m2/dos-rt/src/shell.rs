@@ -596,6 +596,7 @@ fn perform(s: &mut Shell, then: Next) {
 pub fn advance(held: u32) {
     let s = sh();
     s.tick += 1;
+    crate::video::tick_begins();
     let held = debug_filter(s, held);
     let edges = held & !s.prev_held;
     s.prev_held = held;

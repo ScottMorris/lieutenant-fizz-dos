@@ -89,6 +89,6 @@ That was measured in headless Chromium by tapping the worklet's input; it has no
 
 ## What was run
 
-- `tools/check.sh`: licence headers, the simulation copies, the determinism run against the web build (`PASS: 800 checkpoints`), the DOS build, the key map, the frame checksums and the pause-menu test.
+- `tools/check.sh`: licence headers, the simulation copies, the determinism run against the web build (`PASS: 800 checkpoints`), the DOS build, the key map, the frame checksums, the pause-menu test and the still-picture test (`PAUSEFLICKER=1`).
 - The bench and callgrind figures above, and DOSBox Staging 0.83 at `cycles = fixed 26800` on the scripted runs; a headless screenshot of the cave at night.
 - Not run: real hardware, any listening test, and the browser page outside headless Chromium.

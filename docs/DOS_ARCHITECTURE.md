@@ -124,7 +124,7 @@ show(alpha = ((elapsed * 60) % 560) / 560):
 auto policies (every 32 frames)
 ```
 
-The loop never sleeps; it spins on `clock560()` until a tick is owed or a frame can be drawn. At 60 Hz a frame is drawn on every pass (each locked to a retrace); `alpha` is the fraction of the current 1/60 s that has gone by, so motion between ticks is interpolated by the simulation's own `render`.
+The loop never sleeps; it spins on `clock560()` until a tick is owed or a frame can be drawn. At 60 Hz a frame is drawn on every pass (each locked to a retrace); `alpha` is the fraction of the current 1/60 s that has gone by, so motion between ticks is interpolated by the simulation's own `render`. When a tick leaves the sim alone (a menu, a card, a dialogue, a fade out) `fizz_build` ignores `alpha` and draws the sim's newest state, so a scene held behind a menu stays still instead of gliding along its last step as `alpha` rises and falls.
 
 **Frame rate.** The setting is auto, 60 Hz or 30 Hz (`rate_mode`, `rate_set`, `rate_active`). At 30 Hz a frame is drawn only once two ticks have passed since the last one. In auto, the loop sums the cost of `show()` (in 1/560 s, retrace wait included) over 32 frames and compares the average with 1/60 s:
 

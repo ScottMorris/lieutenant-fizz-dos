@@ -310,6 +310,8 @@ pub fn build(alpha: f32) -> usize {
         return 0;
     }
     let night = if NIGHT.load(Ordering::Relaxed) != 0 { lf_episode_1::render::flags::NIGHT } else { 0 };
+    // A sim that did not step this tick stands at its newest state: no glide.
+    let alpha = if LIVE.load(Ordering::Relaxed) != 0 { alpha } else { 1.0 };
     let n = render(f64::from(alpha), lf_episode_1::render::flags::CULLING | night) as usize;
     mark(1);
     n
@@ -377,9 +379,20 @@ pub fn paint(frame: &mut [u8], count: usize) -> u32 {
 /// Sim steps so far, counted by the shell; a scene is only kept while this stands still (a pause, a menu, a card, a dialogue).
 static STEPS: AtomicU32 = AtomicU32::new(0);
 
+/// Whether the sim stepped in the latest tick of the shell. The main loop's `alpha` climbs between ticks to glide what moves from
+/// its last place to its new one; when a tick leaves the sim alone (a menu, a card, a dialogue, a fade out) nothing is on its way,
+/// and gliding along the last step's motion would shake the scene behind the menu a pixel or two as `alpha` rises and falls.
+static LIVE: AtomicU32 = AtomicU32::new(0);
+
+/// The shell calls this at the start of each tick, before anything steps the sim.
+pub fn tick_begins() {
+    LIVE.store(0, Ordering::Relaxed);
+}
+
 /// The shell calls this after each step of the sim.
 pub fn stepped() {
     STEPS.fetch_add(1, Ordering::Relaxed);
+    LIVE.store(1, Ordering::Relaxed);
 }
 
 /// The most sprites a kept scene can have.
