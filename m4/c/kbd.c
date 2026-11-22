@@ -99,8 +99,8 @@ unsigned kbd_tick_bits(void) {
   /* Any key at all, from the latch of presses (a held key makes no new press), for the screens that wait for one. */
   i = any_press ? IN_ANY : 0;
   any_press = 0;
-  /* The mouse's buttons ride in the same word, and only in WASD with a mouse found at start-up: in any other scheme the driver is not read at all. */
-  if (keymap_scheme(scheme) == KEY_SCHEME_WASD && mouse_present()) i |= mouse_tick_bits();
+  /* The mouse's buttons ride in the same word, and only in WASD or Mouse jump with a mouse found at start-up: in any other scheme the driver is not read at all. */
+  if ((keymap_scheme(scheme) == KEY_SCHEME_WASD || keymap_scheme(scheme) == KEY_SCHEME_MOUSE_JUMP) && mouse_present()) i |= mouse_tick_bits(scheme);
   else mouse_idle();
   return keymap_bits(keys, scheme) | keymap_bits(taps, scheme) | i;
 }

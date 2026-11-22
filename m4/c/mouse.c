@@ -14,9 +14,9 @@ static unsigned last_bits;
 
 int mouse_present(void) { return present; }
 
-unsigned mouse_bits(int status, int left_presses, int right_presses) {
+unsigned mouse_bits(int scheme, int status, int left_presses, int right_presses) {
   unsigned b = 0;
-  if ((status & 1) || left_presses > 0) b |= IN_FIRE;
+  if ((status & 1) || left_presses > 0) b |= keymap_scheme(scheme) == KEY_SCHEME_MOUSE_JUMP ? IN_JUMP : IN_FIRE;
   if ((status & 2) || right_presses > 0) b |= IN_POGO;
   return b;
 }
@@ -44,7 +44,7 @@ int mouse_init(void) {
   return present;
 }
 
-unsigned mouse_tick_bits(void) {
+unsigned mouse_tick_bits(int scheme) {
   int left, right, status;
   if (!present) return 0;
   /* Function 5, button press data for one button (BX 0 left, 1 right): BX is how many presses happened since the last call for that
@@ -57,11 +57,11 @@ unsigned mouse_tick_bits(void) {
     active = 1;
     left = right = 0;
   }
-  last_bits = mouse_bits(status, left, right);
+  last_bits = mouse_bits(scheme, status, left, right);
   return last_bits;
 }
 #else
 /* Native checks have no driver. */
 int mouse_init(void) { present = 0; return 0; }
-unsigned mouse_tick_bits(void) { return 0; }
+unsigned mouse_tick_bits(int scheme) { (void)scheme; return 0; }
 #endif

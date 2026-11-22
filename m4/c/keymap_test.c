@@ -22,6 +22,7 @@ static const struct { int scheme; const char *name; int jump, pogo, fire, fire2;
   {0, "Keen-style", SC_CTRL, SC_ALT, SC_SPACE, 0},
   {1, "Modern", SC_Z, SC_X, SC_C, SC_SPACE},
   {2, "WASD", SC_SPACE, SC_K, SC_J, 0},
+  {6, "Mouse jump", SC_J, SC_K, SC_SPACE, 0},
   {4, "Left hand", SC_SPACE, SC_Q, SC_E, 0},
   {5, "Right hand", SC_COMMA, SC_PERIOD, SC_SLASH, 0},
 };
@@ -127,44 +128,67 @@ int main(void) {
   expect("scheme 3: Modern's keys do nothing", keymap_bits(k, 3), 0);
   clear(); k[SC_SPACE] = k[SC_K] = k[SC_J] = 1;
   expect("scheme 3 gives the same bits as 2", keymap_bits(k, 3), keymap_bits(k, 2));
-  /* Stepping forwards visits 0, 1, 2, 4, 5 and wraps; backwards visits 5, 4, 2, 1, 0 and wraps. Number 3 never appears. */
+  /* Mouse jump is WASD with Jump and Fizz swapped. */
+  clear(); k[SC_J] = 1;
+  expect("Mouse jump: J jumps", keymap_bits(k, 6), IN_JUMP);
+  expect("WASD: J fires", keymap_bits(k, 2), IN_FIRE);
+  clear(); k[SC_SPACE] = 1;
+  expect("Mouse jump: Space fires", keymap_bits(k, 6), IN_FIRE);
+  expect("WASD: Space jumps", keymap_bits(k, 2), IN_JUMP);
+  clear(); k[SC_K] = 1;
+  expect("Mouse jump: K pogoes", keymap_bits(k, 6), IN_POGO);
+  expect("WASD: K pogoes too", keymap_bits(k, 2), IN_POGO);
+  expect("keymap_scheme(6) is 6", (unsigned)keymap_scheme(6), 6);
+  expect("keymap_scheme(7) reads as Modern", (unsigned)keymap_scheme(7), 1);
+  /* Stepping forwards visits 0, 1, 2, 6, 4, 5 and wraps; backwards visits 5, 4, 6, 2, 1, 0 and wraps. Number 3 never appears. */
   {
-    static const int order[] = {0, 1, 2, 4, 5};
+    static const int order[] = {0, 1, 2, 6, 4, 5};
     int at = 0;
     for (i = 0; i < 12; i++) {
       at = keymap_step(at, 1);
-      expect("forwards: the order Options steps through", (unsigned)at, (unsigned)order[(i + 1) % 5]);
+      expect("forwards: the order Options steps through", (unsigned)at, (unsigned)order[(i + 1) % 6]);
       expect("forwards: never the retired number", (unsigned)(at != KEY_SCHEME_RETIRED), 1);
     }
     at = 0;
     for (i = 0; i < 12; i++) {
       at = keymap_step(at, -1);
-      expect("backwards: the reverse order", (unsigned)at, (unsigned)order[((-(i + 1)) % 5 + 5) % 5]);
+      expect("backwards: the reverse order", (unsigned)at, (unsigned)order[((-(i + 1)) % 6 + 6) % 6]);
       expect("backwards: never the retired number", (unsigned)(at != KEY_SCHEME_RETIRED), 1);
     }
     expect("forwards from 5 wraps to 0", (unsigned)keymap_step(5, 1), 0);
     expect("backwards from 0 wraps to 5", (unsigned)keymap_step(0, -1), 5);
     expect("backwards from 5 is 4", (unsigned)keymap_step(5, -1), 4);
     expect("backwards from 2 is 1", (unsigned)keymap_step(2, -1), 1);
-    expect("forwards from 2 is 4", (unsigned)keymap_step(2, 1), 4);
-    expect("forwards from a saved 3 is 4 (from WASD)", (unsigned)keymap_step(3, 1), 4);
+    expect("forwards from 2 is 6", (unsigned)keymap_step(2, 1), 6);
+    expect("forwards from 6 is 4", (unsigned)keymap_step(6, 1), 4);
+    expect("backwards from 4 is 6", (unsigned)keymap_step(4, -1), 6);
+    expect("backwards from 6 is 2", (unsigned)keymap_step(6, -1), 2);
+    expect("forwards from a saved 3 is 6 (from WASD)", (unsigned)keymap_step(3, 1), 6);
     expect("backwards from a saved 3 is 1 (from WASD)", (unsigned)keymap_step(3, -1), 1);
     expect("an out-of-range number steps from Modern", (unsigned)keymap_step(9, 1), 2);
   }
-  /* The buttons as bits: left is Fizz, right is the pogo, held or only clicked. */
-  expect("no buttons", mouse_bits(0, 0, 0), 0);
-  expect("left held", mouse_bits(1, 0, 0), IN_FIRE);
-  expect("right held", mouse_bits(2, 0, 0), IN_POGO);
-  expect("both held", mouse_bits(3, 0, 0), IN_FIRE | IN_POGO);
-  expect("left clicked within a tick", mouse_bits(0, 1, 0), IN_FIRE);
-  expect("right clicked within a tick", mouse_bits(0, 0, 1), IN_POGO);
-  expect("several clicks give one bit", mouse_bits(0, 3, 2), IN_FIRE | IN_POGO);
-  expect("left held and right clicked", mouse_bits(1, 0, 1), IN_FIRE | IN_POGO);
-  expect("a middle button (bit 2) does nothing", mouse_bits(4, 0, 0), 0);
+  /* The buttons as bits: the right button is the pogo in both schemes; the left is Fizz in WASD and Jump in Mouse jump, held or only clicked. */
+  expect("no buttons", mouse_bits(2, 0, 0, 0), 0);
+  expect("WASD: left held", mouse_bits(2, 1, 0, 0), IN_FIRE);
+  expect("WASD: right held", mouse_bits(2, 2, 0, 0), IN_POGO);
+  expect("WASD: both held", mouse_bits(2, 3, 0, 0), IN_FIRE | IN_POGO);
+  expect("WASD: left clicked within a tick", mouse_bits(2, 0, 1, 0), IN_FIRE);
+  expect("WASD: right clicked within a tick", mouse_bits(2, 0, 0, 1), IN_POGO);
+  expect("WASD: several clicks give one bit", mouse_bits(2, 0, 3, 2), IN_FIRE | IN_POGO);
+  expect("WASD: left held and right clicked", mouse_bits(2, 1, 0, 1), IN_FIRE | IN_POGO);
+  expect("WASD: a middle button (bit 2) does nothing", mouse_bits(2, 4, 0, 0), 0);
+  expect("Mouse jump: no buttons", mouse_bits(6, 0, 0, 0), 0);
+  expect("Mouse jump: left held", mouse_bits(6, 1, 0, 0), IN_JUMP);
+  expect("Mouse jump: right held", mouse_bits(6, 2, 0, 0), IN_POGO);
+  expect("Mouse jump: both held", mouse_bits(6, 3, 0, 0), IN_JUMP | IN_POGO);
+  expect("Mouse jump: left clicked within a tick", mouse_bits(6, 0, 1, 0), IN_JUMP);
+  expect("Mouse jump: right clicked within a tick", mouse_bits(6, 0, 0, 1), IN_POGO);
+  expect("Mouse jump: several clicks give one bit", mouse_bits(6, 0, 3, 2), IN_JUMP | IN_POGO);
+  expect("Mouse jump: a middle button does nothing", mouse_bits(6, 4, 0, 0), 0);
   /* Without a driver (here) nothing is read, and the module says no mouse until it has found one. */
   expect("native: no mouse found", (unsigned)mouse_init(), 0);
   expect("native: mouse_present is 0", (unsigned)mouse_present(), 0);
-  expect("native: no bits without a mouse", mouse_tick_bits(), 0);
+  expect("native: no bits without a mouse", mouse_tick_bits(6), 0);
   if (!failed) printf("keymap ok\n");
   return failed;
 }

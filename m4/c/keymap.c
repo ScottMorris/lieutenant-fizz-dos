@@ -13,11 +13,12 @@ static const unsigned char action_keys[KEY_SCHEME_COUNT][4] = {
   {SC_SPACE, SC_K, SC_J, 0},         /* 2 WASD: the mouse's right button also pogoes and its left also fires */
   {SC_SPACE, SC_K, SC_J, 0},         /* 3 retired (was Mouse): never reached, as keymap_scheme() turns it into 2 */
   {SC_SPACE, SC_Q, SC_E, 0},         /* 4 Left hand */
-  {SC_COMMA, SC_PERIOD, SC_SLASH, 0} /* 5 Right hand */
+  {SC_COMMA, SC_PERIOD, SC_SLASH, 0}, /* 5 Right hand */
+  {SC_J, SC_K, SC_SPACE, 0}           /* 6 Mouse jump: WASD with Jump and Fizz swapped; the mouse's left button also jumps, its right also pogoes */
 };
 
 /* The schemes Options offers, in order. */
-static const signed char offered[] = {0, 1, 2, 4, 5};
+static const signed char offered[] = {0, 1, 2, 6, 4, 5};
 #define OFFERED_COUNT ((int)(sizeof offered / sizeof offered[0]))
 
 int keymap_scheme(int scheme) {

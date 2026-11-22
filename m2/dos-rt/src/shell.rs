@@ -52,9 +52,9 @@ extern "C" {
     fn detail_mode() -> i32;
     fn detail_set(mode: i32);
     fn detail_active() -> i32;
-    /// The key scheme (C): its number in use (0 Keen-style, 1 Modern, 2 WASD, 4 Left hand, 5 Right hand; 3 was a Mouse scheme and is retired, so a saved
+    /// The key scheme (C): its number in use (0 Keen-style, 1 Modern, 2 WASD, 4 Left hand, 5 Right hand, 6 Mouse jump; 3 was a Mouse scheme and is retired, so a saved
     /// or given 3 reads as WASD), a change of the choice, and the scheme after (`dir` above 0) or before (below 0) a given one in the order Options steps
-    /// through (0, 1, 2, 4, 5, round).
+    /// through (0, 1, 2, 6, 4, 5, round).
     fn scheme_mode() -> i32;
     fn scheme_set(scheme: i32);
     fn keymap_step(scheme: i32, dir: i32) -> i32;
@@ -1681,27 +1681,29 @@ fn pause_screen(frame: &mut [u8], s: &Shell) {
 /// A key scheme as the player sees it: its name in Options and the keys for jump, pogo and Fizz. The order and numbers are those of
 /// `keymap.c` and of the web game's schemes, and FIZZ.CFG keeps the number. Number 3 (once Mouse) is retired and has a row only to keep the
 /// numbers in place: the C side never answers with it, and Options never offers it. `pogo_mouse` and `fire_mouse` are what the Controls screen
-/// shows instead when the scheme also takes the mouse's buttons and a mouse is present (WASD).
+/// shows instead when the scheme also takes the mouse's buttons and a mouse is present (WASD and Mouse jump).
 struct Scheme {
     name: &'static str,
     jump: &'static str,
     pogo: &'static str,
     fire: &'static str,
+    jump_mouse: &'static str,
     pogo_mouse: &'static str,
     fire_mouse: &'static str,
 }
 
 const fn keys(name: &'static str, jump: &'static str, pogo: &'static str, fire: &'static str) -> Scheme {
-    Scheme { name, jump, pogo, fire, pogo_mouse: pogo, fire_mouse: fire }
+    Scheme { name, jump, pogo, fire, jump_mouse: jump, pogo_mouse: pogo, fire_mouse: fire }
 }
 
-const SCHEMES: [Scheme; 6] = [
+const SCHEMES: [Scheme; 7] = [
     keys("Keen-style", "Ctrl", "Alt", "Space"),
     keys("Modern", "Z", "X", "C or Space"),
-    Scheme { name: "WASD", jump: "Space", pogo: "K", fire: "J", pogo_mouse: "K or Right click", fire_mouse: "J or Left click" },
+    Scheme { name: "WASD", jump: "Space", pogo: "K", fire: "J", jump_mouse: "Space", pogo_mouse: "K or Right click", fire_mouse: "J or Left click" },
     keys("WASD", "Space", "K", "J"), // 3, retired
     keys("Left hand", "Space", "Q", "E"),
     keys("Right hand", ",", ".", "/"),
+    Scheme { name: "Mouse jump", jump: "J", pogo: "K", fire: "Space", jump_mouse: "J or Left click", pogo_mouse: "K or Right click", fire_mouse: "Space" },
 ];
 
 /// The scheme in use. The C side answers with the one it plays by (a saved 3 is already WASD), so this only guards a number out of range.
@@ -1742,7 +1744,7 @@ fn controls_screen(frame: &mut [u8]) {
     let rows: [(&str, &str); 8] = [
         CONTROLS[0],
         CONTROLS[1],
-        ("Jump", sch.jump),
+        ("Jump", if mouse { sch.jump_mouse } else { sch.jump }),
         ("Pogo (toggle)", if mouse { sch.pogo_mouse } else { sch.pogo }),
         ("Fizz", if mouse { sch.fire_mouse } else { sch.fire }),
         CONTROLS[2],
@@ -2115,9 +2117,26 @@ mod tests {
     fn mouse_key_names_fit_the_controls_screen() {
         // A row is the action on the left and its keys on the right of the line; the two must not touch.
         let w = W as i32 - 40;
-        let wasd = &SCHEMES[2];
-        for (action, keys) in [("Pogo (toggle)", wasd.pogo_mouse), ("Fizz", wasd.fire_mouse)] {
+        let (wasd, jump) = (&SCHEMES[2], &SCHEMES[6]);
+        for (action, keys) in [
+            ("Jump", wasd.jump_mouse),
+            ("Pogo (toggle)", wasd.pogo_mouse),
+            ("Fizz", wasd.fire_mouse),
+            ("Jump", jump.jump_mouse),
+            ("Pogo (toggle)", jump.pogo_mouse),
+            ("Fizz", jump.fire_mouse),
+        ] {
             assert!(ui::text_width(action) + 12 + ui::text_width(keys) <= w, "{action}: {keys}");
+        }
+    }
+
+    #[test]
+    fn every_scheme_name_fits_the_keys_row() {
+        // The Options plate: the label on the left and the value on the right of the plate must not touch.
+        // The Options plate is 220 wide with an 18 pixel margin for the cursor, and the label gets what the value leaves (plate_rows).
+        let pw = 220 - 18;
+        for s in SCHEMES.iter() {
+            assert!(ui::text_width("Keys") + 14 + ui::text_width(s.name) <= pw, "{}", s.name);
         }
     }
 }

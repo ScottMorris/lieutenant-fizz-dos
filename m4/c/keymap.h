@@ -28,20 +28,22 @@ enum {
 };
 /* The key schemes. The number is what FIZZ.CFG keeps and what the web game's Options keep, so a scheme means the same in both:
    0 Keen-style (Ctrl, Alt, Space), 1 Modern (Z, X, and C or Space), 2 WASD (Space, K, J; with a mouse, the right button also pogoes and the left
-   also fires), 4 Left hand (Space, Q, E), 5 Right hand (comma, period, slash), as jump, pogo and fire. Number 3 was a Mouse scheme and is retired:
+   also fires), 4 Left hand (Space, Q, E), 5 Right hand (comma, period, slash), as jump, pogo and fire, and 6 Mouse jump (J, K, Space: WASD with Jump and Fizz swapped; with a mouse,
+   the left button also jumps and the right also pogoes). Number 3 was a Mouse scheme and is retired:
    it is never offered, and a saved or given 3 plays as WASD. */
-#define KEY_SCHEME_COUNT 6
+#define KEY_SCHEME_COUNT 7 /* the table is indexed by scheme number, 0 to 6 */
 #define KEY_SCHEME_DEFAULT 1
 #define KEY_SCHEME_WASD 2
 #define KEY_SCHEME_RETIRED 3
-/* The scheme to play by for a saved or given number: itself for 0 to 5, WASD for the retired 3, and Modern for a number out of range. */
+#define KEY_SCHEME_MOUSE_JUMP 6
+/* The scheme to play by for a saved or given number: itself for 0 to 6, WASD for the retired 3, and Modern for a number out of range. */
 int keymap_scheme(int scheme);
-/* The scheme after this one (dir above 0, or 0) or before it (dir below 0) in the order Options steps through: 0, 1, 2, 4, 5 and round
+/* The scheme after this one (dir above 0, or 0) or before it (dir below 0) in the order Options steps through: 0, 1, 2, 6, 4, 5 and round
    again, never 3. A retired 3 steps from WASD's place. */
 int keymap_step(int scheme, int dir);
 /* Whether the scancode is one of the scheme's jump, pogo or fire keys (Modern has two fire keys). */
 int keymap_is_action(int scheme, int scancode);
 /* The held bits for a table of 128 key states (non-zero is down): the arrows or WASD move in every scheme; the scheme's own keys jump,
-   pogo and fire, and no other scheme's do (the mouse's buttons are not here: mouse_bits() gives those for WASD). Enter, Esc, F5 and F9 are the same in every scheme. */
+   pogo and fire, and no other scheme's do (the mouse's buttons are not here: mouse_bits() gives those for WASD and Mouse jump). Enter, Esc, F5 and F9 are the same in every scheme. */
 unsigned keymap_bits(const volatile unsigned char *keys, int scheme);
 #endif
