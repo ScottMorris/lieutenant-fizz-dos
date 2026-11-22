@@ -1,6 +1,6 @@
 diff -ruN a/Cargo.toml b/Cargo.toml
---- a/Cargo.toml	2026-10-05 20:55:14.000000000 -0400
-+++ b/Cargo.toml	2026-10-15 23:36:46.000000000 -0400
+--- a/Cargo.toml	2026-11-22 11:42:48.000000000 -0500
++++ b/Cargo.toml	2026-11-22 11:42:53.000000000 -0500
 @@ -1,16 +1,13 @@
  [package]
 +edition = "2021"
@@ -23,8 +23,8 @@ diff -ruN a/Cargo.toml b/Cargo.toml
 -lf-sim = { path = "../../../crates/sim" }
 +lf-sim = { path = "../sim" }
 diff -ruN a/src/ents.rs b/src/ents.rs
---- a/src/ents.rs	2026-10-07 15:53:19.000000000 -0400
-+++ b/src/ents.rs	2026-10-15 20:39:37.000000000 -0400
+--- a/src/ents.rs	2026-11-22 11:42:48.000000000 -0500
++++ b/src/ents.rs	2026-11-22 11:42:53.000000000 -0500
 @@ -3,6 +3,10 @@
  // (c) Copyright 2026 Liminal HQ, Scott Morris
  // SPDX-License-Identifier: Apache-2.0 OR MIT
@@ -37,8 +37,8 @@ diff -ruN a/src/ents.rs b/src/ents.rs
  
  #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 diff -ruN a/src/levels.rs b/src/levels.rs
---- a/src/levels.rs	2026-10-14 03:11:15.000000000 -0400
-+++ b/src/levels.rs	2026-10-15 20:39:37.000000000 -0400
+--- a/src/levels.rs	2026-11-22 11:42:48.000000000 -0500
++++ b/src/levels.rs	2026-11-22 11:42:53.000000000 -0500
 @@ -5,6 +5,10 @@
  
  //! Level and overworld builders: a port of the prototype's `levels.js`.
@@ -50,7 +50,7 @@ diff -ruN a/src/levels.rs b/src/levels.rs
  use crate::ents::{Item, ItemKind, Kind, Spawn};
  use crate::render::Theme;
  use crate::sprites::Spr;
-@@ -2839,7 +2843,7 @@
+@@ -2895,7 +2899,7 @@
                  "sign {i} is in Crater Fields"
              );
              for (j, o) in m.points.iter().enumerate() {
@@ -60,8 +60,8 @@ diff -ruN a/src/levels.rs b/src/levels.rs
                  }
                  let d = (s.x - o.x).hypot(s.y - o.y);
 diff -ruN a/src/lib.rs b/src/lib.rs
---- a/src/lib.rs	2026-10-14 03:11:15.000000000 -0400
-+++ b/src/lib.rs	2026-10-15 20:39:42.000000000 -0400
+--- a/src/lib.rs	2026-11-22 11:42:48.000000000 -0500
++++ b/src/lib.rs	2026-11-22 11:42:53.000000000 -0500
 @@ -10,6 +10,17 @@
  //! - an `out` array of per-frame render facts (camera, light count, clear colour, ...),
  //! - light uniform arrays, an event queue, and a small indexed state array for the HUD/saves.
@@ -99,8 +99,8 @@ diff -ruN a/src/lib.rs b/src/lib.rs
  
  #[no_mangle]
 diff -ruN a/src/render.rs b/src/render.rs
---- a/src/render.rs	2026-10-14 03:11:15.000000000 -0400
-+++ b/src/render.rs	2026-10-15 20:39:37.000000000 -0400
+--- a/src/render.rs	2026-11-22 11:42:48.000000000 -0500
++++ b/src/render.rs	2026-11-22 11:42:53.000000000 -0500
 @@ -6,6 +6,10 @@
  //! Scene drawing: walks the visible region of the world and writes sprite instances into the
  //! shared buffer (painter's order), plus the per-frame light selection.
@@ -122,8 +122,8 @@ diff -ruN a/src/render.rs b/src/render.rs
                  1.0
              };
 diff -ruN a/src/sprites.rs b/src/sprites.rs
---- a/src/sprites.rs	2026-10-14 03:11:15.000000000 -0400
-+++ b/src/sprites.rs	2026-10-15 20:39:37.000000000 -0400
+--- a/src/sprites.rs	2026-11-22 11:42:48.000000000 -0500
++++ b/src/sprites.rs	2026-11-22 11:42:53.000000000 -0500
 @@ -6,6 +6,10 @@
  //! Sprite ids drawn by the sim. The names must exist in the TypeScript sprite set; the shell
  //! reads this table at boot and fails loudly if one is missing.
@@ -136,8 +136,8 @@ diff -ruN a/src/sprites.rs b/src/sprites.rs
      ($($id:ident = $name:expr),* $(,)?) => {
          /// Sprite id (index into the sprite rect table the shell fills at boot).
 diff -ruN a/src/text.rs b/src/text.rs
---- a/src/text.rs	2026-10-07 15:53:19.000000000 -0400
-+++ b/src/text.rs	2026-10-15 20:39:37.000000000 -0400
+--- a/src/text.rs	2026-11-22 11:42:48.000000000 -0500
++++ b/src/text.rs	2026-11-22 11:42:53.000000000 -0500
 @@ -6,6 +6,10 @@
  //! Sound-cue captions and toasts the sim can emit. Captions double as sound-effect triggers
  //! (a caption with colour 0 is silent on screen but still triggers its sound).
@@ -150,8 +150,8 @@ diff -ruN a/src/text.rs b/src/text.rs
      ($($id:ident = ($text:expr, $col:expr)),* $(,)?) => {
          #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 diff -ruN a/src/tiles.rs b/src/tiles.rs
---- a/src/tiles.rs	2026-10-07 15:53:19.000000000 -0400
-+++ b/src/tiles.rs	2026-10-15 20:39:37.000000000 -0400
+--- a/src/tiles.rs	2026-11-22 11:42:48.000000000 -0500
++++ b/src/tiles.rs	2026-11-22 11:42:53.000000000 -0500
 @@ -3,6 +3,10 @@
  // (c) Copyright 2026 Liminal HQ, Scott Morris
  // SPDX-License-Identifier: Apache-2.0 OR MIT
@@ -164,8 +164,8 @@ diff -ruN a/src/tiles.rs b/src/tiles.rs
      TileProps, CLIMB, CONVEY_L, CONVEY_R, LADDER as LADDER_FLAG, ONEWAY, SLOPE_L22A, SLOPE_L22B,
      SLOPE_L45, SLOPE_R22A, SLOPE_R22B, SLOPE_R45, SOLID, SWITCHED,
 diff -ruN a/src/world.rs b/src/world.rs
---- a/src/world.rs	2026-10-14 03:11:15.000000000 -0400
-+++ b/src/world.rs	2026-10-15 20:39:37.000000000 -0400
+--- a/src/world.rs	2026-11-22 11:42:48.000000000 -0500
++++ b/src/world.rs	2026-11-22 11:42:53.000000000 -0500
 @@ -7,6 +7,10 @@
  //! A port of the prototype's `engine.js` simulation half, with f64 state and a deterministic
  //! fixed 60 Hz step.
